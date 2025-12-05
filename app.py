@@ -16,7 +16,8 @@ if 'participants' not in st.session_state:
     st.session_state.participants = []
 
 with st.sidebar.form("add_participant"):
-    p_name = st.text_input("Participant Name", "Participant 1")
+    next_num = len(st.session_state.participants) + 1
+    p_name = st.text_input("Participant Name", f"Participant {next_num}")
     p_type = st.selectbox("Building Type", ["Data Center", "Office", "Flat"])
     p_load = st.number_input("Annual Consumption (MWh)", min_value=100, value=10000, step=100)
     submitted = st.form_submit_button("Add Participant")
