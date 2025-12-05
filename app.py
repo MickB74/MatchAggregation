@@ -19,7 +19,7 @@ with st.sidebar.form("add_participant"):
     next_num = len(st.session_state.participants) + 1
     p_name = st.text_input("Participant Name", f"Participant {next_num}")
     p_type = st.selectbox("Building Type", ["Data Center", "Office", "Flat"])
-    p_load = st.number_input("Annual Consumption (MWh)", min_value=100, value=10000, step=100)
+    p_load = st.number_input("Annual Consumption (MWh)", min_value=1000, value=50000, step=50000)
     submitted = st.form_submit_button("Add Participant")
     
     if submitted:
@@ -125,11 +125,23 @@ else:
     col4.metric("Battery Discharge", f"{batt_discharge.sum():,.0f} MWh")
     
     # Charts
-    st.subheader("Hourly Energy Balance (Sample Week)")
+    # Charts
+    st.subheader("Hourly Energy Balance")
     
-    # Slice for a sample week (e.g., first week of June ~ hour 3600)
-    start_hour = 3600
-    end_hour = 3600 + 168
+    # Use columns to make the slider more compact
+    col_slider, col_space = st.columns([1, 3])
+    with col_slider:
+        zoom_level = st.select_slider("Zoom Level", options=["Sample Week", "Full Year"])
+    
+    if zoom_level == "Sample Week":
+        # Slice for a sample week (e.g., first week of June ~ hour 3600)
+        start_hour = 3600
+        end_hour = 3600 + 168
+        title_suffix = "(Summer Week)"
+    else:
+        start_hour = 0
+        end_hour = 8760
+        title_suffix = "(Full Year)"
     
     fig = go.Figure()
     fig.add_trace(go.Scatter(x=list(range(start_hour, end_hour)), y=total_load_profile[start_hour:end_hour],
@@ -141,10 +153,11 @@ else:
     fig.add_trace(go.Scatter(x=list(range(start_hour, end_hour)), y=batt_discharge[start_hour:end_hour],
                              mode='lines', name='Battery Discharge', line=dict(color='blue', width=1)))
     
-    fig.update_layout(title="Load vs. Matched Generation (Summer Week)", xaxis_title="Hour of Year", yaxis_title="Power (MW)")
+    fig.update_layout(title=f"Load vs. Matched Generation {title_suffix}", xaxis_title="Hour of Year", yaxis_title="Power (MW)")
     st.plotly_chart(fig, use_container_width=True)
     
     st.subheader("Monthly Analysis")
+    
     # Group by month
     # Create a simple dataframe for grouping
     df_hourly = pd.DataFrame({
@@ -153,8 +166,8 @@ else:
         'Battery': batt_discharge,
         'Matched': matched_profile
     })
-    df_hourly['Month'] = pd.date_range(start='2024-01-01', periods=8760, freq='h').month
     
+    df_hourly['Month'] = pd.date_range(start='2024-01-01', periods=8760, freq='h').month
     monthly_stats = df_hourly.groupby('Month').sum()
     
     fig_bar = go.Figure()
