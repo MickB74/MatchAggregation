@@ -51,12 +51,25 @@ if st.sidebar.button("✨ Recommend Portfolio"):
         
     if temp_load.sum() > 0:
         rec = recommend_portfolio(temp_load)
+        
+        # Update session state KEYS for widgets to trigger UI update
+        st.session_state.solar_input = rec['Solar']
+        st.session_state.wind_input = rec['Wind']
+        st.session_state.geo_input = rec['Geothermal']
+        st.session_state.nuc_input = rec['Nuclear']
+        st.session_state.batt_input = rec['Battery_MW']
+        st.session_state.batt_duration_input = rec['Battery_Hours']
+        
+        # Also update the backing values (though widgets drive the next run)
         st.session_state.solar_cap = rec['Solar']
         st.session_state.wind_cap = rec['Wind']
         st.session_state.geo_cap = rec['Geothermal']
         st.session_state.nuc_cap = rec['Nuclear']
         st.session_state.batt_cap = rec['Battery_MW']
+        
         st.success("Portfolio Recommended!")
+        # Rerun to update widgets immediately
+        st.rerun()
     else:
         st.warning("Add participants first!")
 
@@ -72,7 +85,7 @@ wind_capacity = st.sidebar.number_input("Wind Capacity (MW)", min_value=0.0, val
 geo_capacity = st.sidebar.number_input("Geothermal Capacity (MW)", min_value=0.0, value=st.session_state.geo_cap, step=1.0, key='geo_input')
 nuc_capacity = st.sidebar.number_input("Nuclear Capacity (MW)", min_value=0.0, value=st.session_state.nuc_cap, step=1.0, key='nuc_input')
 batt_capacity = st.sidebar.number_input("Battery Power (MW)", min_value=0.0, value=st.session_state.batt_cap, step=1.0, key='batt_input')
-batt_duration = st.sidebar.number_input("Battery Duration (Hours)", min_value=1, value=4, step=1)
+batt_duration = st.sidebar.number_input("Battery Duration (Hours)", min_value=0.5, value=4.0, step=0.5, key='batt_duration_input')
 
 # Update session state from inputs (in case user manually changes them after recommendation)
 st.session_state.solar_cap = solar_capacity
