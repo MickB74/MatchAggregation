@@ -128,6 +128,43 @@ def calculate_cfe_score(load_profile, generation_profile):
     cfe_score = matched_energy.sum() / total_load
     return cfe_score, matched_energy
 
+def calculate_portfolio_metrics(load_profile, matched_profile, total_gen_capacity):
+    """
+    Calculates detailed portfolio performance metrics.
+    
+    Args:
+        load_profile (pd.Series): Hourly load.
+        matched_profile (pd.Series): Hourly matched energy.
+        total_gen_capacity (float): Total installed generation capacity (MW).
+        
+    Returns:
+        dict: Dictionary of metrics.
+    """
+    total_load = load_profile.sum()
+    total_matched = matched_profile.sum()
+    
+    # CFE Score
+    cfe_score = total_matched / total_load if total_load > 0 else 0.0
+    
+    # MW Match Productivity (MWh matched per MW capacity)
+    productivity = total_matched / total_gen_capacity if total_gen_capacity > 0 else 0.0
+    
+    # Loss of Green Hours (LoGH)
+    # Count hours where we didn't meet full load (with small tolerance for float errors)
+    unmatched_mask = load_profile > (matched_profile + 0.001)
+    green_hours_lost = unmatched_mask.sum()
+    logh = green_hours_lost / 8760
+    
+    # Grid Consumption (Energy Deficit)
+    grid_consumption = total_load - total_matched
+    
+    return {
+        'cfe_score': cfe_score,
+        'productivity': productivity,
+        'logh': logh,
+        'grid_consumption': grid_consumption
+    }
+
 def simulate_battery_storage(surplus_profile, deficit_profile, capacity_mw, duration_hours):
     """
     Simulates a simple battery storage system.

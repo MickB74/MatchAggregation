@@ -1,7 +1,7 @@
 import streamlit as st
 import pandas as pd
 import plotly.graph_objects as go
-from utils import generate_dummy_load_profile, generate_dummy_generation_profile, calculate_cfe_score, simulate_battery_storage, recommend_portfolio
+from utils import generate_dummy_load_profile, generate_dummy_generation_profile, calculate_cfe_score, simulate_battery_storage, recommend_portfolio, calculate_portfolio_metrics
 
 st.set_page_config(page_title="ERCOT North Aggregation", layout="wide")
 
@@ -128,14 +128,25 @@ else:
     total_gen_with_battery = total_gen_profile + batt_discharge
     cfe_score, matched_profile = calculate_cfe_score(total_load_profile, total_gen_with_battery)
     
+    # Calculate detailed metrics
+    total_gen_capacity = solar_capacity + wind_capacity + geo_capacity + nuc_capacity
+    metrics = calculate_portfolio_metrics(total_load_profile, matched_profile, total_gen_capacity)
+    
     # --- Dashboard ---
     
-    # Metrics
+    # Metrics - Row 1
     col1, col2, col3, col4 = st.columns(4)
     col1.metric("Total Annual Load", f"{total_annual_load:,.0f} MWh")
     col2.metric("Total Generation", f"{total_gen_profile.sum():,.0f} MWh")
-    col3.metric("CFE Score (24/7)", f"{cfe_score:.1%}")
+    col3.metric("CFE Score (24/7)", f"{metrics['cfe_score']:.1%}")
     col4.metric("Battery Discharge", f"{batt_discharge.sum():,.0f} MWh")
+    
+    # Metrics - Row 2
+    col5, col6, col7, col8 = st.columns(4)
+    col5.metric("MW Match Productivity", f"{metrics['productivity']:,.0f} MWh/MW", help="MWh of Clean Energy Matched per MW of Installed Capacity")
+    col6.metric("Loss of Green Hours", f"{metrics['logh']:.1%}", help="% of hours where load is not fully matched by clean energy")
+    col7.metric("Grid Consumption", f"{metrics['grid_consumption']:,.0f} MWh", help="Total energy drawn from grid (deficit)")
+    col8.metric("Curtailment / Overgen", f"{surplus.sum():,.0f} MWh", help="Gross overgeneration before battery charging")
     
     # Charts
     # Charts
