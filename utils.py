@@ -185,18 +185,18 @@ def simulate_battery_storage(surplus_profile, deficit_profile, capacity_mw, dura
 
 def recommend_portfolio(load_profile, target_cfe=0.95):
     """
-    Simple heuristic to recommend a technology mix.
+    Heuristic to recommend a technology mix targeting a specific CFE score (default 95%).
     
     Strategy:
-    1. Calculate baseload (min load). Cover X% of this with Geothermal/Nuclear.
-    2. Calculate remaining energy needs. Cover with Solar/Wind mix.
-    3. Add Battery for smoothing.
+    1. Start with a baseline heuristic.
+    2. Iteratively scale up variable renewables and battery storage until target CFE is met.
     """
     avg_load = load_profile.mean()
     min_load = load_profile.min()
     peak_load = load_profile.max()
     total_load = load_profile.sum()
     
+    # Initial Recommendation (Baseline)
     recommendation = {
         'Solar': 0,
         'Wind': 0,
@@ -206,36 +206,63 @@ def recommend_portfolio(load_profile, target_cfe=0.95):
         'Battery_Hours': 4
     }
     
-    # 1. Baseload Coverage
+    # 1. Baseload Coverage (Firm Clean Energy)
     # Suggest covering 80% of min load with firm clean energy
     firm_target = min_load * 0.8
-    # Split firm between Geothermal and Nuclear (e.g., 50/50 preference or just one)
     recommendation['Geothermal'] = firm_target * 0.5
     recommendation['Nuclear'] = firm_target * 0.5
     
-    # 2. Variable Renewable Coverage
-    # Remaining energy to cover
+    # 2. Variable Renewable Coverage (Initial Guess)
     firm_gen_annual = (recommendation['Geothermal'] + recommendation['Nuclear']) * 8760
     remaining_load = total_load - firm_gen_annual
     
     if remaining_load > 0:
-        # Oversize variable renewables slightly to account for intermittency
-        # Target 1.5x the remaining load energy
-        target_variable_gen = remaining_load * 1.5
+        target_variable_gen = remaining_load * 1.2 # Start with 1.2x coverage
+        recommendation['Solar'] = (target_variable_gen * 0.5) / (8760 * 0.25)
+        recommendation['Wind'] = (target_variable_gen * 0.5) / (8760 * 0.40)
         
-        # Assume 25% capacity factor for Solar, 40% for Wind
-        # Split target gen 50/50 between Solar and Wind energy
-        target_solar_gen = target_variable_gen * 0.5
-        target_wind_gen = target_variable_gen * 0.5
-        
-        recommendation['Solar'] = target_solar_gen / (8760 * 0.25)
-        recommendation['Wind'] = target_wind_gen / (8760 * 0.40)
-        
-    # 3. Battery Storage
-    # Suggest battery power equal to 20% of peak load
+    # 3. Battery Storage (Initial Guess)
     recommendation['Battery_MW'] = peak_load * 0.2
     
-    # Round values
+    # Iterative Optimization Loop
+    max_iterations = 20
+    current_cfe = 0.0
+    
+    for i in range(max_iterations):
+        # Generate Profiles based on current recommendation
+        solar_gen = generate_dummy_generation_profile(recommendation['Solar'], 'Solar')
+        wind_gen = generate_dummy_generation_profile(recommendation['Wind'], 'Wind')
+        geo_gen = generate_dummy_generation_profile(recommendation['Geothermal'], 'Geothermal')
+        nuc_gen = generate_dummy_generation_profile(recommendation['Nuclear'], 'Nuclear')
+        
+        total_gen = solar_gen + wind_gen + geo_gen + nuc_gen
+        
+        # Calculate Surplus/Deficit for Battery
+        surplus = (total_gen - load_profile).clip(lower=0)
+        deficit = (load_profile - total_gen).clip(lower=0)
+        
+        # Simulate Battery
+        batt_discharge, _ = simulate_battery_storage(surplus, deficit, recommendation['Battery_MW'], recommendation['Battery_Hours'])
+        
+        # Calculate CFE
+        total_available = total_gen + batt_discharge
+        cfe_score, _ = calculate_cfe_score(load_profile, total_available)
+        current_cfe = cfe_score
+        
+        if current_cfe >= target_cfe:
+            break
+            
+        # Scale up if target not met
+        # Increase Solar/Wind by 10%
+        recommendation['Solar'] *= 1.1
+        recommendation['Wind'] *= 1.1
+        
+        # Increase Battery Power by 5% and Duration slightly (up to 8h)
+        recommendation['Battery_MW'] *= 1.05
+        if recommendation['Battery_Hours'] < 8:
+            recommendation['Battery_Hours'] += 0.5
+            
+    # Round values for clean output
     for k, v in recommendation.items():
         recommendation[k] = round(v, 1)
         
