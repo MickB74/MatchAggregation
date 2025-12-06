@@ -360,11 +360,7 @@ def calculate_financials(matched_profile, deficit_profile, strike_price, market_
     total_load = total_matched_mwh + total_deficit_mwh
     avg_cost_per_mwh = total_net_cost / total_load if total_load > 0 else 0.0
     
-    return {
-        'settlement_value': settlement_value,
-        'grid_cost': grid_cost,
-        'total_net_cost': total_net_cost,
-        'avg_cost_per_mwh': avg_cost_per_mwh
+
     return {
         'settlement_value': settlement_value,
         'grid_cost': grid_cost,
