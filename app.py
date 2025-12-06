@@ -169,13 +169,13 @@ else:
     
     fig = go.Figure()
     fig.add_trace(go.Scatter(x=list(range(start_hour, end_hour)), y=total_load_profile[start_hour:end_hour],
-                             mode='lines', name='Aggregated Load', line=dict(color='black', width=2)))
+                             mode='lines', name='Aggregated Load', line=dict(color='red', width=2)))
     fig.add_trace(go.Scatter(x=list(range(start_hour, end_hour)), y=matched_profile[start_hour:end_hour],
-                             mode='lines', name='Matched Energy', fill='tozeroy', line=dict(color='green', width=0)))
+                             mode='lines', name='Matched Energy', fill='tozeroy', line=dict(color='#006400', width=0)))
     fig.add_trace(go.Scatter(x=list(range(start_hour, end_hour)), y=total_gen_profile[start_hour:end_hour],
-                             mode='lines', name='Renewable Gen', line=dict(color='orange', width=1, dash='dot')))
+                             mode='lines', name='Renewable Gen', line=dict(color='#2ca02c', width=1, dash='dot')))
     fig.add_trace(go.Scatter(x=list(range(start_hour, end_hour)), y=batt_discharge[start_hour:end_hour],
-                             mode='lines', name='Battery Discharge', line=dict(color='blue', width=1)))
+                             mode='lines', name='Battery Discharge', line=dict(color='#1f77b4', width=1)))
     
     fig.update_layout(title=f"Load vs. Matched Generation {title_suffix}", xaxis_title="Hour of Year", yaxis_title="Power (MW)")
     st.plotly_chart(fig, use_container_width=True)
@@ -195,10 +195,10 @@ else:
     monthly_stats = df_hourly.groupby('Month').sum()
     
     fig_bar = go.Figure()
-    fig_bar.add_trace(go.Bar(x=monthly_stats.index, y=monthly_stats['Load'], name='Load', marker_color='black'))
-    fig_bar.add_trace(go.Bar(x=monthly_stats.index, y=monthly_stats['Matched'], name='Matched Energy', marker_color='green'))
-    fig_bar.add_trace(go.Bar(x=monthly_stats.index, y=monthly_stats['Generation'], name='Renewable Gen', marker_color='orange', opacity=0.5))
-    fig_bar.add_trace(go.Bar(x=monthly_stats.index, y=monthly_stats['Battery'], name='Battery Discharge', marker_color='blue'))
+    fig_bar.add_trace(go.Bar(x=monthly_stats.index, y=monthly_stats['Load'], name='Load', marker_color='red'))
+    fig_bar.add_trace(go.Bar(x=monthly_stats.index, y=monthly_stats['Matched'], name='Matched Energy', marker_color='#006400')) # Dark Green
+    fig_bar.add_trace(go.Bar(x=monthly_stats.index, y=monthly_stats['Generation'], name='Renewable Gen', marker_color='#2ca02c', opacity=0.6)) # Standard Green
+    fig_bar.add_trace(go.Bar(x=monthly_stats.index, y=monthly_stats['Battery'], name='Battery Discharge', marker_color='#1f77b4')) # Standard blue
     
     fig_bar.update_layout(title="Monthly Energy Totals", xaxis_title="Month", yaxis_title="Energy (MWh)", barmode='overlay')
     st.plotly_chart(fig_bar, use_container_width=True)
