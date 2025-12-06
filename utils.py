@@ -365,5 +365,62 @@ def calculate_financials(matched_profile, deficit_profile, strike_price, market_
         'grid_cost': grid_cost,
         'total_net_cost': total_net_cost,
         'avg_cost_per_mwh': avg_cost_per_mwh
+    return {
+        'settlement_value': settlement_value,
+        'grid_cost': grid_cost,
+        'total_net_cost': total_net_cost,
+        'avg_cost_per_mwh': avg_cost_per_mwh
     }
+
+def process_uploaded_load(uploaded_file):
+    """
+    Parses an uploaded CSV file for load profile data.
+    Expects a column named 'Load' or the first numeric column.
+    Expected length: 8760. Resamples or truncates if needed (simple version).
+    
+    Args:
+        uploaded_file: Streamlit UploadedFile object.
+        
+    Returns:
+        pd.Series: Hourly load profile (MW).
+    """
+    try:
+        df = pd.read_csv(uploaded_file)
+        
+        # identifying the load column
+        # 1. Look for 'Load' or 'MW' or 'MWh' (case insensitive)
+        col_match = [c for c in df.columns if 'load' in c.lower() or 'mw' in c.lower()]
+        
+        if col_match:
+            target_col = col_match[0]
+        else:
+            # 2. Fallback: First numeric column
+            numeric_cols = df.select_dtypes(include=[np.number]).columns
+            if len(numeric_cols) > 0:
+                target_col = numeric_cols[0]
+            else:
+                return None # No valid data found
+                
+        series = df[target_col]
+        
+        # Validation / Cleaning
+        # Ensure 8760 length
+        if len(series) > 8760:
+            series = series.iloc[:8760] # Truncate
+        elif len(series) < 8760:
+            # Pad with last value? Or zeros? Let's pad with mean to be safe but warn? 
+            # Simple: Pad with 0
+            pad_len = 8760 - len(series)
+            series = pd.concat([series, pd.Series([0]*pad_len)], ignore_index=True)
+            
+        # Handle NaN
+        series = series.fillna(0)
+        
+        series.name = 'Uploaded Load (MW)'
+        return series
+        
+    except Exception as e:
+        print(f"Error parsing file: {e}")
+        return None
+
 

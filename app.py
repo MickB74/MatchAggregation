@@ -1,40 +1,47 @@
 import streamlit as st
 import pandas as pd
 import plotly.graph_objects as go
-from utils import generate_dummy_load_profile, generate_dummy_generation_profile, calculate_cfe_score, simulate_battery_storage, recommend_portfolio, calculate_portfolio_metrics, calculate_financials
+from utils import generate_dummy_load_profile, generate_dummy_generation_profile, calculate_cfe_score, simulate_battery_storage, recommend_portfolio, calculate_portfolio_metrics, calculate_financials, process_uploaded_load
 
 st.set_page_config(page_title="ERCOT North Aggregation", layout="wide")
 
 st.title("ERCOT North Renewable Energy Aggregation")
 st.markdown("Aggregate load participants and optimize for 24/7 clean energy matching.")
 
-# --- Sidebar: Configuration ---
-st.sidebar.header("1. Load Participants")
-
 # Session state to store participants
 if 'participants' not in st.session_state:
     st.session_state.participants = []
 
-with st.sidebar.form("add_participant"):
-    next_num = len(st.session_state.participants) + 1
-    p_name = st.text_input("Participant Name", f"Participant {next_num}")
-    p_type = st.selectbox("Building Type", ["Data Center", "Office", "Flat"])
-    p_load = st.number_input("Annual Consumption (MWh)", min_value=1000, value=50000, step=50000)
-    submitted = st.form_submit_button("Add Participant")
+# --- Upload Section ---
+st.sidebar.subheader("Upload Load Profile")
+uploaded_load_file = st.sidebar.file_uploader("Upload CSV (Hourly load in MW)", type=['csv'])
+
+# Only show participant builder if no file is uploaded
+if not uploaded_load_file:
+    st.sidebar.markdown("---")
+    st.sidebar.header("1. Load Participants")
     
-    if submitted:
-        st.session_state.participants.append({
-            "name": p_name,
-            "type": p_type,
-            "load": p_load
-        })
-        st.success(f"Added {p_name}")
+    with st.sidebar.form("add_participant"):
+        next_num = len(st.session_state.participants) + 1
+        p_name = st.text_input("Participant Name", f"Participant {next_num}")
+        p_type = st.selectbox("Building Type", ["Data Center", "Office", "Flat"])
+        p_load = st.number_input("Annual Consumption (MWh)", min_value=1000, value=50000, step=50000)
+        submitted = st.form_submit_button("Add Participant")
+        
+        if submitted:
+            st.session_state.participants.append({
+                "name": p_name,
+                "type": p_type,
+                "load": p_load
+            })
+            st.success(f"Added {p_name}")
 
 # Display current participants
 if st.session_state.participants:
     st.sidebar.subheader("Current Participants")
     p_df = pd.DataFrame(st.session_state.participants)
-    st.sidebar.dataframe(p_df, hide_index=True)
+    if not uploaded_load_file:
+         st.sidebar.dataframe(p_df, hide_index=True)
     
     if st.sidebar.button("Clear Participants"):
         st.session_state.participants = []
@@ -102,15 +109,22 @@ grid_price = st.sidebar.number_input("Grid Import Cost ($/MWh)", min_value=0.0, 
 # --- Main Content ---
 
 # 1. Calculate Aggregated Load
-if not st.session_state.participants:
-    st.info("Please add load participants in the sidebar to begin.")
+if not st.session_state.participants and not uploaded_load_file:
+    st.info("Please add load participants in the sidebar OR upload a CSV to begin.")
 else:
     # Aggregate Load
-    total_load_profile = pd.Series(0.0, index=range(8760))
-    
-    for p in st.session_state.participants:
-        profile = generate_dummy_load_profile(p['load'], p['type'])
-        total_load_profile += profile
+    if uploaded_load_file:
+        # Process Upload
+        total_load_profile = process_uploaded_load(uploaded_load_file)
+        if total_load_profile is None:
+             st.error("Could not parse uploaded file. Ensure column 'Load' or numeric data exists.")
+             st.stop()
+    else:
+        # Logic for participants
+        total_load_profile = pd.Series(0.0, index=range(8760))
+        for p in st.session_state.participants:
+            profile = generate_dummy_load_profile(p['load'], p['type'])
+            total_load_profile += profile
         
     total_annual_load = total_load_profile.sum()
     
@@ -216,5 +230,73 @@ else:
     fig_bar.add_trace(go.Bar(x=monthly_stats.index, y=monthly_stats['Battery'], name='Battery Discharge', marker_color='#1f77b4')) # Standard blue
     
     fig_bar.update_layout(title="Monthly Energy Totals", xaxis_title="Month", yaxis_title="Energy (MWh)", barmode='overlay')
+    fig_bar.update_layout(title="Monthly Energy Totals", xaxis_title="Month", yaxis_title="Energy (MWh)", barmode='overlay')
     st.plotly_chart(fig_bar, use_container_width=True)
+
+    # --- Heatmap Analysis ---
+    st.subheader("Heatmap Analysis")
+    # Prepare matrix (Hour of Day x Day of Year)
+    # 8760 hours -> 365 days x 24 hours
+    
+    days = 365
+    hours_per_day = 24
+    
+    # CFE Heatmap Logic
+    # 1 if Matched >= Load (Green), 0 if Deficit (Red) ?
+    # Let's show "Deficit Magnitude" or just "Matched %"
+    # Actually, binary "Green/Red" is often most useful for 24/7.
+    # Let's do: Matched Energy / Load (capped at 1.0)
+    
+    # Reshape array
+    # Data must be 24 rows (hours) x 365 cols (days) for typical heatmap
+    # Slice first 8760
+    
+    # Safety Check for array handling
+    clean_load = total_load_profile.values[:8760]
+    clean_matched = matched_profile.values[:8760]
+    
+    # Calculate % met
+    # Avoid div by zero
+    percent_met = np.divide(clean_matched, clean_load, out=np.zeros_like(clean_matched), where=clean_load!=0)
+    
+    z_data = percent_met.reshape((365, 24)).T # Transpose to get 24 rows, 365 cols
+    
+    fig_heat = go.Figure(data=go.Heatmap(
+        z=z_data,
+        x=list(range(1, 366)),
+        y=list(range(24)),
+        colorscale='RdYlGn', # Red to Green
+        zmin=0, zmax=1,
+        colorbar=dict(title="Matched %")
+    ))
+    
+    fig_heat.update_layout(
+        title="24/7 Matching Heatmap (Hour vs Day)",
+        xaxis_title="Day of Year",
+        yaxis_title="Hour of Day",
+        height=400
+    )
+    st.plotly_chart(fig_heat, use_container_width=True)
+
+    # --- Data Export ---
+    st.subheader("Export Results")
+    
+    results_df = pd.DataFrame({
+        'Load_MW': total_load_profile,
+        'Matched_MW': matched_profile,
+        'Solar_MW': solar_profile,
+        'Wind_MW': wind_profile,
+        'Battery_Discharge_MW': batt_discharge,
+        'Grid_Deficit_MW': deficit,
+        'Surplus_MW': surplus
+    })
+    
+    csv = results_df.to_csv(index=False).encode('utf-8')
+    
+    st.download_button(
+        label="Download Hourly Results (CSV)",
+        data=csv,
+        file_name='simulation_results_8760.csv',
+        mime='text/csv',
+    )
 
