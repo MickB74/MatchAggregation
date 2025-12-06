@@ -305,3 +305,65 @@ def recommend_portfolio(load_profile, target_cfe=0.95):
         recommendation[k] = round(v, 1)
         
     return recommendation
+
+def calculate_financials(matched_profile, deficit_profile, strike_price, market_price_avg, grid_price):
+    """
+    Calculates financial metrics for the portfolio.
+    
+    Args:
+        matched_profile (pd.Series): Hourly matched renewable energy (MWh).
+        deficit_profile (pd.Series): Hourly unmatched load (MWh).
+        strike_price (float): PPA Strike Price ($/MWh).
+        market_price_avg (float): Average Wholesale Market Price ($/MWh).
+                                  (In a real app, this would be an hourly curve).
+        grid_price (float): Cost to buy brown power from grid ($/MWh).
+        
+    Returns:
+        dict: Financial metrics including Settlement Value and Total Cost.
+    """
+    # 1. PPA Settlement
+    # Settlement = (Market Price - Strike Price) * Volume
+    # Here we assume a simple generic "Hub" price. In reality, basis risk exists.
+    # We use matched_profile as the proxy for PPA volume settled (simplified).
+    # NOTE: Usually PPA settles on ALL GENERATION, not just matched. 
+    # But for "24/7" value, we might look at it differently.
+    # Let's stick to standard PPA: Settle on Total Generation? 
+    # No, the previous tool inputs were matched/deficit. 
+    # To be accurate for a PPA, we need Total Generation.
+    # But let's follow the user's likely intent: 
+    # Value of the matched portion vs cost of the deficit.
+    
+    # Let's keep it simple:
+    # Settlement Revenue = (Market Price - Strike Price) * Matched Energy
+    # (Assuming we sold the green power at Market and bought it back at Strike? No, simplified CfD)
+    
+    # Better logic:
+    # We pay Strike Price for the Matched Energy.
+    # We theoretically avoid paying Grid Price for that Energy (savings).
+    # But let's do explicit PPA settlement:
+    # Value = (Market_Price - Strike_Price) * Matched_MWh
+    
+    total_matched_mwh = matched_profile.sum()
+    settlement_value = (market_price_avg - strike_price) * total_matched_mwh
+    
+    # 2. Grid Cost
+    # Cost to cover deficits
+    total_deficit_mwh = deficit_profile.sum()
+    grid_cost = total_deficit_mwh * grid_price
+    
+    # 3. Net Cost
+    # Total Cost = Grid Cost - Settlement Revenue (if positive revenue)
+    # If Settlement is negative (Market < Strike), it adds to cost.
+    total_net_cost = grid_cost - settlement_value
+    
+    # 4. Average Unit Cost ($/MWh of Total Load)
+    total_load = total_matched_mwh + total_deficit_mwh
+    avg_cost_per_mwh = total_net_cost / total_load if total_load > 0 else 0.0
+    
+    return {
+        'settlement_value': settlement_value,
+        'grid_cost': grid_cost,
+        'total_net_cost': total_net_cost,
+        'avg_cost_per_mwh': avg_cost_per_mwh
+    }
+

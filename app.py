@@ -1,7 +1,7 @@
 import streamlit as st
 import pandas as pd
 import plotly.graph_objects as go
-from utils import generate_dummy_load_profile, generate_dummy_generation_profile, calculate_cfe_score, simulate_battery_storage, recommend_portfolio, calculate_portfolio_metrics
+from utils import generate_dummy_load_profile, generate_dummy_generation_profile, calculate_cfe_score, simulate_battery_storage, recommend_portfolio, calculate_portfolio_metrics, calculate_financials
 
 st.set_page_config(page_title="ERCOT North Aggregation", layout="wide")
 
@@ -94,6 +94,11 @@ st.session_state.geo_cap = geo_capacity
 st.session_state.nuc_cap = nuc_capacity
 st.session_state.batt_cap = batt_capacity
 
+st.sidebar.header("3. Financial Assumptions")
+strike_price = st.sidebar.number_input("PPA Strike Price ($/MWh)", min_value=0.0, value=30.0, step=1.0)
+market_price = st.sidebar.number_input("Avg Market Price ($/MWh)", min_value=0.0, value=35.0, step=1.0)
+grid_price = st.sidebar.number_input("Grid Import Cost ($/MWh)", min_value=0.0, value=60.0, step=1.0)
+
 # --- Main Content ---
 
 # 1. Calculate Aggregated Load
@@ -132,6 +137,9 @@ else:
     total_gen_capacity = solar_capacity + wind_capacity + geo_capacity + nuc_capacity
     metrics = calculate_portfolio_metrics(total_load_profile, matched_profile, total_gen_capacity)
     
+    # Financials
+    fin_metrics = calculate_financials(matched_profile, deficit, strike_price, market_price, grid_price)
+    
     # --- Dashboard ---
     
     # Metrics - Row 1
@@ -147,6 +155,13 @@ else:
     col6.metric("Loss of Green Hours", f"{metrics['logh']:.1%}", help="% of hours where load is not fully matched by clean energy")
     col7.metric("Grid Consumption", f"{metrics['grid_consumption']:,.0f} MWh", help="Total energy drawn from grid (deficit)")
     col8.metric("Curtailment / Overgen", f"{surplus.sum():,.0f} MWh", help="Gross overgeneration before battery charging")
+    
+    # Metrics - Row 3 (Financials)
+    st.subheader("Financial Overview")
+    col9, col10, col11 = st.columns(3)
+    col9.metric("PPA Settlement Value", f"${fin_metrics['settlement_value']:,.0f}", help="Revenue (or Cost) from PPA Settlement: (Market - Strike) * Matched Vol")
+    col10.metric("Grid Import Cost", f"${fin_metrics['grid_cost']:,.0f}", help="Cost to buy remaining power from grid")
+    col11.metric("Net Energy Cost", f"${fin_metrics['avg_cost_per_mwh']:.2f} / MWh", help="Total Net Cost / Total Load")
     
     # Charts
     # Charts
