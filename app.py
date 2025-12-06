@@ -1,7 +1,16 @@
 import streamlit as st
 import pandas as pd
 import plotly.graph_objects as go
-from utils import generate_dummy_load_profile, generate_dummy_generation_profile, calculate_cfe_score, simulate_battery_storage, recommend_portfolio, calculate_portfolio_metrics, calculate_financials, process_uploaded_load
+from utils import (
+    generate_dummy_load_profile, 
+    generate_dummy_generation_profile, 
+    calculate_cfe_score, 
+    simulate_battery_storage, 
+    recommend_portfolio, 
+    calculate_portfolio_metrics, 
+    calculate_financials, 
+    process_uploaded_load
+)
 
 st.set_page_config(page_title="ERCOT North Aggregation", layout="wide")
 
