@@ -65,15 +65,23 @@ if dark_mode:
     # Custom CSS for Dark Mode
     st.markdown("""
         <style>
-        .stApp {
+        [data-testid="stAppViewContainer"] {
             background-color: #0E1117;
             color: #FAFAFA;
         }
-        .stSidebar {
+        [data-testid="stSidebar"] {
             background-color: #262730;
         }
-        /* Update user inputs to match dark theme better */
-        .stTextInput, .stNumberInput, .stSelectbox {
+        [data-testid="stHeader"] {
+            background-color: rgba(0,0,0,0);
+        }
+        /* Force text color for common elements to ensure readability */
+        h1, h2, h3, p, div, span, label {
+            color: #FAFAFA !important;
+        }
+        /* Specific overrides for inputs to be visible */
+        .stTextInput input, .stNumberInput input, .stSelectbox div[role="combobox"] {
+            background-color: #262730; 
             color: #FAFAFA;
         }
         </style>
