@@ -62,6 +62,13 @@ def generate_dummy_generation_profile(capacity_mw, resource_type='Solar'):
     """
     hours = 8760
     
+    # If capacity is 0, we still want a shape (normalized 0-1) so we can scale it later if needed?
+    # Or just return 0? The app logic will effectively be: Profile * Capacity.
+    # So let's generate a UNIT profile (capacity=1.0) and then let the app multiply.
+    # BUT existing code calls this with actual capacity. 
+    # Let's keep existing behavior: if capacity_mw is passed, result is scaled.
+    # If we want a unit profile, we pass 1.0.
+    
     if resource_type == 'Solar':
         # Simple solar curve: peak at noon, zero at night
         profile = np.zeros(hours)
@@ -306,7 +313,7 @@ def recommend_portfolio(load_profile, target_cfe=0.95):
         
     return recommendation
 
-def calculate_financials(matched_profile, deficit_profile, strike_price, market_price_avg, grid_price):
+def calculate_financials(matched_profile, deficit_profile, strike_price, market_price_avg, rec_price):
     """
     Calculates financial metrics for the portfolio.
     
@@ -315,51 +322,41 @@ def calculate_financials(matched_profile, deficit_profile, strike_price, market_
         deficit_profile (pd.Series): Hourly unmatched load (MWh).
         strike_price (float): PPA Strike Price ($/MWh).
         market_price_avg (float): Average Wholesale Market Price ($/MWh).
-                                  (In a real app, this would be an hourly curve).
-        grid_price (float): Cost to buy brown power from grid ($/MWh).
+        rec_price (float): Price of RECs ($/REC or $/MWh of clean energy).
         
     Returns:
-        dict: Financial metrics including Settlement Value and Total Cost.
+        dict: Financial metrics including Settlement Value, REC Cost, Net Cost.
     """
     # 1. PPA Settlement
-    # Settlement = (Market Price - Strike Price) * Volume
-    # Here we assume a simple generic "Hub" price. In reality, basis risk exists.
-    # We use matched_profile as the proxy for PPA volume settled (simplified).
-    # NOTE: Usually PPA settles on ALL GENERATION, not just matched. 
-    # But for "24/7" value, we might look at it differently.
-    # Let's stick to standard PPA: Settle on Total Generation? 
-    # No, the previous tool inputs were matched/deficit. 
-    # To be accurate for a PPA, we need Total Generation.
-    # But let's follow the user's likely intent: 
-    # Value of the matched portion vs cost of the deficit.
-    
-    # Let's keep it simple:
-    # Settlement Revenue = (Market Price - Strike Price) * Matched Energy
-    # (Assuming we sold the green power at Market and bought it back at Strike? No, simplified CfD)
-    
-    # Better logic:
-    # We pay Strike Price for the Matched Energy.
-    # We theoretically avoid paying Grid Price for that Energy (savings).
-    # But let's do explicit PPA settlement:
-    # Value = (Market_Price - Strike_Price) * Matched_MWh
-    
+    # Settlement Value = (Market - Strike) * Matched
+    # Represents value gained (or lost) relative to market by having the PPA.
     total_matched_mwh = matched_profile.sum()
     settlement_value = (market_price_avg - strike_price) * total_matched_mwh
     
-    # 2. Grid Cost
-    # Cost to cover deficits
+    # 2. REC Cost
+    # Assuming we pay 'rec_price' for every MWh of matched/procured clean energy
+    rec_cost = total_matched_mwh * rec_price
+    
+    # 3. Net Energy Cost
+    # Total Load Cost Estimate = Market Cost of Load - Settlement Benefit + REC Cost
+    # Net Cost = (Load * Market) - [ (Market - Strike) * Matched ] + (Matched * REC)
+    # This simplifies to:
+    # Net Cost = (Unmatched * Market) + (Matched * Strike) + (Matched * REC)
+    # i.e., We pay Market for deficit, Strike for matched, plus REC for matched.
+    
     total_deficit_mwh = deficit_profile.sum()
-    grid_cost = total_deficit_mwh * grid_price
-    
-    # 3. Net Cost
-    # Total Cost = Grid Cost - Settlement Revenue (if positive revenue)
-    # If Settlement is negative (Market < Strike), it adds to cost.
-    total_net_cost = grid_cost - settlement_value
-    
-    # 4. Average Unit Cost ($/MWh of Total Load)
     total_load = total_matched_mwh + total_deficit_mwh
-    avg_cost_per_mwh = total_net_cost / total_load if total_load > 0 else 0.0
     
+    net_cost = (total_deficit_mwh * market_price_avg) + (total_matched_mwh * strike_price) + rec_cost
+    
+    avg_cost_per_mwh = net_cost / total_load if total_load > 0 else 0.0
+    
+    return {
+        'settlement_value': settlement_value,
+        'rec_cost': rec_cost,
+        'net_cost': net_cost,
+        'avg_cost_per_mwh': avg_cost_per_mwh
+    }
 
     return {
         'settlement_value': settlement_value,
@@ -368,24 +365,26 @@ def calculate_financials(matched_profile, deficit_profile, strike_price, market_
         'avg_cost_per_mwh': avg_cost_per_mwh
     }
 
-def process_uploaded_load(uploaded_file):
+def process_uploaded_profile(uploaded_file, keywords=None):
     """
-    Parses an uploaded CSV file for load profile data.
-    Expects a column named 'Load' or the first numeric column.
-    Expected length: 8760. Resamples or truncates if needed (simple version).
+    Parses an uploaded CSV file for profile data (Load, Solar, Wind).
     
     Args:
         uploaded_file: Streamlit UploadedFile object.
+        keywords (list): List of strings to match in column names (e.g. ['load', 'mw']).
         
     Returns:
-        pd.Series: Hourly load profile (MW).
+        pd.Series: Hourly profile.
     """
+    if keywords is None:
+        keywords = ['load', 'mw', 'mwh']
+        
     try:
         df = pd.read_csv(uploaded_file)
         
-        # identifying the load column
-        # 1. Look for 'Load' or 'MW' or 'MWh' (case insensitive)
-        col_match = [c for c in df.columns if 'load' in c.lower() or 'mw' in c.lower()]
+        # identifying the column
+        # 1. Look for keywords (case insensitive)
+        col_match = [c for c in df.columns if any(k in c.lower() for k in keywords)]
         
         if col_match:
             target_col = col_match[0]
@@ -404,15 +403,14 @@ def process_uploaded_load(uploaded_file):
         if len(series) > 8760:
             series = series.iloc[:8760] # Truncate
         elif len(series) < 8760:
-            # Pad with last value? Or zeros? Let's pad with mean to be safe but warn? 
-            # Simple: Pad with 0
+            # Pad with zeros
             pad_len = 8760 - len(series)
             series = pd.concat([series, pd.Series([0]*pad_len)], ignore_index=True)
             
         # Handle NaN
         series = series.fillna(0)
         
-        series.name = 'Uploaded Load (MW)'
+        series.name = 'Uploaded Profile'
         return series
         
     except Exception as e:

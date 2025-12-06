@@ -9,7 +9,7 @@ from utils import (
     recommend_portfolio, 
     calculate_portfolio_metrics, 
     calculate_financials, 
-    process_uploaded_load
+    process_uploaded_profile
 )
 
 st.set_page_config(page_title="ERCOT North Aggregation", layout="wide")
@@ -21,9 +21,8 @@ st.markdown("Aggregate load participants and optimize for 24/7 clean energy matc
 if 'participants' not in st.session_state:
     st.session_state.participants = []
 
-# --- Upload Section ---
-st.sidebar.subheader("Upload Load Profile")
-uploaded_load_file = st.sidebar.file_uploader("Upload CSV (Hourly load in MW)", type=['csv'])
+# Check session state for uploaded file (widget moved to bottom)
+uploaded_load_file = st.session_state.get('uploaded_load_file')
 
 # Only show participant builder if no file is uploaded
 if not uploaded_load_file:
@@ -55,6 +54,33 @@ if st.session_state.participants:
     if st.sidebar.button("Clear Participants"):
         st.session_state.participants = []
         st.rerun()
+
+
+# Dark Mode Toggle
+st.sidebar.markdown("---")
+dark_mode = st.sidebar.toggle("Dark Mode", value=False)
+
+if dark_mode:
+    # Custom CSS for Dark Mode
+    st.markdown("""
+        <style>
+        .stApp {
+            background-color: #0E1117;
+            color: #FAFAFA;
+        }
+        .stSidebar {
+            background-color: #262730;
+        }
+        /* Update user inputs to match dark theme better */
+        .stTextInput, .stNumberInput, .stSelectbox {
+            color: #FAFAFA;
+        }
+        </style>
+        """, unsafe_allow_html=True)
+    chart_template = 'plotly_dark'
+else:
+    chart_template = 'plotly'
+
 
 st.sidebar.header("2. Renewable Projects")
 
@@ -110,10 +136,22 @@ st.session_state.geo_cap = geo_capacity
 st.session_state.nuc_cap = nuc_capacity
 st.session_state.batt_cap = batt_capacity
 
+
+# --- Generation Profiles ---
+with st.sidebar.expander("Custom Generation Profiles"):
+    st.markdown("Upload **Unit Profiles** (MW output per 1 MW capacity). The app will scale these by the capacity sliders above.")
+    uploaded_solar_file = st.file_uploader("Upload Solar Profile (CSV)", type=['csv'])
+    uploaded_wind_file = st.file_uploader("Upload Wind Profile (CSV)", type=['csv'])
+
 st.sidebar.header("3. Financial Assumptions")
 strike_price = st.sidebar.number_input("PPA Strike Price ($/MWh)", min_value=0.0, value=30.0, step=1.0)
 market_price = st.sidebar.number_input("Avg Market Price ($/MWh)", min_value=0.0, value=35.0, step=1.0)
-grid_price = st.sidebar.number_input("Grid Import Cost ($/MWh)", min_value=0.0, value=60.0, step=1.0)
+rec_price = st.sidebar.number_input("REC Price ($/MWh)", min_value=0.0, value=8.0, step=0.5)
+
+# --- Upload Section ---
+st.sidebar.markdown("---")
+st.sidebar.subheader("Upload Load Profile")
+st.sidebar.file_uploader("Upload CSV (Hourly load in MW)", type=['csv'], key='uploaded_load_file')
 
 # --- Main Content ---
 
@@ -124,7 +162,7 @@ else:
     # Aggregate Load
     if uploaded_load_file:
         # Process Upload
-        total_load_profile = process_uploaded_load(uploaded_load_file)
+        total_load_profile = process_uploaded_profile(uploaded_load_file, keywords=['load', 'mw', 'mwh', 'demand'])
         if total_load_profile is None:
              st.error("Could not parse uploaded file. Ensure column 'Load' or numeric data exists.")
              st.stop()
@@ -138,8 +176,31 @@ else:
     total_annual_load = total_load_profile.sum()
     
     # 2. Calculate Generation
-    solar_profile = generate_dummy_generation_profile(solar_capacity, 'Solar')
-    wind_profile = generate_dummy_generation_profile(wind_capacity, 'Wind')
+    
+    # Solar
+    if uploaded_solar_file:
+        solar_unit_profile = process_uploaded_profile(uploaded_solar_file, keywords=['solar', 'pv', 'generation', 'output'])
+        if solar_unit_profile is not None:
+             # Scale by capacity input
+             solar_profile = solar_unit_profile * solar_capacity
+        else:
+             st.error("Error parsing Solar file.")
+             st.stop()
+    else:
+        solar_profile = generate_dummy_generation_profile(solar_capacity, 'Solar')
+
+    # Wind
+    if uploaded_wind_file:
+        wind_unit_profile = process_uploaded_profile(uploaded_wind_file, keywords=['wind', 'turbine', 'generation', 'output'])
+        if wind_unit_profile is not None:
+             wind_profile = wind_unit_profile * wind_capacity
+        else:
+             st.error("Error parsing Wind file.")
+             st.stop()
+    else:
+        wind_profile = generate_dummy_generation_profile(wind_capacity, 'Wind')
+
+    # Geothermal / Nuclear (still dummy for now, rare to resize profile shape)
     geo_profile = generate_dummy_generation_profile(geo_capacity, 'Geothermal')
     nuc_profile = generate_dummy_generation_profile(nuc_capacity, 'Nuclear')
     
@@ -161,7 +222,7 @@ else:
     metrics = calculate_portfolio_metrics(total_load_profile, matched_profile, total_gen_capacity)
     
     # Financials
-    fin_metrics = calculate_financials(matched_profile, deficit, strike_price, market_price, grid_price)
+    fin_metrics = calculate_financials(matched_profile, deficit, strike_price, market_price, rec_price)
     
     # --- Dashboard ---
     
@@ -183,10 +244,9 @@ else:
     st.subheader("Financial Overview")
     col9, col10, col11 = st.columns(3)
     col9.metric("PPA Settlement Value", f"${fin_metrics['settlement_value']:,.0f}", help="Revenue (or Cost) from PPA Settlement: (Market - Strike) * Matched Vol")
-    col10.metric("Grid Import Cost", f"${fin_metrics['grid_cost']:,.0f}", help="Cost to buy remaining power from grid")
+    col10.metric("REC Cost", f"${fin_metrics['rec_cost']:,.0f}", help="Cost of RECs for matched energy")
     col11.metric("Net Energy Cost", f"${fin_metrics['avg_cost_per_mwh']:.2f} / MWh", help="Total Net Cost / Total Load")
     
-    # Charts
     # Charts
     st.subheader("Hourly Energy Balance")
     
@@ -215,7 +275,7 @@ else:
     fig.add_trace(go.Scatter(x=list(range(start_hour, end_hour)), y=batt_discharge[start_hour:end_hour],
                              mode='lines', name='Battery Discharge', line=dict(color='#1f77b4', width=1)))
     
-    fig.update_layout(title=f"Load vs. Matched Generation {title_suffix}", xaxis_title="Hour of Year", yaxis_title="Power (MW)")
+    fig.update_layout(title=f"Load vs. Matched Generation {title_suffix}", xaxis_title="Hour of Year", yaxis_title="Power (MW)", template=chart_template)
     st.plotly_chart(fig, use_container_width=True)
     
     st.subheader("Monthly Analysis")
@@ -238,8 +298,7 @@ else:
     fig_bar.add_trace(go.Bar(x=monthly_stats.index, y=monthly_stats['Generation'], name='Renewable Gen', marker_color='#2ca02c', opacity=0.6)) # Standard Green
     fig_bar.add_trace(go.Bar(x=monthly_stats.index, y=monthly_stats['Battery'], name='Battery Discharge', marker_color='#1f77b4')) # Standard blue
     
-    fig_bar.update_layout(title="Monthly Energy Totals", xaxis_title="Month", yaxis_title="Energy (MWh)", barmode='overlay')
-    fig_bar.update_layout(title="Monthly Energy Totals", xaxis_title="Month", yaxis_title="Energy (MWh)", barmode='overlay')
+    fig_bar.update_layout(title="Monthly Energy Totals", xaxis_title="Month", yaxis_title="Energy (MWh)", barmode='overlay', template=chart_template)
     st.plotly_chart(fig_bar, use_container_width=True)
 
     # --- Heatmap Analysis ---
@@ -283,19 +342,30 @@ else:
         title="24/7 Matching Heatmap (Hour vs Day)",
         xaxis_title="Day of Year",
         yaxis_title="Hour of Day",
-        height=400
+        height=400,
+        template=chart_template
     )
     st.plotly_chart(fig_heat, use_container_width=True)
 
     # --- Data Export ---
     st.subheader("Export Results")
     
+    # Create Datetime Index for 2024 (Leap year handling if needed, but standard 8760 usually implies non-leap or truncated)
+    # Using 2024 implies leap year (8784 hours), but our arrays are 8760. 
+    # Let's use 2023 to be safe for 8760, or just truncate 2024.
+    # Actually, let's just use a generic range or 2023 (not leap).
+    datetime_index = pd.date_range(start='2024-01-01', periods=8760, freq='h')
+
     results_df = pd.DataFrame({
+        'Datetime': datetime_index,
         'Load_MW': total_load_profile,
         'Matched_MW': matched_profile,
         'Solar_MW': solar_profile,
         'Wind_MW': wind_profile,
+        'Geothermal_MW': geo_profile,
+        'Nuclear_MW': nuc_profile,
         'Battery_Discharge_MW': batt_discharge,
+        'Battery_SoC_MWh': batt_soc,
         'Grid_Deficit_MW': deficit,
         'Surplus_MW': surplus
     })
