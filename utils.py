@@ -15,6 +15,12 @@ def generate_dummy_load_profile(annual_consumption_mwh, profile_type='Flat'):
     """
     hours = 8760
     
+    # Create a deterministic random generator based on profile type
+    # Use a simple hash mapping to ensure stability across Python sessions
+    seed_map = {'Flat': 42, 'Data Center': 101, 'Office': 202}
+    seed = seed_map.get(profile_type, 999)
+    rng = np.random.default_rng(seed)
+    
     if profile_type == 'Flat':
         # Constant load
         avg_load = annual_consumption_mwh / hours
@@ -23,7 +29,7 @@ def generate_dummy_load_profile(annual_consumption_mwh, profile_type='Flat'):
     elif profile_type == 'Data Center':
         # Flat with minor noise
         avg_load = annual_consumption_mwh / hours
-        noise = np.random.normal(0, 0.05 * avg_load, hours)
+        noise = rng.normal(0, 0.05 * avg_load, hours)
         profile = np.full(hours, avg_load) + noise
         
     elif profile_type == 'Office':
@@ -67,6 +73,11 @@ def generate_dummy_generation_profile(capacity_mw, resource_type='Solar'):
     # Seasonality helper (0 to 1 scaling, peak in Summer for Solar, Spring/Fall for Wind)
     day_of_year = (t // 24)
     
+    # Create a deterministic random generator based on resource type
+    seed_map = {'Solar': 500, 'Wind': 600, 'Geothermal': 700, 'Nuclear': 800}
+    seed = seed_map.get(resource_type, 999)
+    rng = np.random.default_rng(seed)
+    
     if resource_type == 'Solar':
         # Solar Profile
         # 1. Diurnal: Peak around 1 PM (hour 13). Sinusoidal.
@@ -95,7 +106,7 @@ def generate_dummy_generation_profile(capacity_mw, resource_type='Solar'):
                 # Scaler: 0.7 (winter) to 1.1 (summer peak intensity)
                 
                 # Cloud Noise
-                noise = np.random.uniform(0.7, 1.0)
+                noise = rng.uniform(0.7, 1.0)
                 
                 profile[h] = day_shape * seasonal_factor * noise * capacity_mw
             else:
@@ -121,7 +132,7 @@ def generate_dummy_generation_profile(capacity_mw, resource_type='Solar'):
         # Stochastic / Volatility
         # Weibull distribution-ish or just red noise
         # Let's use random noise correlated with time
-        noise = np.random.normal(0, 0.15, hours)
+        noise = rng.normal(0, 0.15, hours)
         
         # Combine
         raw_profile = diurnal * seasonal + noise
@@ -134,7 +145,7 @@ def generate_dummy_generation_profile(capacity_mw, resource_type='Solar'):
         # Baseload: Flat with very high availability (e.g. 95% capacity factor)
         # Small random fluctuations
         profile = np.full(hours, capacity_mw * 0.95)
-        noise = np.random.normal(0, 0.01 * capacity_mw, hours)
+        noise = rng.normal(0, 0.01 * capacity_mw, hours)
         profile = profile + noise
         profile = np.clip(profile, 0, capacity_mw)
 
