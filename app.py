@@ -22,156 +22,169 @@ st.markdown("Aggregate load participants and optimize for 24/7 clean energy matc
 if 'participants' not in st.session_state:
     st.session_state.participants = []
 
-# Check session state for uploaded file (widget moved to bottom)
-uploaded_load_file = st.session_state.get('uploaded_load_file')
-
-# Only show participant builder if no file is uploaded
-if not uploaded_load_file:
-    st.sidebar.markdown("---")
-    st.sidebar.header("1. Load Participants")
+# --- Configuration Section (Top) ---
+with st.expander("Configuration & Setup", expanded=True):
+    tab_load, tab_gen, tab_fin = st.tabs(["1. Load Setup", "2. Generation Portfolio", "3. Financials"])
     
-    with st.sidebar.form("add_participant"):
-        next_num = len(st.session_state.participants) + 1
-        p_name = st.text_input("Participant Name", f"Participant {next_num}")
-        p_type = st.selectbox("Building Type", ["Data Center", "Office", "Flat"])
-        p_load = st.number_input("Annual Consumption (MWh)", min_value=1000, value=50000, step=50000)
-        submitted = st.form_submit_button("Add Participant")
+    # --- Tab 1: Load Setup ---
+    with tab_load:
+        col_load_1, col_load_2 = st.columns([1, 2])
         
-        if submitted:
-            st.session_state.participants.append({
-                "name": p_name,
-                "type": p_type,
-                "load": p_load
-            })
-            st.success(f"Added {p_name}")
+        with col_load_1:
+            st.markdown("#### Add Participant")
+            # Only show participant form if no file is uploaded (or allow both but prioritize file?)
+            # Logic: If 'uploaded_load_file' is present, we use it. But we can still build list.
+            
+            with st.form("add_participant"):
+                next_num = len(st.session_state.participants) + 1
+                p_name = st.text_input("Participant Name", f"Participant {next_num}")
+                p_type = st.selectbox("Building Type", ["Data Center", "Office", "Flat"])
+                p_load = st.number_input("Annual Consumption (MWh)", min_value=1000, value=50000, step=50000)
+                submitted = st.form_submit_button("Add Participant")
+                
+                if submitted:
+                    st.session_state.participants.append({
+                        "name": p_name,
+                        "type": p_type,
+                        "load": p_load
+                    })
+                    st.success(f"Added {p_name}")
 
-# Display current participants
-if st.session_state.participants:
-    st.sidebar.subheader("Current Participants")
-    p_df = pd.DataFrame(st.session_state.participants)
-    if not uploaded_load_file:
-         st.sidebar.dataframe(p_df, hide_index=True)
-    
-    if st.sidebar.button("Clear Participants"):
-        st.session_state.participants = []
-        st.rerun()
+            if st.session_state.participants:
+                if st.button("Clear Participants"):
+                    st.session_state.participants = []
+                    st.rerun()
 
-
-# Dark Mode Toggle
-st.sidebar.markdown("---")
-dark_mode = st.sidebar.toggle("Dark Mode", value=False)
-
-if dark_mode:
-    # Custom CSS for Dark Mode
-    st.markdown("""
-        <style>
-        [data-testid="stAppViewContainer"] {
-            background-color: #0E1117;
-            color: #FAFAFA;
-        }
-        [data-testid="stSidebar"] {
-            background-color: #262730;
-        }
-        [data-testid="stHeader"] {
-            background-color: rgba(0,0,0,0);
-        }
-        /* Force text color for common elements to ensure readability */
-        h1, h2, h3, p, div, span, label {
-            color: #FAFAFA !important;
-        }
-        /* Specific overrides for inputs to be visible */
-        .stTextInput input, .stNumberInput input, .stSelectbox div[role="combobox"] {
-            background-color: #262730; 
-            color: #FAFAFA;
-        }
-        </style>
-        """, unsafe_allow_html=True)
-    chart_template = 'plotly_dark'
-else:
-    chart_template = 'plotly'
+        with col_load_2:
+            st.markdown("#### Current Participants")
+            if st.session_state.participants:
+                p_df = pd.DataFrame(st.session_state.participants)
+                st.dataframe(p_df, hide_index=True, use_container_width=True)
+            else:
+                st.info("No participants added yet.")
+                
+            st.markdown("---")
+            st.markdown("#### Or Upload Aggregate Load Profile")
+            uploaded_load_file = st.file_uploader("Upload CSV (Hourly load in MW)", type=['csv'], key='uploaded_load_file')
 
 
-st.sidebar.header("2. Renewable Projects")
-
-# Recommendation Button
-if st.sidebar.button("✨ Recommend Portfolio"):
-    # Calculate total load first
-    temp_load = pd.Series(0.0, index=range(8760))
-    for p in st.session_state.participants:
-        temp_load += generate_dummy_load_profile(p['load'], p['type'])
+    # --- Tab 2: Generation Portfolio ---
+    with tab_gen:
+        col_gen_1, col_gen_2 = st.columns(2)
         
-    if temp_load.sum() > 0:
-        rec = recommend_portfolio(temp_load)
-        
-        # Update session state KEYS for widgets to trigger UI update
-        st.session_state.solar_input = rec['Solar']
-        st.session_state.wind_input = rec['Wind']
-        st.session_state.geo_input = rec['Geothermal']
-        st.session_state.nuc_input = rec['Nuclear']
-        st.session_state.batt_input = rec['Battery_MW']
-        st.session_state.batt_duration_input = rec['Battery_Hours']
-        
-        # Also update the backing values (though widgets drive the next run)
-        st.session_state.solar_cap = rec['Solar']
-        st.session_state.wind_cap = rec['Wind']
-        st.session_state.geo_cap = rec['Geothermal']
-        st.session_state.nuc_cap = rec['Nuclear']
-        st.session_state.batt_cap = rec['Battery_MW']
-        
-        st.success("Portfolio Recommended!")
-        # Rerun to update widgets immediately
-        st.rerun()
-    else:
-        st.warning("Add participants first!")
+        with col_gen_1:
+            st.markdown("#### Capacities")
+            # Solar
+            use_synthetic_solar = st.checkbox("Use Synthetic Solar Profile (Ignore CSV)", value=False)
+            solar_capacity = st.number_input("Solar Capacity (MW)", min_value=0.0, step=1.0, key='solar_input')
+            
+            wind_capacity = st.number_input("Wind Capacity (MW)", min_value=0.0, step=1.0, key='wind_input')
+            geo_capacity = st.number_input("Geothermal Capacity (MW)", min_value=0.0, step=1.0, key='geo_input')
+            nuc_capacity = st.number_input("Nuclear Capacity (MW)", min_value=0.0, step=1.0, key='nuc_input')
 
-# Initialize session state for inputs if not present
-if 'solar_cap' not in st.session_state: st.session_state.solar_cap = 10.0
-if 'wind_cap' not in st.session_state: st.session_state.wind_cap = 5.0
-if 'geo_cap' not in st.session_state: st.session_state.geo_cap = 0.0
-if 'nuc_cap' not in st.session_state: st.session_state.nuc_cap = 0.0
-if 'batt_cap' not in st.session_state: st.session_state.batt_cap = 0.0
+        with col_gen_2:
+            st.markdown("#### Storage & Recommendation")
+            enable_battery = st.checkbox("Enable Battery Storage", value=True)
+            batt_capacity = st.number_input("Battery Power (MW)", min_value=0.0, step=1.0, key='batt_input', disabled=not enable_battery)
+            batt_duration = st.number_input("Battery Duration (Hours)", min_value=0.5, step=0.5, key='batt_duration_input', disabled=not enable_battery)
+            
+            st.markdown("---")
+            
+            # Exclude Tech multiselect
+            excluded_techs = st.multiselect(
+                "Exclude Technologies from Recommendation",
+                ['Solar', 'Wind', 'Geothermal', 'Nuclear', 'Battery'],
+                default=[],
+                key='excluded_techs_input'
+            )
 
-# Initialize widget keys if not present
-if 'solar_input' not in st.session_state: st.session_state.solar_input = st.session_state.solar_cap
-if 'wind_input' not in st.session_state: st.session_state.wind_input = st.session_state.wind_cap
-if 'geo_input' not in st.session_state: st.session_state.geo_input = st.session_state.geo_cap
-if 'nuc_input' not in st.session_state: st.session_state.nuc_input = st.session_state.nuc_cap
-if 'batt_input' not in st.session_state: st.session_state.batt_input = st.session_state.batt_cap
-if 'batt_duration_input' not in st.session_state: st.session_state.batt_duration_input = 4.0
+            # Define callback for recommendation
+            def apply_recommendation():
+                # Calculate total load from participants
+                temp_load = pd.Series(0.0, index=range(8760))
+                if st.session_state.participants:
+                    for p in st.session_state.participants:
+                        temp_load += generate_dummy_load_profile(p['load'], p['type'])
+                    
+                    if temp_load.sum() > 0:
+                        # Pass excluded techs from session state (widget key='excluded_techs_input')
+                        rec = recommend_portfolio(temp_load, excluded_techs=st.session_state.excluded_techs_input)
+                        st.session_state.solar_input = rec['Solar']
+                        st.session_state.wind_input = rec['Wind']
+                        st.session_state.geo_input = rec['Geothermal']
+                        st.session_state.nuc_input = rec['Nuclear']
+                        st.session_state.batt_input = rec['Battery_MW']
+                        st.session_state.batt_duration_input = rec['Battery_Hours']
+                        st.session_state.portfolio_recommended = True
+                    else:
+                        st.session_state.portfolio_error = "Participant load is zero."
+                else:
+                    st.session_state.portfolio_error = "Add participants first."
+
+            st.button("✨ Recommend Portfolio", on_click=apply_recommendation)
+            
+            # Show success/error messages after rerun
+            if st.session_state.get('portfolio_recommended', False):
+                st.success("Portfolio Recommended!")
+                st.session_state.portfolio_recommended = False # Reset flag
+            if st.session_state.get('portfolio_error', None):
+                st.warning(st.session_state.portfolio_error)
+                st.session_state.portfolio_error = None # Reset error
+
+        st.markdown("#### Custom Profiles (Upload Unit Profiles)")
+        c_prof_1, c_prof_2 = st.columns(2)
+        uploaded_solar_file = c_prof_1.file_uploader("Upload Solar Profile (CSV)", type=['csv'])
+        uploaded_wind_file = c_prof_2.file_uploader("Upload Wind Profile (CSV)", type=['csv'])
 
 
+    # --- Tab 3: Financials ---
+    with tab_fin:
+        c_fin_1, c_fin_2, c_fin_3 = st.columns(3)
+        strike_price = c_fin_1.number_input("PPA Strike Price ($/MWh)", min_value=0.0, value=30.0, step=1.0)
+        market_price = c_fin_2.number_input("Avg Market Price ($/MWh)", min_value=0.0, value=35.0, step=1.0)
+        rec_price = c_fin_3.number_input("REC Price ($/MWh)", min_value=0.0, value=8.0, step=0.5)
 
-solar_capacity = st.sidebar.number_input("Solar Capacity (MW)", min_value=0.0, step=1.0, key='solar_input')
-wind_capacity = st.sidebar.number_input("Wind Capacity (MW)", min_value=0.0, step=1.0, key='wind_input')
-geo_capacity = st.sidebar.number_input("Geothermal Capacity (MW)", min_value=0.0, step=1.0, key='geo_input')
-nuc_capacity = st.sidebar.number_input("Nuclear Capacity (MW)", min_value=0.0, step=1.0, key='nuc_input')
-enable_battery = st.sidebar.checkbox("Enable Battery Storage", value=True)
-batt_capacity = st.sidebar.number_input("Battery Power (MW)", min_value=0.0, step=1.0, key='batt_input', disabled=not enable_battery)
-batt_duration = st.sidebar.number_input("Battery Duration (Hours)", min_value=0.5, step=0.5, key='batt_duration_input', disabled=not enable_battery)
 
-# Update session state from inputs (in case user manually changes them after recommendation)
+# --- Global Settings (Sidebar) ---
+st.sidebar.markdown("### Settings")
+# --- Global Settings (Sidebar) ---
+st.sidebar.markdown("### Settings")
+# Forces Dark Mode Permanently
+st.markdown("""
+    <style>
+    [data-testid="stAppViewContainer"] {
+        background-color: #0E1117;
+        color: #FAFAFA;
+    }
+    [data-testid="stSidebar"] {
+        background-color: #262730;
+    }
+    [data-testid="stHeader"] {
+        background-color: rgba(0,0,0,0);
+    }
+    /* Force text color for common elements to ensure readability */
+    h1, h2, h3, p, label {
+        color: #FAFAFA !important;
+    }
+    /* Specific overrides for inputs to be visible */
+    .stTextInput input, .stNumberInput input, .stSelectbox div[role="combobox"] {
+        background-color: #262730; 
+        color: #FAFAFA;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+
+chart_template = 'plotly_dark'
+chart_bg = '#0E1117'
+chart_font_color = '#FAFAFA'
+
+
+# Update session state from inputs
 st.session_state.solar_cap = solar_capacity
 st.session_state.wind_cap = wind_capacity
 st.session_state.geo_cap = geo_capacity
 st.session_state.nuc_cap = nuc_capacity
 st.session_state.batt_cap = batt_capacity
-
-
-# --- Generation Profiles ---
-with st.sidebar.expander("Custom Generation Profiles"):
-    st.markdown("Upload **Unit Profiles** (MW output per 1 MW capacity). The app will scale these by the capacity sliders above.")
-    uploaded_solar_file = st.file_uploader("Upload Solar Profile (CSV)", type=['csv'])
-    uploaded_wind_file = st.file_uploader("Upload Wind Profile (CSV)", type=['csv'])
-
-st.sidebar.header("3. Financial Assumptions")
-strike_price = st.sidebar.number_input("PPA Strike Price ($/MWh)", min_value=0.0, value=30.0, step=1.0)
-market_price = st.sidebar.number_input("Avg Market Price ($/MWh)", min_value=0.0, value=35.0, step=1.0)
-rec_price = st.sidebar.number_input("REC Price ($/MWh)", min_value=0.0, value=8.0, step=0.5)
-
-# --- Upload Section ---
-st.sidebar.markdown("---")
-st.sidebar.subheader("Upload Load Profile")
-st.sidebar.file_uploader("Upload CSV (Hourly load in MW)", type=['csv'], key='uploaded_load_file')
 
 # --- Main Content ---
 
@@ -207,7 +220,7 @@ else:
              st.error("Error parsing Solar file.")
              st.stop()
     else:
-        solar_profile = generate_dummy_generation_profile(solar_capacity, 'Solar')
+        solar_profile = generate_dummy_generation_profile(solar_capacity, 'Solar', use_synthetic=use_synthetic_solar)
 
     # Wind
     if uploaded_wind_file:
@@ -252,9 +265,9 @@ else:
     
     # Metrics - Row 1
     col1, col2, col3, col4 = st.columns(4)
-    col1.metric("Total Annual Load", f"{total_annual_load:,.0f} MWh")
-    col2.metric("Total Generation", f"{total_gen_profile.sum():,.0f} MWh")
-    col3.metric("CFE Score (24/7)", f"{metrics['cfe_score']:.1%}")
+    col1.metric("Total Electricity Usage", f"{total_annual_load:,.0f} MWh")
+    col2.metric("Clean Energy Generation", f"{total_gen_profile.sum():,.0f} MWh", help="Total renewable generation + nuclear")
+    col3.metric("CFE Score (24/7)", f"{metrics['cfe_score']:.1%}", help="Percentage of total load met by Carbon Free Energy generation in the same hour")
     col4.metric("Battery Discharge", f"{batt_discharge.sum():,.0f} MWh")
     
     # Metrics - Row 2
@@ -266,40 +279,74 @@ else:
     
     # Metrics - Row 3 (Financials)
     st.subheader("Financial Overview")
-    col9, col10, col11 = st.columns(3)
+    col9, col10 = st.columns(2)
     col9.metric("PPA Settlement Value", f"${fin_metrics['settlement_value']:,.0f}", help="Revenue (or Cost) from PPA Settlement: (Market - Strike) * Matched Vol")
     col10.metric("REC Cost", f"${fin_metrics['rec_cost']:,.0f}", help="Cost of RECs for matched energy")
-    col11.metric("Net Energy Cost", f"${fin_metrics['avg_cost_per_mwh']:.2f} / MWh", help="Total Net Cost / Total Load")
     
     # Charts
     st.subheader("Hourly Energy Balance")
     
     # Use columns to make the slider more compact
-    col_slider, col_space = st.columns([1, 3])
-    with col_slider:
-        zoom_level = st.select_slider("Zoom Level", options=["Sample Week", "Full Year"])
+    # Create Datetime Index for charting (2024 for leap year support logic if needed, but using 8760 standard)
+    # matching the 8760 length
+    datetime_index = pd.date_range(start='2024-01-01', periods=8760, freq='h')
+
+    # View Controls
+    col_view_type, col_date_picker = st.columns([1, 2])
     
-    if zoom_level == "Sample Week":
-        # Slice for a sample week (e.g., first week of June ~ hour 3600)
-        start_hour = 3600
-        end_hour = 3600 + 168
-        title_suffix = "(Summer Week)"
-    else:
-        start_hour = 0
-        end_hour = 8760
-        title_suffix = "(Full Year)"
+    with col_view_type:
+        view_mode = st.radio("View Period", ["Full Year", "Select Week"], horizontal=True)
+        
+    start_hour = 0
+    end_hour = 8760
+    title_suffix = "(Full Year)"
+    
+    if view_mode == "Select Week":
+        with col_date_picker:
+            # Default to a summer week (July 1)
+            default_date = datetime.date(2024, 7, 1)
+            selected_date = st.date_input("Select Week Start", value=default_date, 
+                                          min_value=datetime.date(2024, 1, 1), 
+                                          max_value=datetime.date(2024, 12, 24))
+            
+            # Convert date to hour index
+            # day_of_year starts at 1
+            day_of_year = selected_date.timetuple().tm_yday
+            start_hour = (day_of_year - 1) * 24
+            end_hour = start_hour + 168 # 7 days * 24 hours
+            
+            # Safety clamp
+            if end_hour > 8760:
+                end_hour = 8760
+                
+            title_suffix = f"({selected_date.strftime('%b %d')} - {(selected_date + datetime.timedelta(days=7)).strftime('%b %d')})"
+
+    # Prepare Data Slices
+    # Use the datetime index for X-axis to show actual dates/times
+    x_axis = datetime_index[start_hour:end_hour]
     
     fig = go.Figure()
-    fig.add_trace(go.Scatter(x=list(range(start_hour, end_hour)), y=total_load_profile[start_hour:end_hour],
+    fig.add_trace(go.Scatter(x=x_axis, y=total_load_profile[start_hour:end_hour],
                              mode='lines', name='Aggregated Load', line=dict(color='red', width=2)))
-    fig.add_trace(go.Scatter(x=list(range(start_hour, end_hour)), y=matched_profile[start_hour:end_hour],
-                             mode='lines', name='Matched Energy', fill='tozeroy', line=dict(color='#006400', width=0)))
-    fig.add_trace(go.Scatter(x=list(range(start_hour, end_hour)), y=total_gen_profile[start_hour:end_hour],
+    fig.add_trace(go.Scatter(x=x_axis, y=matched_profile[start_hour:end_hour],
+                             mode='lines', name='Matched Energy', fill='tozeroy', line=dict(color='#FFA500', width=0)))
+    fig.add_trace(go.Scatter(x=x_axis, y=total_gen_profile[start_hour:end_hour],
                              mode='lines', name='Renewable Gen', line=dict(color='#2ca02c', width=1, dash='dot')))
-    fig.add_trace(go.Scatter(x=list(range(start_hour, end_hour)), y=batt_discharge[start_hour:end_hour],
+    fig.add_trace(go.Scatter(x=x_axis, y=batt_discharge[start_hour:end_hour],
                              mode='lines', name='Battery Discharge', line=dict(color='#1f77b4', width=1)))
     
-    fig.update_layout(title=f"Load vs. Matched Generation {title_suffix}", xaxis_title="Hour of Year", yaxis_title="Power (MW)", template=chart_template)
+    fig.update_layout(
+        title=f"Load vs. Matched Generation {title_suffix}", 
+        xaxis_title="Date / Time", 
+        yaxis_title="Power (MW)", 
+        template=chart_template,
+        paper_bgcolor=chart_bg,
+        plot_bgcolor=chart_bg,
+        font=dict(color=chart_font_color),
+        xaxis=dict(
+            tickformat="%b %d<br>%H:%M" if view_mode == "Select Week" else "%b"
+        )
+    )
     st.plotly_chart(fig, use_container_width=True)
     
     st.subheader("Monthly Analysis")
@@ -316,13 +363,26 @@ else:
     df_hourly['Month'] = pd.date_range(start='2024-01-01', periods=8760, freq='h').month
     monthly_stats = df_hourly.groupby('Month').sum()
     
+    # Map month numbers to names
+    month_names = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+    monthly_stats.index = month_names
+    
     fig_bar = go.Figure()
     fig_bar.add_trace(go.Scatter(x=monthly_stats.index, y=monthly_stats['Load'], name='Load', mode='lines', line=dict(color='red', width=3)))
-    fig_bar.add_trace(go.Bar(x=monthly_stats.index, y=monthly_stats['Matched'], name='Matched Energy', marker_color='#006400')) # Dark Green
+    fig_bar.add_trace(go.Bar(x=monthly_stats.index, y=monthly_stats['Matched'], name='Matched Energy', marker_color='#FFA500')) # Orange
     fig_bar.add_trace(go.Bar(x=monthly_stats.index, y=monthly_stats['Generation'], name='Renewable Gen', marker_color='#2ca02c', opacity=0.6)) # Standard Green
     fig_bar.add_trace(go.Bar(x=monthly_stats.index, y=monthly_stats['Battery'], name='Battery Discharge', marker_color='#1f77b4')) # Standard blue
     
-    fig_bar.update_layout(title="Monthly Energy Totals", xaxis_title="Month", yaxis_title="Energy (MWh)", barmode='overlay', template=chart_template)
+    fig_bar.update_layout(
+        title="Monthly Energy Totals", 
+        xaxis_title="Month", 
+        yaxis_title="Energy (MWh)", 
+        barmode='overlay', 
+        template=chart_template,
+        paper_bgcolor=chart_bg,
+        plot_bgcolor=chart_bg,
+        font=dict(color=chart_font_color)
+    )
     st.plotly_chart(fig_bar, use_container_width=True)
 
     # --- Heatmap Analysis ---
@@ -368,7 +428,10 @@ else:
         xaxis_title="Day of Year",
         yaxis_title="Hour of Day",
         height=400,
-        template=chart_template
+        template=chart_template,
+        paper_bgcolor=chart_bg,
+        plot_bgcolor=chart_bg,
+        font=dict(color=chart_font_color)
     )
     st.plotly_chart(fig_heat, use_container_width=True)
 

@@ -55,7 +55,7 @@ def generate_dummy_load_profile(annual_consumption_mwh, profile_type='Flat'):
         
     return pd.Series(profile, name='Load (MW)')
 
-def generate_dummy_generation_profile(capacity_mw, resource_type='Solar'):
+def generate_dummy_generation_profile(capacity_mw, resource_type='Solar', use_synthetic=False):
     """
     Generates a dummy hourly generation profile for a year.
     Refined for ERCOT North characteristics (approximate).
@@ -63,6 +63,7 @@ def generate_dummy_generation_profile(capacity_mw, resource_type='Solar'):
     Args:
         capacity_mw (float): Installed capacity in MW.
         resource_type (str): 'Solar' or 'Wind'.
+        use_synthetic (bool): If True, forces synthetic model even if real data file exists.
         
     Returns:
         pd.Series: Hourly generation in MW.
@@ -79,45 +80,73 @@ def generate_dummy_generation_profile(capacity_mw, resource_type='Solar'):
     rng = np.random.default_rng(seed)
     
     if resource_type == 'Solar':
-        # Check for local PVWatts file for realistic profile
-        # Use simple caching to avoid re-reading disk every time
-        import os
-        pvwatts_file = 'pvwatts_hourly_Denton.csv'
-        
-        if os.path.exists(pvwatts_file):
-            try:
-                # Read PVWatts file (skipping metadata rows, header is usually around line 32)
-                # We start reading from a safe guess or parse header. 
-                # Based on file inspection, header is at line 32 (0-indexed -> skiprows)
-                # Let's try to read with flexible header detection or hardcoded for this specific file
-                
-                # Reading with header=31 (line 32)
-                df_solar = pd.read_csv(pvwatts_file, header=31)
-                
-                if 'AC System Output (W)' in df_solar.columns:
-                    # Extract raw watts
-                    raw_watts = df_solar['AC System Output (W)'].values
+        # 1. Try Real Data (PVWatts CSV)
+        if not use_synthetic:
+            import os
+            pvwatts_file = 'pvwatts_hourly_Denton.csv'
+            
+            if os.path.exists(pvwatts_file):
+                try:
+                    # Robustly find the header line to handle blank lines/metadata variability
+                    header_index = 0
+                    with open(pvwatts_file, 'r') as f:
+                        lines = f.readlines()
+                        for i, line in enumerate(lines[:50]): # Check first 50 lines
+                            if 'AC System Output (W)' in line:
+                                header_index = i
+                                break
+                                
+                    # Read with skiprows (skips first N rows, row N becomes header)
+                    df_solar = pd.read_csv(pvwatts_file, skiprows=header_index)
                     
-                    # Ensure length is 8760
-                    if len(raw_watts) > hours:
-                        raw_watts = raw_watts[:hours]
-                    elif len(raw_watts) < hours:
-                        raw_watts = np.pad(raw_watts, (0, hours - len(raw_watts)), 'constant')
+                    if 'AC System Output (W)' in df_solar.columns:
+                        # Extract raw watts
+                        raw_watts = df_solar['AC System Output (W)'].values
                         
-                    # Normalize: The file is for a 100 kW system (from metadata inspection)
-                    # Unit profile (MW output per 1 MW installed)
-                    # 100 kW = 0.1 MW. 
-                    # So normalized = (Raw Watts / 1e6) / 0.1 
-                    # Or simpler: (Raw Watts) / (System Size Watts)
-                    system_size_watts = 100_000.0 # 100 kW
-                    
-                    unit_profile = raw_watts / system_size_watts
-                    
-                    profile = unit_profile * capacity_mw
-                    return pd.Series(profile, name='Solar Generation (MW)')
-                    
-            except Exception as e:
-                print(f"Failed to load PVWatts file, using dummy: {e}")
+                        # Pad/Truncate to 8760
+                        if len(raw_watts) > hours:
+                            raw_watts = raw_watts[:hours]
+                        elif len(raw_watts) < hours:
+                            raw_watts = np.pad(raw_watts, (0, hours - len(raw_watts)), 'constant')
+                            
+                        # Normalize (100 kW system)
+                        system_size_watts = 100_000.0 
+                        unit_profile = raw_watts / system_size_watts
+                        
+                        return pd.Series(unit_profile * capacity_mw, name='Solar Generation (MW)')
+                except Exception as e:
+                    print(f"Failed to load PVWatts file: {e}")
+        
+        # 2. Synthetic Fallback (runs if use_synthetic=True OR file missing/failed)
+        profile = np.zeros(hours)
+        
+        for h in range(hours):
+            hour_of_day = h % 24
+            
+            # Simple day/night check (broadened slightly for summer)
+            is_daytime = 6 <= hour_of_day <= 19
+            if is_daytime:
+                # Center peak at 13 (1 PM)
+                # (hour - 6) / 14 * pi -> maps 6 to 0, 13 to pi/2, 20 to pi
+                # normalized sine wave
+                day_shape = np.sin(np.pi * (hour_of_day - 6) / 13)
+                if day_shape < 0: day_shape = 0
+                
+                # Seasonal Factor: Bassel on cosine of day of year
+                # Peak at day 172 (June 21), Min at day 355/0
+                current_day = day_of_year[h]
+                seasonal_factor = 0.7 + 0.3 * np.cos(2 * np.pi * (current_day - 172) / 365)
+                # Range: 0.4 to 1.0 multiplier? Actually solar variance is intensity + day length.
+                # Scaler: 0.7 (winter) to 1.1 (summer peak intensity)
+                
+                # Cloud Noise
+                noise = rng.uniform(0.7, 1.0)
+                
+                profile[h] = day_shape * seasonal_factor * noise * capacity_mw
+            else:
+                profile[h] = 0.0
+        
+        return pd.Series(profile, name='Solar Generation (MW)')
         
         # Fallback to Dummy Solar Profile
         # 1. Diurnal: Peak around 1 PM (hour 13). Sinusoidal.
@@ -309,11 +338,15 @@ def simulate_battery_storage(surplus_profile, deficit_profile, capacity_mw, dura
             energy_removed = real_discharge / discharge_eff
             current_energy_mwh -= energy_removed
             
+        # Clamp to 0 to avoid floating point errors showing negative zero
+        if current_energy_mwh < 0:
+            current_energy_mwh = 0.0
+            
         soc_profile[h] = current_energy_mwh
         
     return pd.Series(discharge_profile, name='Battery Discharge (MW)'), pd.Series(soc_profile, name='Battery SoC (MWh)')
 
-def recommend_portfolio(load_profile, target_cfe=0.95):
+def recommend_portfolio(load_profile, target_cfe=0.95, excluded_techs=None):
     """
     Heuristic to recommend a technology mix targeting a specific CFE score (default 95%).
     
@@ -321,6 +354,9 @@ def recommend_portfolio(load_profile, target_cfe=0.95):
     1. Start with a baseline heuristic.
     2. Iteratively scale up variable renewables and battery storage until target CFE is met.
     """
+    if excluded_techs is None:
+        excluded_techs = []
+        
     avg_load = load_profile.mean()
     min_load = load_profile.min()
     peak_load = load_profile.max()
@@ -339,20 +375,37 @@ def recommend_portfolio(load_profile, target_cfe=0.95):
     # 1. Baseload Coverage (Firm Clean Energy)
     # Suggest covering 80% of min load with firm clean energy
     firm_target = min_load * 0.8
-    recommendation['Geothermal'] = firm_target * 0.5
-    recommendation['Nuclear'] = firm_target * 0.5
     
+    # Logic to distribute firm target
+    firm_techs = [t for t in ['Geothermal', 'Nuclear'] if t not in excluded_techs]
+    if firm_techs:
+        for t in firm_techs:
+            recommendation[t] = firm_target / len(firm_techs)
+
+
     # 2. Variable Renewable Coverage (Initial Guess)
     firm_gen_annual = (recommendation['Geothermal'] + recommendation['Nuclear']) * 8760
     remaining_load = total_load - firm_gen_annual
     
     if remaining_load > 0:
         target_variable_gen = remaining_load * 1.2 # Start with 1.2x coverage
-        recommendation['Solar'] = (target_variable_gen * 0.5) / (8760 * 0.25)
-        recommendation['Wind'] = (target_variable_gen * 0.5) / (8760 * 0.40)
+        
+        var_techs = [t for t in ['Solar', 'Wind'] if t not in excluded_techs]
+        
+        if var_techs:
+            # Capacity Factors: Solar ~0.25, Wind ~0.40
+            # If both present, split 50/50 energy target
+            # If only one, give 100% energy target
+            
+            for t in var_techs:
+                if t == 'Solar':
+                    recommendation['Solar'] = (target_variable_gen / len(var_techs)) / (8760 * 0.25)
+                elif t == 'Wind':
+                    recommendation['Wind'] = (target_variable_gen / len(var_techs)) / (8760 * 0.40)
         
     # 3. Battery Storage (Initial Guess)
-    recommendation['Battery_MW'] = peak_load * 0.2
+    if 'Battery' not in excluded_techs:
+        recommendation['Battery_MW'] = peak_load * 0.2
     
     # Iterative Optimization Loop
     max_iterations = 20
@@ -384,13 +437,16 @@ def recommend_portfolio(load_profile, target_cfe=0.95):
             
         # Scale up if target not met
         # Increase Solar/Wind by 10%
-        recommendation['Solar'] *= 1.1
-        recommendation['Wind'] *= 1.1
+        if 'Solar' not in excluded_techs:
+            recommendation['Solar'] *= 1.1
+        if 'Wind' not in excluded_techs:
+            recommendation['Wind'] *= 1.1
         
         # Increase Battery Power by 5% and Duration slightly (up to 8h)
-        recommendation['Battery_MW'] *= 1.05
-        if recommendation['Battery_Hours'] < 8:
-            recommendation['Battery_Hours'] += 0.5
+        if 'Battery' not in excluded_techs:
+            recommendation['Battery_MW'] *= 1.05
+            if recommendation['Battery_Hours'] < 8:
+                recommendation['Battery_Hours'] += 0.5
             
     # Round values for clean output
     for k, v in recommendation.items():
@@ -432,7 +488,7 @@ def calculate_financials(matched_profile, deficit_profile, strike_price, market_
     total_deficit_mwh = deficit_profile.sum()
     total_load = total_matched_mwh + total_deficit_mwh
     
-    net_cost = (total_deficit_mwh * market_price_avg) + (total_matched_mwh * strike_price) + rec_cost
+    net_cost = (total_deficit_mwh * market_price_avg) + (total_matched_mwh * strike_price)
     
     avg_cost_per_mwh = net_cost / total_load if total_load > 0 else 0.0
     
