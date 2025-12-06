@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import plotly.graph_objects as go
 import numpy as np
+import datetime
 from utils import (
     generate_dummy_load_profile, 
     generate_dummy_generation_profile, 
@@ -146,9 +147,6 @@ with st.expander("Configuration & Setup", expanded=True):
 
 
 # --- Global Settings (Sidebar) ---
-st.sidebar.markdown("### Settings")
-# --- Global Settings (Sidebar) ---
-st.sidebar.markdown("### Settings")
 # Forces Dark Mode Permanently
 st.markdown("""
     <style>
@@ -275,7 +273,7 @@ else:
     col5.metric("MW Match Productivity", f"{metrics['productivity']:,.0f} MWh/MW", help="MWh of Clean Energy Matched per MW of Installed Capacity")
     col6.metric("Loss of Green Hours", f"{metrics['logh']:.1%}", help="% of hours where load is not fully matched by clean energy")
     col7.metric("Grid Consumption", f"{metrics['grid_consumption']:,.0f} MWh", help="Total energy drawn from grid (deficit)")
-    col8.metric("Curtailment / Overgen", f"{surplus.sum():,.0f} MWh", help="Gross overgeneration before battery charging")
+    col8.metric("Excess Generation", f"{surplus.sum():,.0f} MWh", help="Gross overgeneration before battery charging")
     
     # Metrics - Row 3 (Financials)
     st.subheader("Financial Overview")
@@ -367,9 +365,24 @@ else:
     month_names = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
     monthly_stats.index = month_names
     
+    # Calculate percentages for labels
+    monthly_stats['Matched_Pct'] = (monthly_stats['Matched'] / monthly_stats['Load']).apply(lambda x: f"{x:.0%}")
+    
     fig_bar = go.Figure()
     fig_bar.add_trace(go.Scatter(x=monthly_stats.index, y=monthly_stats['Load'], name='Load', mode='lines', line=dict(color='red', width=3)))
-    fig_bar.add_trace(go.Bar(x=monthly_stats.index, y=monthly_stats['Matched'], name='Matched Energy', marker_color='#FFA500')) # Orange
+    fig_bar.add_trace(go.Bar(
+        x=monthly_stats.index, 
+        y=monthly_stats['Matched'], 
+        name='Matched Energy', 
+        marker_color='#FFA500',
+        text=monthly_stats['Matched_Pct'],
+        textposition='outside',
+        textfont=dict(
+            family="Arial Black",
+            size=14,
+            color="white"
+        )
+    )) # Orange with labels
     fig_bar.add_trace(go.Bar(x=monthly_stats.index, y=monthly_stats['Generation'], name='Renewable Gen', marker_color='#2ca02c', opacity=0.6)) # Standard Green
     fig_bar.add_trace(go.Bar(x=monthly_stats.index, y=monthly_stats['Battery'], name='Battery Discharge', marker_color='#1f77b4')) # Standard blue
     
