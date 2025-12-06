@@ -145,8 +145,9 @@ solar_capacity = st.sidebar.number_input("Solar Capacity (MW)", min_value=0.0, s
 wind_capacity = st.sidebar.number_input("Wind Capacity (MW)", min_value=0.0, step=1.0, key='wind_input')
 geo_capacity = st.sidebar.number_input("Geothermal Capacity (MW)", min_value=0.0, step=1.0, key='geo_input')
 nuc_capacity = st.sidebar.number_input("Nuclear Capacity (MW)", min_value=0.0, step=1.0, key='nuc_input')
-batt_capacity = st.sidebar.number_input("Battery Power (MW)", min_value=0.0, step=1.0, key='batt_input')
-batt_duration = st.sidebar.number_input("Battery Duration (Hours)", min_value=0.5, step=0.5, key='batt_duration_input')
+enable_battery = st.sidebar.checkbox("Enable Battery Storage", value=True)
+batt_capacity = st.sidebar.number_input("Battery Power (MW)", min_value=0.0, step=1.0, key='batt_input', disabled=not enable_battery)
+batt_duration = st.sidebar.number_input("Battery Duration (Hours)", min_value=0.5, step=0.5, key='batt_duration_input', disabled=not enable_battery)
 
 # Update session state from inputs (in case user manually changes them after recommendation)
 st.session_state.solar_cap = solar_capacity
@@ -230,7 +231,11 @@ else:
     deficit = (total_load_profile - total_gen_profile).clip(lower=0)
     
     # 4. Simulate Battery
-    batt_discharge, batt_soc = simulate_battery_storage(surplus, deficit, batt_capacity, batt_duration)
+    if enable_battery:
+        batt_discharge, batt_soc = simulate_battery_storage(surplus, deficit, batt_capacity, batt_duration)
+    else:
+        batt_discharge = pd.Series(0.0, index=range(8760))
+        batt_soc = pd.Series(0.0, index=range(8760))
     
     # 5. Final Matching
     total_gen_with_battery = total_gen_profile + batt_discharge
@@ -312,7 +317,7 @@ else:
     monthly_stats = df_hourly.groupby('Month').sum()
     
     fig_bar = go.Figure()
-    fig_bar.add_trace(go.Bar(x=monthly_stats.index, y=monthly_stats['Load'], name='Load', marker_color='red'))
+    fig_bar.add_trace(go.Scatter(x=monthly_stats.index, y=monthly_stats['Load'], name='Load', mode='lines', line=dict(color='red', width=3)))
     fig_bar.add_trace(go.Bar(x=monthly_stats.index, y=monthly_stats['Matched'], name='Matched Energy', marker_color='#006400')) # Dark Green
     fig_bar.add_trace(go.Bar(x=monthly_stats.index, y=monthly_stats['Generation'], name='Renewable Gen', marker_color='#2ca02c', opacity=0.6)) # Standard Green
     fig_bar.add_trace(go.Bar(x=monthly_stats.index, y=monthly_stats['Battery'], name='Battery Discharge', marker_color='#1f77b4')) # Standard blue
@@ -354,7 +359,8 @@ else:
         y=list(range(24)),
         colorscale='RdYlGn', # Red to Green
         zmin=0, zmax=1,
-        colorbar=dict(title="Matched %")
+        colorbar=dict(title="Matched %"),
+        hovertemplate='Day: %{x}<br>Hour: %{y}<br>Matched: %{z:.1%}<extra></extra>'
     ))
     
     fig_heat.update_layout(
