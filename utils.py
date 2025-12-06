@@ -52,6 +52,7 @@ def generate_dummy_load_profile(annual_consumption_mwh, profile_type='Flat'):
 def generate_dummy_generation_profile(capacity_mw, resource_type='Solar'):
     """
     Generates a dummy hourly generation profile for a year.
+    Refined for ERCOT North characteristics (approximate).
     
     Args:
         capacity_mw (float): Installed capacity in MW.
@@ -61,39 +62,73 @@ def generate_dummy_generation_profile(capacity_mw, resource_type='Solar'):
         pd.Series: Hourly generation in MW.
     """
     hours = 8760
+    t = np.arange(hours)
     
-    # If capacity is 0, we still want a shape (normalized 0-1) so we can scale it later if needed?
-    # Or just return 0? The app logic will effectively be: Profile * Capacity.
-    # So let's generate a UNIT profile (capacity=1.0) and then let the app multiply.
-    # BUT existing code calls this with actual capacity. 
-    # Let's keep existing behavior: if capacity_mw is passed, result is scaled.
-    # If we want a unit profile, we pass 1.0.
+    # Seasonality helper (0 to 1 scaling, peak in Summer for Solar, Spring/Fall for Wind)
+    day_of_year = (t // 24)
     
     if resource_type == 'Solar':
-        # Simple solar curve: peak at noon, zero at night
+        # Solar Profile
+        # 1. Diurnal: Peak around 1 PM (hour 13). Sinusoidal.
+        # 2. Seasonal: Peak in Summer (approx day 172). Lowest in Winter.
+        
         profile = np.zeros(hours)
+        
         for h in range(hours):
             hour_of_day = h % 24
-            if 6 <= hour_of_day <= 18:
-                # Sine wave approximation for day
-                profile[h] = np.sin(np.pi * (hour_of_day - 6) / 12)
+            
+            # Simple day/night check (broadened slightly for summer)
+            is_daytime = 6 <= hour_of_day <= 19
+            if is_daytime:
+                # Center peak at 13 (1 PM)
+                # (hour - 6) / 14 * pi -> maps 6 to 0, 13 to pi/2, 20 to pi
+                # normalized sine wave
+                day_shape = np.sin(np.pi * (hour_of_day - 6) / 13)
+                if day_shape < 0: day_shape = 0
+                
+                # Seasonal Factor: Bassel on cosine of day of year
+                # Peak at day 172 (June 21), Min at day 355/0
+                current_day = day_of_year[h]
+                seasonal_factor = 0.7 + 0.3 * np.cos(2 * np.pi * (current_day - 172) / 365)
+                # Range: 0.4 to 1.0 multiplier? Actually solar variance is intensity + day length.
+                # Let's say Capacity Factor varies from ~15% winter to ~30% summer.
+                # Scaler: 0.7 (winter) to 1.1 (summer peak intensity)
+                
+                # Cloud Noise
+                noise = np.random.uniform(0.7, 1.0)
+                
+                profile[h] = day_shape * seasonal_factor * noise * capacity_mw
             else:
-                profile[h] = 0
-        
-        # Add some random cloud cover noise
-        noise = np.random.uniform(0.8, 1.0, hours)
-        profile = profile * noise * capacity_mw
+                profile[h] = 0.0
         
     elif resource_type == 'Wind':
-        # Random variation with some diurnal pattern (often higher at night in ERCOT)
-        # Using a sum of sines for variety + noise
-        t = np.linspace(0, 8760, hours)
-        base_wind = 0.4 * np.sin(t / 24 * 2 * np.pi) + 0.5 # Daily cycle
-        seasonal = 0.2 * np.sin(t / 8760 * 2 * np.pi) # Seasonal
-        noise = np.random.normal(0, 0.2, hours)
+        # Wind Profile (ERCOT North)
+        # 1. Diurnal: "Inverse Solar" - higher at night/evening, dip midday.
+        # 2. Seasonal: High in Spring (March-May) and Fall (Oct). Lower in Summer (midday).
+        # 3. Volatility: High.
         
-        profile = (base_wind + seasonal + noise)
-        profile = np.clip(profile, 0, 1) * capacity_mw
+        # Diurnal Component (Peak ~2 AM, Trough ~2 PM)
+        # cos curve shifted
+        hour_arg = 2 * np.pi * (t % 24 - 2) / 24 
+        diurnal = 0.6 + 0.25 * np.cos(hour_arg) # Oscillates 0.35 to 0.85
+        
+        # Seasonal Component
+        # Peak Spring (Day 100) and Fall (Day 300). Dip Summer (Day 200) and Winter (Day 0)
+        # Superposition of waves
+        seasonal = 0.7 + 0.3 * np.sin(2 * np.pi * (day_of_year - 50) / 365 * 2) 
+        # Peaks roughly twice a year
+        
+        # Stochastic / Volatility
+        # Weibull distribution-ish or just red noise
+        # Let's use random noise correlated with time
+        noise = np.random.normal(0, 0.15, hours)
+        
+        # Combine
+        raw_profile = diurnal * seasonal + noise
+        
+        # Clip and Scale
+        # Max CF typically ~50-60% for onshore
+        profile = np.clip(raw_profile, 0, 1.0) * capacity_mw
         
     elif resource_type == 'Geothermal':
         # Baseload: Flat with very high availability (e.g. 95% capacity factor)
@@ -367,54 +402,89 @@ def calculate_financials(matched_profile, deficit_profile, strike_price, market_
 
 def process_uploaded_profile(uploaded_file, keywords=None):
     """
-    Parses an uploaded CSV file for profile data (Load, Solar, Wind).
+    Reads an uploaded CSV file and attempts to extract a standard hourly profile (MW).
+    Supports standard CSVs and NREL PVWatts/SAM exports with metadata rows.
     
     Args:
         uploaded_file: Streamlit UploadedFile object.
-        keywords (list): List of strings to match in column names (e.g. ['load', 'mw']).
+        keywords (list): Optional list of column keywords to prioritize (e.g., ['load', 'demand']).
         
     Returns:
-        pd.Series: Hourly profile.
+        pd.Series: Hourly profile in MW (length 8760), or None if failed.
     """
-    if keywords is None:
-        keywords = ['load', 'mw', 'mwh']
+    if uploaded_file is None:
+        return None
         
     try:
-        df = pd.read_csv(uploaded_file)
+        # 1. Attempt to find the header row
+        # Read first few lines to find a row that looks like a header
+        content = uploaded_file.getvalue().decode('utf-8')
+        lines = content.split('\n')
         
-        # identifying the column
-        # 1. Look for keywords (case insensitive)
-        col_match = [c for c in df.columns if any(k in c.lower() for k in keywords)]
+        header_row_index = 0
+        found_header = False
         
-        if col_match:
-            target_col = col_match[0]
-        else:
-            # 2. Fallback: First numeric column
+        # Common NREL/PVWatts column signatures
+        nrel_signatures = ['Year', 'Month', 'Day', 'Hour', 'AC System Output (W)']
+        
+        for i, line in enumerate(lines[:50]): # Check first 50 lines
+            # Simple heuristic: Check for comma separation and keywords
+            line_lower = line.lower()
+            if 'year' in line_lower and 'month' in line_lower and 'day' in line_lower:
+                header_row_index = i
+                found_header = True
+                break
+            # Fallback for simple files
+            if keywords:
+                if any(k in line_lower for k in keywords):
+                    header_row_index = i
+                    found_header = True
+                    break
+        
+        # Reload with identified header
+        uploaded_file.seek(0)
+        df = pd.read_csv(uploaded_file, header=header_row_index)
+        
+        # 2. Identify the Data Column
+        target_col = None
+        
+        # PVWatts specific check
+        pvwatts_col = 'AC System Output (W)'
+        if pvwatts_col in df.columns:
+            # Convert W to MW
+            return df[pvwatts_col] / 1e6 # PVWatts usually outputs W, so /1e6 for MW
+            
+        # Generic keyword search
+        if keywords:
+            # Normalize column names
+            df.columns = [str(c).strip() for c in df.columns]
+            
+            for col in df.columns:
+                col_lower = col.lower()
+                if any(k in col_lower for k in keywords):
+                    target_col = col
+                    break
+                    
+        # Fallback: Use the first numeric column if no keyword match
+        if target_col is None:
             numeric_cols = df.select_dtypes(include=[np.number]).columns
             if len(numeric_cols) > 0:
                 target_col = numeric_cols[0]
-            else:
-                return None # No valid data found
                 
-        series = df[target_col]
-        
-        # Validation / Cleaning
-        # Ensure 8760 length
-        if len(series) > 8760:
-            series = series.iloc[:8760] # Truncate
-        elif len(series) < 8760:
-            # Pad with zeros
-            pad_len = 8760 - len(series)
-            series = pd.concat([series, pd.Series([0]*pad_len)], ignore_index=True)
+        if target_col:
+            # Ensure length is 8760 (truncate or pad)
+            data = df[target_col].values
+            if len(data) > 8760:
+                data = data[:8760]
+            elif len(data) < 8760:
+                # Pad with zeros or repeat? Pad with zeros is safer for now.
+                data = np.pad(data, (0, 8760 - len(data)), 'constant')
+                
+            return pd.Series(data)
             
-        # Handle NaN
-        series = series.fillna(0)
-        
-        series.name = 'Uploaded Profile'
-        return series
+        st.error("Could not identify a valid data column in the CSV.")
+        return None
         
     except Exception as e:
-        print(f"Error parsing file: {e}")
+        st.error(f"Error processing file: {e}")
         return None
-
-

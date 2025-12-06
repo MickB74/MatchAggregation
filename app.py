@@ -390,6 +390,9 @@ else:
     })
     
     csv = results_df.to_csv(index=False).encode('utf-8')
+
+    st.write("### Preview Data")
+    st.dataframe(results_df, use_container_width=True)
     
     st.download_button(
         label="Download Hourly Results (CSV)",
