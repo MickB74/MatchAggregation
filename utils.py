@@ -79,7 +79,47 @@ def generate_dummy_generation_profile(capacity_mw, resource_type='Solar'):
     rng = np.random.default_rng(seed)
     
     if resource_type == 'Solar':
-        # Solar Profile
+        # Check for local PVWatts file for realistic profile
+        # Use simple caching to avoid re-reading disk every time
+        import os
+        pvwatts_file = 'pvwatts_hourly_Denton.csv'
+        
+        if os.path.exists(pvwatts_file):
+            try:
+                # Read PVWatts file (skipping metadata rows, header is usually around line 32)
+                # We start reading from a safe guess or parse header. 
+                # Based on file inspection, header is at line 32 (0-indexed -> skiprows)
+                # Let's try to read with flexible header detection or hardcoded for this specific file
+                
+                # Reading with header=31 (line 32)
+                df_solar = pd.read_csv(pvwatts_file, header=31)
+                
+                if 'AC System Output (W)' in df_solar.columns:
+                    # Extract raw watts
+                    raw_watts = df_solar['AC System Output (W)'].values
+                    
+                    # Ensure length is 8760
+                    if len(raw_watts) > hours:
+                        raw_watts = raw_watts[:hours]
+                    elif len(raw_watts) < hours:
+                        raw_watts = np.pad(raw_watts, (0, hours - len(raw_watts)), 'constant')
+                        
+                    # Normalize: The file is for a 100 kW system (from metadata inspection)
+                    # Unit profile (MW output per 1 MW installed)
+                    # 100 kW = 0.1 MW. 
+                    # So normalized = (Raw Watts / 1e6) / 0.1 
+                    # Or simpler: (Raw Watts) / (System Size Watts)
+                    system_size_watts = 100_000.0 # 100 kW
+                    
+                    unit_profile = raw_watts / system_size_watts
+                    
+                    profile = unit_profile * capacity_mw
+                    return pd.Series(profile, name='Solar Generation (MW)')
+                    
+            except Exception as e:
+                print(f"Failed to load PVWatts file, using dummy: {e}")
+        
+        # Fallback to Dummy Solar Profile
         # 1. Diurnal: Peak around 1 PM (hour 13). Sinusoidal.
         # 2. Seasonal: Peak in Summer (approx day 172). Lowest in Winter.
         
@@ -102,7 +142,6 @@ def generate_dummy_generation_profile(capacity_mw, resource_type='Solar'):
                 current_day = day_of_year[h]
                 seasonal_factor = 0.7 + 0.3 * np.cos(2 * np.pi * (current_day - 172) / 365)
                 # Range: 0.4 to 1.0 multiplier? Actually solar variance is intensity + day length.
-                # Let's say Capacity Factor varies from ~15% winter to ~30% summer.
                 # Scaler: 0.7 (winter) to 1.1 (summer peak intensity)
                 
                 # Cloud Noise
