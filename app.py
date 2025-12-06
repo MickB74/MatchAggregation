@@ -466,7 +466,7 @@ else:
         'Geothermal_MW': geo_profile,
         'Nuclear_MW': nuc_profile,
         'Battery_Discharge_MW': batt_discharge,
-        'Battery_SoC_MWh': batt_soc,
+        'Battery_State_of_Charge_MWh': batt_soc,
         'Grid_Deficit_MW': deficit,
         'Surplus_MW': surplus
     })
