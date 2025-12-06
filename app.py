@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 import plotly.graph_objects as go
+import numpy as np
 from utils import (
     generate_dummy_load_profile, 
     generate_dummy_generation_profile, 
@@ -122,12 +123,22 @@ if 'geo_cap' not in st.session_state: st.session_state.geo_cap = 0.0
 if 'nuc_cap' not in st.session_state: st.session_state.nuc_cap = 0.0
 if 'batt_cap' not in st.session_state: st.session_state.batt_cap = 0.0
 
-solar_capacity = st.sidebar.number_input("Solar Capacity (MW)", min_value=0.0, value=st.session_state.solar_cap, step=1.0, key='solar_input')
-wind_capacity = st.sidebar.number_input("Wind Capacity (MW)", min_value=0.0, value=st.session_state.wind_cap, step=1.0, key='wind_input')
-geo_capacity = st.sidebar.number_input("Geothermal Capacity (MW)", min_value=0.0, value=st.session_state.geo_cap, step=1.0, key='geo_input')
-nuc_capacity = st.sidebar.number_input("Nuclear Capacity (MW)", min_value=0.0, value=st.session_state.nuc_cap, step=1.0, key='nuc_input')
-batt_capacity = st.sidebar.number_input("Battery Power (MW)", min_value=0.0, value=st.session_state.batt_cap, step=1.0, key='batt_input')
-batt_duration = st.sidebar.number_input("Battery Duration (Hours)", min_value=0.5, value=4.0, step=0.5, key='batt_duration_input')
+# Initialize widget keys if not present
+if 'solar_input' not in st.session_state: st.session_state.solar_input = st.session_state.solar_cap
+if 'wind_input' not in st.session_state: st.session_state.wind_input = st.session_state.wind_cap
+if 'geo_input' not in st.session_state: st.session_state.geo_input = st.session_state.geo_cap
+if 'nuc_input' not in st.session_state: st.session_state.nuc_input = st.session_state.nuc_cap
+if 'batt_input' not in st.session_state: st.session_state.batt_input = st.session_state.batt_cap
+if 'batt_duration_input' not in st.session_state: st.session_state.batt_duration_input = 4.0
+
+
+
+solar_capacity = st.sidebar.number_input("Solar Capacity (MW)", min_value=0.0, step=1.0, key='solar_input')
+wind_capacity = st.sidebar.number_input("Wind Capacity (MW)", min_value=0.0, step=1.0, key='wind_input')
+geo_capacity = st.sidebar.number_input("Geothermal Capacity (MW)", min_value=0.0, step=1.0, key='geo_input')
+nuc_capacity = st.sidebar.number_input("Nuclear Capacity (MW)", min_value=0.0, step=1.0, key='nuc_input')
+batt_capacity = st.sidebar.number_input("Battery Power (MW)", min_value=0.0, step=1.0, key='batt_input')
+batt_duration = st.sidebar.number_input("Battery Duration (Hours)", min_value=0.5, step=0.5, key='batt_duration_input')
 
 # Update session state from inputs (in case user manually changes them after recommendation)
 st.session_state.solar_cap = solar_capacity
