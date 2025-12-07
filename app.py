@@ -29,15 +29,14 @@ if 'participants' not in st.session_state:
     st.session_state.participants = []
 
 # --- Global Settings (Sidebar - Load Scenario) ---
-# MUST be defined BEFORE the widgets that use these session state values are instantiated.
-with st.sidebar:
-    st.markdown("### Load Scenario")
-    uploaded_scenario = st.file_uploader("Upload scenario_config.json", type=['json', 'txt'])
-    
-    if uploaded_scenario is not None:
+# --- Global Settings (Sidebar - Load Scenario) ---
+# Callback to handle loading
+def load_scenario():
+    uploaded_file = st.session_state.get('uploaded_scenario_file')
+    if uploaded_file is not None:
         try:
             # Robust loading:
-            content_bytes = uploaded_scenario.read()
+            content_bytes = uploaded_file.read()
             content_str = content_bytes.decode('utf-8').strip()
             
             # 1. Aggressive Cleaning: Find first '{' and last '}'
@@ -48,54 +47,54 @@ with st.sidebar:
                 content_str = content_str[start_idx : end_idx + 1]
             
             # Remove C-style comments (// ...)
-            # We use a simple regex. Note: this might break URLs with //, but unlikely in this config.
             content_str = re.sub(r'//.*', '', content_str)
             
             # 2. Try standard JSON
             try:
                 config = json.loads(content_str)
             except json.JSONDecodeError:
-                # 3. Try ast.literal_eval (for Python dicts with single quotes)
+                # 3. Try ast.literal_eval
                 try:
                     config = ast.literal_eval(content_str)
                 except (ValueError, SyntaxError):
                     st.error("Could not parse file.")
-                    with st.expander("Debug: Show Raw Content Snippet"):
-                        st.code(content_str[:1000])
-                    st.stop()
+                    return
 
-            # Check if this file has already been loaded to prevent overwriting manual changes
-            if uploaded_scenario.name != st.session_state.get('loaded_scenario_name'):
-                # Apply to Session State
-                # 1. Participants
-                if 'participants' in config:
-                    st.session_state.participants = config['participants']
-                
-                # 2. Generation Capacities
-                if 'solar_capacity' in config: st.session_state.solar_input = float(config['solar_capacity'])
-                if 'wind_capacity' in config: st.session_state.wind_input = float(config['wind_capacity'])
-                if 'geo_capacity' in config: st.session_state.geo_input = float(config['geo_capacity'])
-                if 'nuc_capacity' in config: st.session_state.nuc_input = float(config['nuc_capacity'])
-                if 'batt_capacity' in config: st.session_state.batt_input = float(config['batt_capacity'])
-                if 'batt_duration' in config: st.session_state.batt_duration_input = float(config['batt_duration'])
-                
-                # 3. Financials
-                if 'strike_price' in config: st.session_state.strike_input = float(config['strike_price'])
-                if 'market_price' in config: st.session_state.market_input = float(config['market_price'])
-                if 'rec_price' in config: st.session_state.rec_input = float(config['rec_price'])
-                
-                # 4. Exclusions
-                if 'excluded_techs' in config: st.session_state.excluded_techs_input = config['excluded_techs']
-                
-                # Mark as loaded
-                st.session_state.loaded_scenario_name = uploaded_scenario.name
-                st.toast("Scenario Loaded Successfully!")
-            else:
-                # File is present but already loaded. Do not re-apply configs.
-                pass
-                
+            # Apply to Session State
+            # 1. Participants
+            if 'participants' in config:
+                st.session_state.participants = config['participants']
+            
+            # 2. Generation Capacities
+            if 'solar_capacity' in config: st.session_state.solar_input = float(config['solar_capacity'])
+            if 'wind_capacity' in config: st.session_state.wind_input = float(config['wind_capacity'])
+            if 'geo_capacity' in config: st.session_state.geo_input = float(config['geo_capacity'])
+            if 'nuc_capacity' in config: st.session_state.nuc_input = float(config['nuc_capacity'])
+            if 'batt_capacity' in config: st.session_state.batt_input = float(config['batt_capacity'])
+            if 'batt_duration' in config: st.session_state.batt_duration_input = float(config['batt_duration'])
+            
+            # 3. Financials
+            if 'strike_price' in config: st.session_state.strike_input = float(config['strike_price'])
+            if 'market_price' in config: st.session_state.market_input = float(config['market_price'])
+            if 'rec_price' in config: st.session_state.rec_input = float(config['rec_price'])
+            
+            # 4. Exclusions
+            if 'excluded_techs' in config: st.session_state.excluded_techs_input = config['excluded_techs']
+            
+            st.toast("Scenario Loaded Successfully!")
+            
         except Exception as e:
             st.error(f"Error parsing scenario: {e}")
+
+# MUST be defined BEFORE the widgets that use these session state values are instantiated.
+with st.sidebar:
+    st.markdown("### Load Scenario")
+    st.file_uploader(
+        "Upload scenario_config.json", 
+        type=['json', 'txt'], 
+        key='uploaded_scenario_file', 
+        on_change=load_scenario
+    )
 
     st.markdown("---")
 
