@@ -36,15 +36,29 @@ with st.sidebar:
     if uploaded_scenario is not None:
         try:
             # Robust loading:
-            # 1. Try standard JSON
-            # 2. Try ast.literal_eval (for Python dicts with single quotes)
-            content = uploaded_scenario.read()
+            content_bytes = uploaded_scenario.read()
+            content_str = content_bytes.decode('utf-8').strip()
             
+            # 1. Clean Markdown code blocks if present
+            if content_str.startswith("```"):
+                # Remove first line (```json or just ```)
+                content_str = "\n".join(content_str.splitlines()[1:])
+                # Remove last line if it is ```
+                if content_str.strip().endswith("```"):
+                    content_str = content_str.rsplit("```", 1)[0]
+            
+            content_str = content_str.strip()
+            
+            # 2. Try standard JSON
             try:
-                config = json.loads(content)
+                config = json.loads(content_str)
             except json.JSONDecodeError:
-                # Fallback for single quotes
-                config = ast.literal_eval(content.decode('utf-8'))
+                # 3. Try ast.literal_eval (for Python dicts with single quotes)
+                try:
+                    config = ast.literal_eval(content_str)
+                except (ValueError, SyntaxError):
+                    st.error("Could not parse file. Ensure it is valid JSON or a Python dictionary.")
+                    st.stop()
 
             # Apply to Session State
             # 1. Participants
