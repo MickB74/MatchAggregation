@@ -529,12 +529,18 @@ def calculate_financials(matched_profile, deficit_profile, tech_profiles, tech_p
     # Calculate Weighted Averages for Display
     weighted_ppa_price = total_ppa_cost / total_matched_mwh if total_matched_mwh > 0 else 0.0
     
-    # Capture Value: Market Value of the generated energy (Total Gen)
+    # Capture Value: Market Value of the generated energy (VPPA Generation only, excluding Battery)
     # Note: If market_price_avg is scalar, this will equal market_price_avg.
     # But we implement the logic for correctness if prices become profiles later.
-    market_value_total_gen = total_gen_profile.sum() * market_price_avg
-    total_gen_mwh = total_gen_profile.sum()
-    weighted_market_price = market_value_total_gen / total_gen_mwh if total_gen_mwh > 0 else 0.0
+    
+    gen_only_profiles = [p for t, p in tech_profiles.items() if t != 'Battery']
+    if gen_only_profiles:
+        total_gen_only = sum(gen_only_profiles)
+        market_value_total_gen = total_gen_only.sum() * market_price_avg
+        total_gen_mwh = total_gen_only.sum()
+        weighted_market_price = market_value_total_gen / total_gen_mwh if total_gen_mwh > 0 else 0.0
+    else:
+        weighted_market_price = 0.0
     
     return {
         'settlement_value': settlement_value,
