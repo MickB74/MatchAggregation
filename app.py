@@ -1,4 +1,5 @@
 import streamlit as st
+import ast  # For handling single-quoted JSON-like strings
 import pandas as pd
 import plotly.graph_objects as go
 import numpy as np
@@ -34,8 +35,17 @@ with st.sidebar:
     
     if uploaded_scenario is not None:
         try:
-            config = json.load(uploaded_scenario)
+            # Robust loading:
+            # 1. Try standard JSON
+            # 2. Try ast.literal_eval (for Python dicts with single quotes)
+            content = uploaded_scenario.read()
             
+            try:
+                config = json.loads(content)
+            except json.JSONDecodeError:
+                # Fallback for single quotes
+                config = ast.literal_eval(content.decode('utf-8'))
+
             # Apply to Session State
             # 1. Participants
             if 'participants' in config:
