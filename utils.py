@@ -355,7 +355,6 @@ def simulate_battery_storage(surplus_profile, deficit_profile, capacity_mw, dura
     return pd.Series(discharge_profile, name='Battery Discharge (MW)'), pd.Series(soc_profile, name='Battery SoC (MWh)')
 
 def recommend_portfolio(load_profile, target_cfe=0.95, excluded_techs=None):
-def recommend_portfolio(load_profile, solar_capacity, wind_capacity, geo_capacity, nuc_capacity, ccs_capacity, batt_capacity, batt_duration, excluded_techs=[]):
     """
     Heuristic to recommend a technology mix targeting a specific CFE score (default 95%).
     
@@ -363,70 +362,181 @@ def recommend_portfolio(load_profile, solar_capacity, wind_capacity, geo_capacit
     1. Start with a baseline heuristic.
     2. Iteratively scale up variable renewables and battery storage until target CFE is met.
     """
-    # This function is a placeholder for a more complex optimization.
-    # For now, it just returns the user's current inputs as the "recommendation"
-    # (or slightly modified versions if we implemented logic).
+    if excluded_techs is None:
+        excluded_techs = []
+        
+    avg_load = load_profile.mean()
+    min_load = load_profile.min()
+    peak_load = load_profile.max()
+    total_load = load_profile.sum()
     
-    # Just pass through for calculating metrics of the CURRENT state
-    return calculate_portfolio_metrics(
-        load_profile, 
-        solar_capacity, 
-        wind_capacity, 
-        geo_capacity, 
-        nuc_capacity, 
-        ccs_capacity,
-        batt_capacity, 
-        batt_duration, 
-        excluded_techs
-    )
+    # Initial Recommendation (Baseline)
+    recommendation = {
+        'Solar': 0,
+        'Wind': 0,
+        'Geothermal': 0,
+        'Nuclear': 0,
+        'CCS Gas': 0,
+        'Battery_MW': 0,
+        'Battery_Hours': 4
+    }
+    
+    # 1. Baseload Coverage (Firm Clean Energy)
+    # Suggest covering 80% of min load with firm clean energy
+    firm_target = min_load * 0.8
+    
+    # Logic to distribute firm target
+    firm_techs = [t for t in ['Geothermal', 'Nuclear', 'CCS Gas'] if t not in excluded_techs]
+    if firm_techs:
+        for t in firm_techs:
+            recommendation[t] = firm_target / len(firm_techs)
 
-def calculate_financials(matched_profile, deficit_profile, strike_price, market_price_avg, rec_price):
+
+    # 2. Variable Renewable Coverage (Initial Guess)
+    firm_gen_annual = (recommendation['Geothermal'] + recommendation['Nuclear'] + recommendation['CCS Gas']) * 8760
+    remaining_load = total_load - firm_gen_annual
+    
+    if remaining_load > 0:
+        target_variable_gen = remaining_load * 1.2 # Start with 1.2x coverage
+        
+        var_techs = [t for t in ['Solar', 'Wind'] if t not in excluded_techs]
+        
+        if var_techs:
+            # Capacity Factors: Solar ~0.25, Wind ~0.40
+            # If both present, split 50/50 energy target
+            # If only one, give 100% energy target
+            
+            for t in var_techs:
+                if t == 'Solar':
+                    recommendation['Solar'] = (target_variable_gen / len(var_techs)) / (8760 * 0.25)
+                elif t == 'Wind':
+                    recommendation['Wind'] = (target_variable_gen / len(var_techs)) / (8760 * 0.40)
+        
+    # 3. Battery Storage (Initial Guess)
+    if 'Battery' not in excluded_techs:
+        recommendation['Battery_MW'] = peak_load * 0.2
+    
+    # Iterative Optimization Loop
+    max_iterations = 20
+    current_cfe = 0.0
+    
+    for i in range(max_iterations):
+        # Generate Profiles based on current recommendation
+        solar_gen = generate_dummy_generation_profile(recommendation['Solar'], 'Solar')
+        wind_gen = generate_dummy_generation_profile(recommendation['Wind'], 'Wind')
+        geo_gen = generate_dummy_generation_profile(recommendation['Geothermal'], 'Geothermal')
+        nuc_gen = generate_dummy_generation_profile(recommendation['Nuclear'], 'Nuclear')
+        ccs_gen = generate_dummy_generation_profile(recommendation['CCS Gas'], 'CCS Gas')
+        
+        total_gen = solar_gen + wind_gen + geo_gen + nuc_gen + ccs_gen
+        
+        # Calculate Surplus/Deficit for Battery
+        surplus = (total_gen - load_profile).clip(lower=0)
+        deficit = (load_profile - total_gen).clip(lower=0)
+        
+        # Simulate Battery
+        batt_discharge, _ = simulate_battery_storage(surplus, deficit, recommendation['Battery_MW'], recommendation['Battery_Hours'])
+        
+        # Calculate CFE
+        total_available = total_gen + batt_discharge
+        cfe_score, _ = calculate_cfe_score(load_profile, total_available)
+        current_cfe = cfe_score
+        
+        if current_cfe >= target_cfe:
+            break
+            
+        # Scale up if target not met
+        # Increase Solar/Wind by 10%
+        if 'Solar' not in excluded_techs:
+            recommendation['Solar'] *= 1.1
+        if 'Wind' not in excluded_techs:
+            recommendation['Wind'] *= 1.1
+        
+        # Increase Battery Power by 5% and Duration slightly (up to 8h)
+        if 'Battery' not in excluded_techs:
+            recommendation['Battery_MW'] *= 1.05
+            if recommendation['Battery_Hours'] < 8:
+                recommendation['Battery_Hours'] += 0.5
+            
+    # Round values for clean output
+    for k, v in recommendation.items():
+        recommendation[k] = round(v, 1)
+        
+    return recommendation
+
+def calculate_financials(matched_profile, deficit_profile, tech_profiles, tech_prices, market_price_avg, rec_price):
     """
-    Calculates financial metrics for the portfolio.
+    Calculates financial metrics for the portfolio using per-technology pricing.
     
     Args:
         matched_profile (pd.Series): Hourly matched renewable energy (MWh).
         deficit_profile (pd.Series): Hourly unmatched load (MWh).
-        strike_price (float): PPA Strike Price ($/MWh).
+        tech_profiles (dict): Dict of hourly generation profiles (pd.Series) for each tech.
+            Keys should match keys in tech_prices (e.g., 'Solar', 'Wind').
+        tech_prices (dict): Dict of PPA prices ($/MWh) for each tech.
         market_price_avg (float): Average Wholesale Market Price ($/MWh).
         rec_price (float): Price of RECs ($/REC or $/MWh of clean energy).
         
     Returns:
         dict: Financial metrics including Settlement Value, REC Cost, Net Cost.
     """
-    # 1. PPA Settlement
-    # Settlement Value = (Market - Strike) * Matched
-    # Represents value gained (or lost) relative to market by having the PPA.
-    total_matched_mwh = matched_profile.sum()
-    settlement_value = (market_price_avg - strike_price) * total_matched_mwh
+    # 1. Calculate PPA Cost of Matched Energy (Weighted Attribution)
+    # We assume 'matched_profile' is composed of the various techs in proportion to their generation.
+    # Total Available Generation at each hour
+    total_gen_profile = sum(tech_profiles.values())
     
-    # 2. REC Cost
-    # Assuming we pay 'rec_price' for every MWh of matched/procured clean energy
+    # Avoid division by zero
+    with np.errstate(divide='ignore', invalid='ignore'):
+        attribution_factors = matched_profile / total_gen_profile
+        attribution_factors = attribution_factors.fillna(0.0) # 0/0 -> 0
+    
+    total_ppa_cost = 0.0
+    
+    for tech, profile in tech_profiles.items():
+        price = tech_prices.get(tech, 0.0)
+        # Matched MWh from this tech = Total Matched * (Tech Gen / Total Gen) 
+        # which simplifies to: Tech Gen * (Matched / Total Gen) -> Tech Gen * attribution_factor
+        matched_mwh_tech = profile * attribution_factors
+        tech_cost = matched_mwh_tech.sum() * price
+        total_ppa_cost += tech_cost
+        
+    # 2. Market Value of Matched Energy
+    # Value = Matched MWh * Market Price
+    total_matched_mwh = matched_profile.sum()
+    market_value_matched = total_matched_mwh * market_price_avg
+    
+    # 3. Settlement Value
+    # PPA Settlement = Market Value - PPA Cost
+    # (Positive means we made money relative to PPA cost)
+    settlement_value = market_value_matched - total_ppa_cost
+    
+    # 4. REC Cost
     rec_cost = total_matched_mwh * rec_price
     
-    # 3. Net Energy Cost
-    # Total Load Cost Estimate = Market Cost of Load - Settlement Benefit + REC Cost
-    # Net Cost = (Load * Market) - [ (Market - Strike) * Matched ] + (Matched * REC)
-    # This simplifies to:
-    # Net Cost = (Unmatched * Market) + (Matched * Strike) + (Matched * REC)
-    # i.e., We pay Market for deficit, Strike for matched, plus REC for matched.
+    # 5. Net Energy Cost
+    # Cost to serve load = (Deficit * Market) + (Matched * PPA Price) + (Matched * REC)
+    # Note: 'Matched * PPA Price' is exactly 'total_ppa_cost' calculated above
     
     total_deficit_mwh = deficit_profile.sum()
     total_load = total_matched_mwh + total_deficit_mwh
     
-    net_cost = (total_deficit_mwh * market_price_avg) + (total_matched_mwh * strike_price) + (total_matched_mwh * rec_price)
+    market_cost_deficit = total_deficit_mwh * market_price_avg
     
-    avg_cost_per_mwh = net_cost / total_load if total_load > 0 else 0.0
+    net_cost = market_cost_deficit + total_ppa_cost + rec_cost
+    
+    # Calculate Weighted Averages for Display
+    weighted_ppa_price = total_ppa_cost / total_matched_mwh if total_matched_mwh > 0 else 0.0
+    weighted_market_price = market_value_matched / total_matched_mwh if total_matched_mwh > 0 else 0.0
     
     return {
         'settlement_value': settlement_value,
         'rec_cost': rec_cost,
         'net_cost': net_cost,
-        'avg_cost_per_mwh': avg_cost_per_mwh
+        'avg_cost_per_mwh': avg_cost_per_mwh,
+        'weighted_ppa_price': weighted_ppa_price,
+        'weighted_market_price': weighted_market_price
     }
 
-        'avg_cost_per_mwh': avg_cost_per_mwh
-    }
 
 def process_uploaded_profile(uploaded_file, keywords=None):
     """

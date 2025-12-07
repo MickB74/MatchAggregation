@@ -83,7 +83,22 @@ def load_scenario():
             if 'batt_duration' in config: st.session_state.batt_duration_input = float(config['batt_duration'])
             
             # 3. Financials
-            if 'strike_price' in config: st.session_state.strike_input = float(config['strike_price'])
+            # 3. Financials
+            if 'strike_price' in config: 
+                # Backward compatibility
+                st.session_state.solar_price_input = float(config['strike_price'])
+                st.session_state.wind_price_input = float(config['strike_price'])
+                st.session_state.ccs_price_input = float(config['strike_price'])
+                st.session_state.geo_price_input = float(config['strike_price'])
+                st.session_state.nuc_price_input = float(config['strike_price'])
+
+            if 'solar_price' in config: st.session_state.solar_price_input = float(config['solar_price'])
+            if 'wind_price' in config: st.session_state.wind_price_input = float(config['wind_price'])
+            if 'ccs_price' in config: st.session_state.ccs_price_input = float(config['ccs_price'])
+            if 'geo_price' in config: st.session_state.geo_price_input = float(config['geo_price'])
+            if 'nuc_price' in config: st.session_state.nuc_price_input = float(config['nuc_price'])
+            if 'batt_price' in config: st.session_state.batt_price_input = float(config['batt_price'])
+
             if 'market_price' in config: st.session_state.market_input = float(config['market_price'])
             if 'rec_price' in config: st.session_state.rec_input = float(config['rec_price'])
             
@@ -224,10 +239,23 @@ with st.expander("Configuration & Setup", expanded=True):
 
     # --- Tab 3: Financials ---
     with tab_fin:
+        st.markdown("#### PPA Prices ($/MWh)")
         c_fin_1, c_fin_2, c_fin_3 = st.columns(3)
-        strike_price = c_fin_1.number_input("PPA Strike Price ($/MWh)", min_value=0.0, value=30.0, step=1.0, key='strike_input')
-        market_price = c_fin_2.number_input("Avg Market Price ($/MWh)", min_value=0.0, value=35.0, step=1.0, key='market_input')
-        rec_price = c_fin_3.number_input("REC Price ($/MWh)", min_value=0.0, value=8.0, step=0.5, key='rec_input')
+        with c_fin_1:
+            solar_price = st.number_input("Solar PPA Price", min_value=0.0, value=30.0, step=1.0, key='solar_price_input')
+            wind_price = st.number_input("Wind PPA Price", min_value=0.0, value=30.0, step=1.0, key='wind_price_input')
+        with c_fin_2:
+            ccs_price = st.number_input("CCS Gas PPA Price", min_value=0.0, value=100.0, step=1.0, key='ccs_price_input')
+            geo_price = st.number_input("Geothermal PPA Price", min_value=0.0, value=80.0, step=1.0, key='geo_price_input')
+        with c_fin_3:
+            nuc_price = st.number_input("Nuclear PPA Price", min_value=0.0, value=80.0, step=1.0, key='nuc_price_input')
+            batt_price = st.number_input("Battery Storage Adder ($/MWh Discharged)", min_value=0.0, value=10.0, step=1.0, key='batt_price_input', help="Cost adder for battery throughput")
+
+        st.markdown("---")
+        st.markdown("#### Market Assumptions")
+        c_mkt_1, c_mkt_2 = st.columns(2)
+        market_price = c_mkt_1.number_input("Avg Market Price ($/MWh)", min_value=0.0, value=35.0, step=1.0, key='market_input')
+        rec_price = c_mkt_2.number_input("REC Price ($/MWh)", min_value=0.0, value=8.0, step=0.5, key='rec_input')
 
 
 # --- Global Settings (Sidebar) ---
@@ -345,7 +373,26 @@ else:
     metrics = calculate_portfolio_metrics(total_load_profile, matched_profile, total_gen_capacity)
     
     # Financials
-    fin_metrics = calculate_financials(matched_profile, deficit, strike_price, market_price, rec_price)
+    # Financials
+    tech_profiles = {
+        'Solar': solar_profile,
+        'Wind': wind_profile,
+        'CCS Gas': ccs_profile,
+        'Geothermal': geo_profile,
+        'Nuclear': nuc_profile,
+        'Battery': batt_discharge
+    }
+    
+    tech_prices = {
+        'Solar': solar_price,
+        'Wind': wind_price,
+        'CCS Gas': ccs_price,
+        'Geothermal': geo_price,
+        'Nuclear': nuc_price,
+        'Battery': batt_price
+    }
+    
+    fin_metrics = calculate_financials(matched_profile, deficit, tech_profiles, tech_prices, market_price, rec_price)
     
     # --- Dashboard ---
     
@@ -365,9 +412,11 @@ else:
     
     # Metrics - Row 3 (Financials)
     st.subheader("Financial Overview")
-    col9, col10 = st.columns(2)
+    col9, col10, col11, col12 = st.columns(4)
     col9.metric("Annual PPA Settlement Value", f"${fin_metrics['settlement_value']:,.0f}", help="Annual Revenue (or Cost) from PPA Settlement: (Market - Strike) * Matched Vol")
-    col10.metric("REC Value", f"${fin_metrics['rec_cost']:,.0f}", help="Value of RECs")
+    col10.metric("Weighted Avg PPA Price", f"${fin_metrics['weighted_ppa_price']:.2f}/MWh", help="Average cost of matched energy based on technology mix")
+    col11.metric("Capture Value", f"${fin_metrics['weighted_market_price']:.2f}/MWh", help="Average market value of matched energy")
+    col12.metric("REC Value", f"${fin_metrics['rec_cost']:,.0f}", help="Value of RECs")
     
     # Charts
     st.subheader("Hourly Energy Balance")
@@ -414,6 +463,10 @@ else:
     fig = go.Figure()
     fig.add_trace(go.Scatter(x=x_axis, y=total_load_profile[start_hour:end_hour],
                              mode='lines', name='Aggregated Load', line=dict(color='red', width=2)))
+    
+    # Total Generation Line
+    fig.add_trace(go.Scatter(x=x_axis, y=total_gen_profile[start_hour:end_hour],
+                             mode='lines', name='Total Clean Energy', line=dict(color='#2ca02c', width=2)))
     # Stacked generation profiles
     fig.add_trace(go.Scatter(x=x_axis, y=solar_profile[start_hour:end_hour], name='Solar Gen', stackgroup='one', line=dict(color='gold'), fill='tonexty'))
     fig.add_trace(go.Scatter(x=x_axis, y=wind_profile[start_hour:end_hour], name='Wind Gen', stackgroup='one', line=dict(color='lightblue'), fill='tonexty'))
@@ -600,7 +653,12 @@ else:
             "nuc_capacity": nuc_capacity,
             "batt_capacity": batt_capacity,
             "batt_duration": batt_duration,
-            "strike_price": strike_price,
+            "solar_price": solar_price,
+            "wind_price": wind_price,
+            "ccs_price": ccs_price,
+            "geo_price": geo_price,
+            "nuc_price": nuc_price,
+            "batt_price": batt_price,
             "market_price": market_price,
             "rec_price": rec_price,
             # Extract participants from session state
