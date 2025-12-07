@@ -3,6 +3,9 @@ import pandas as pd
 import plotly.graph_objects as go
 import numpy as np
 import datetime
+import json
+import zipfile
+import io
 from utils import (
     generate_dummy_load_profile, 
     generate_dummy_generation_profile, 
@@ -141,12 +144,66 @@ with st.expander("Configuration & Setup", expanded=True):
     # --- Tab 3: Financials ---
     with tab_fin:
         c_fin_1, c_fin_2, c_fin_3 = st.columns(3)
-        strike_price = c_fin_1.number_input("PPA Strike Price ($/MWh)", min_value=0.0, value=30.0, step=1.0)
-        market_price = c_fin_2.number_input("Avg Market Price ($/MWh)", min_value=0.0, value=35.0, step=1.0)
-        rec_price = c_fin_3.number_input("REC Price ($/MWh)", min_value=0.0, value=8.0, step=0.5)
+        strike_price = c_fin_1.number_input("PPA Strike Price ($/MWh)", min_value=0.0, value=30.0, step=1.0, key='strike_input')
+        market_price = c_fin_2.number_input("Avg Market Price ($/MWh)", min_value=0.0, value=35.0, step=1.0, key='market_input')
+        rec_price = c_fin_3.number_input("REC Price ($/MWh)", min_value=0.0, value=8.0, step=0.5, key='rec_input')
 
 
 # --- Global Settings (Sidebar) ---
+with st.sidebar:
+    st.markdown("### Load Scenario")
+    uploaded_scenario = st.file_uploader("Upload scenario_config.json", type=['json'])
+    
+    if uploaded_scenario is not None:
+        try:
+            config = json.load(uploaded_scenario)
+            
+            # Apply to Session State
+            # 1. Participants
+            if 'participants' in config:
+                st.session_state.participants = config['participants']
+            
+            # 2. Generation Capacities
+            if 'solar_capacity' in config: st.session_state.solar_input = float(config['solar_capacity'])
+            if 'wind_capacity' in config: st.session_state.wind_input = float(config['wind_capacity'])
+            if 'geo_capacity' in config: st.session_state.geo_input = float(config['geo_capacity'])
+            if 'nuc_capacity' in config: st.session_state.nuc_input = float(config['nuc_capacity'])
+            if 'batt_capacity' in config: st.session_state.batt_input = float(config['batt_capacity'])
+            if 'batt_duration' in config: st.session_state.batt_duration_input = float(config['batt_duration'])
+            
+            # 3. Financials
+            if 'strike_price' in config: st.session_state.strike_input = float(config['strike_price'])
+            if 'market_price' in config: st.session_state.market_input = float(config['market_price'])
+            if 'rec_price' in config: st.session_state.rec_input = float(config['rec_price'])
+            
+            # 4. Exclusions
+            if 'excluded_techs' in config: st.session_state.excluded_techs_input = config['excluded_techs']
+            
+            st.success("Scenario Loaded! Rerunning...")
+            # Ideally we clear the uploader or just rerun
+            # st.rerun() will reload the whole script with new session state values
+            # However, file_uploader persists if not cleared. 
+            # We can use a button to apply? Or just apply once.
+            # Using st.rerun() directly might loop if we don't handle it carefully.
+            # BUT: since we update session_state keys that match widget keys, 
+            # Streamlit widgets will pick up these values on the NEXT run.
+            # So a simple rerun is correct.
+            
+            # Only rerun if we haven't already just loaded it?
+            # Actually, standard pattern for state update is simple assignment then rerun.
+            pass # We rely on user interaction or explicit rerun.
+            # Let's add an explicit button to "Apply" if needed, OR just do it.
+            # If we do it inside the "if uploaded_scenario", it runs every script run as long as file is there.
+            # We should check if we NEED to update (idempotency) or just do it.
+            # To be safe and simple: 
+            if st.button("Apply Loaded Scenario"):
+                st.rerun()
+                
+        except Exception as e:
+            st.error(f"Error parsing scenario: {e}")
+
+    st.markdown("---")
+
 # Forces Dark Mode Permanently
 st.markdown("""
     <style>
@@ -493,13 +550,40 @@ else:
     
     csv = results_df.to_csv(index=False).encode('utf-8')
 
+    # Create ZIP buffer
+    zip_buffer = io.BytesIO()
+    with zipfile.ZipFile(zip_buffer, "w") as zf:
+        # Add CSV results
+        zf.writestr("simulation_results.csv", csv)
+        
+        # Create Scenario Configuration
+        scenario_config = {
+            "solar_capacity": solar_capacity,
+            "wind_capacity": wind_capacity,
+            "geo_capacity": geo_capacity,
+            "nuc_capacity": nuc_capacity,
+            "batt_capacity": batt_capacity,
+            "batt_duration": batt_duration,
+            "strike_price": strike_price,
+            "market_price": market_price,
+            "rec_price": rec_price,
+            # Extract participants from session state
+            "participants": st.session_state.participants,
+            # Store exclusions
+            "excluded_techs": st.session_state.get('excluded_techs', [])
+        }
+        
+        # Add JSON config
+        json_str = json.dumps(scenario_config, indent=4)
+        zf.writestr("scenario_config.json", json_str)
+        
+    st.download_button(
+        label="Download Results & Scenario (ZIP)",
+        data=zip_buffer.getvalue(),
+        file_name="simulation_results.zip",
+        mime="application/zip"
+    )
+    
     st.write("### Preview Data")
     st.dataframe(results_df, use_container_width=True)
     
-    st.download_button(
-        label="Download Hourly Results (CSV)",
-        data=csv,
-        file_name='simulation_results_8760.csv',
-        mime='text/csv',
-    )
-
