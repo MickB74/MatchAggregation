@@ -430,18 +430,18 @@ else:
     # 1. Total Generation (Background)
     fig_bar.add_trace(go.Bar(x=monthly_stats.index, y=monthly_stats['Generation'], name='Total Clean Energy', marker_color='#2ca02c', opacity=0.6)) # Standard Green
     
-    # 2. Battery (Middle)
-    fig_bar.add_trace(go.Bar(x=monthly_stats.index, y=monthly_stats['Battery'], name='Battery Discharge', marker_color='#1f77b4')) # Standard blue
-    
-    # 3. Matched Energy (Foreground Bar)
+    # 2. Matched Energy (Middle)
     fig_bar.add_trace(go.Bar(
         x=monthly_stats.index, 
         y=monthly_stats['Matched'], 
         name='Hourly Matched Clean Energy', 
         marker_color='#FFA500'
-    )) # Orange without labels (labels moved to separate trace)
+    )) # Orange without labels
     
-    # 4. Load (Line)
+    # 3. Battery (Foreground - On top of Matched)
+    fig_bar.add_trace(go.Bar(x=monthly_stats.index, y=monthly_stats['Battery'], name='Battery Discharge', marker_color='#1f77b4')) # Standard blue
+    
+    # 4. Load (Line - Top)
     fig_bar.add_trace(go.Scatter(x=monthly_stats.index, y=monthly_stats['Load'], name='Load', mode='lines', line=dict(color='red', width=3)))
 
     # 5. Percentage Labels (Absolute Top Layer)
@@ -468,7 +468,8 @@ else:
         template=chart_template,
         paper_bgcolor=chart_bg,
         plot_bgcolor=chart_bg,
-        font=dict(color=chart_font_color)
+        font=dict(color=chart_font_color),
+        legend=dict(traceorder='reversed')
     )
     st.plotly_chart(fig_bar, use_container_width=True)
 
