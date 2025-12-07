@@ -458,6 +458,11 @@ def recommend_portfolio(load_profile, target_cfe=1.0, excluded_techs=None):
             recommendation['Solar'] *= scaler
         if 'Wind' not in excluded_techs:
             recommendation['Wind'] *= scaler
+            
+        # Also scale Firm generation if needed (critical for scenarios with low VRE/Battery)
+        for t in ['Geothermal', 'Nuclear', 'CCS Gas']:
+            if t not in excluded_techs:
+                recommendation[t] *= scaler
         
         # Increase Battery Power and Duration
         if 'Battery' not in excluded_techs:
