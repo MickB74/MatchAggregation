@@ -327,7 +327,7 @@ else:
     fig.add_trace(go.Scatter(x=x_axis, y=total_load_profile[start_hour:end_hour],
                              mode='lines', name='Aggregated Load', line=dict(color='red', width=2)))
     fig.add_trace(go.Scatter(x=x_axis, y=matched_profile[start_hour:end_hour],
-                             mode='lines', name='Hourly Matched Energy', fill='tozeroy', line=dict(color='#FFA500', width=0)))
+                             mode='lines', name='Hourly Matched Clean Energy', fill='tozeroy', line=dict(color='#FFA500', width=0)))
     fig.add_trace(go.Scatter(x=x_axis, y=total_gen_profile[start_hour:end_hour],
                              mode='lines', name='Total Renewable Generation', line=dict(color='#2ca02c', width=1, dash='dot')))
     fig.add_trace(go.Scatter(x=x_axis, y=batt_discharge[start_hour:end_hour],
@@ -373,7 +373,7 @@ else:
     fig_bar.add_trace(go.Bar(
         x=monthly_stats.index, 
         y=monthly_stats['Matched'], 
-        name='Hourly Matched Energy', 
+        name='Hourly Matched Clean Energy', 
         marker_color='#FFA500',
         text=monthly_stats['Matched_Pct'],
         textposition='outside',
