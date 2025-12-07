@@ -46,6 +46,10 @@ with st.sidebar:
             if start_idx != -1 and end_idx != -1:
                 content_str = content_str[start_idx : end_idx + 1]
             
+            # Remove C-style comments (// ...)
+            # We use a simple regex. Note: this might break URLs with //, but unlikely in this config.
+            content_str = re.sub(r'//.*', '', content_str)
+            
             # 2. Try standard JSON
             try:
                 config = json.loads(content_str)
