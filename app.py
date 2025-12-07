@@ -178,7 +178,6 @@ with st.expander("Configuration & Setup", expanded=True):
             excluded_techs = st.multiselect(
                 "Exclude Technologies from Recommendation",
                 ['Solar', 'Wind', 'Geothermal', 'Nuclear', 'Battery'],
-                default=[],
                 key='excluded_techs_input'
             )
 
