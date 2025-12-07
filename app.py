@@ -39,15 +39,12 @@ with st.sidebar:
             content_bytes = uploaded_scenario.read()
             content_str = content_bytes.decode('utf-8').strip()
             
-            # 1. Clean Markdown code blocks if present
-            if content_str.startswith("```"):
-                # Remove first line (```json or just ```)
-                content_str = "\n".join(content_str.splitlines()[1:])
-                # Remove last line if it is ```
-                if content_str.strip().endswith("```"):
-                    content_str = content_str.rsplit("```", 1)[0]
+            # 1. Aggressive Cleaning: Find first '{' and last '}'
+            start_idx = content_str.find('{')
+            end_idx = content_str.rfind('}')
             
-            content_str = content_str.strip()
+            if start_idx != -1 and end_idx != -1:
+                content_str = content_str[start_idx : end_idx + 1]
             
             # 2. Try standard JSON
             try:
@@ -57,7 +54,9 @@ with st.sidebar:
                 try:
                     config = ast.literal_eval(content_str)
                 except (ValueError, SyntaxError):
-                    st.error("Could not parse file. Ensure it is valid JSON or a Python dictionary.")
+                    st.error("Could not parse file.")
+                    with st.expander("Debug: Show Raw Content Snippet"):
+                        st.code(content_str[:1000])
                     st.stop()
 
             # Apply to Session State
