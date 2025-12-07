@@ -417,7 +417,7 @@ def recommend_portfolio(load_profile, target_cfe=0.96, excluded_techs=None):
         recommendation['Battery_MW'] = peak_load * 0.2
     
     # Iterative Optimization Loop
-    max_iterations = 50
+    max_iterations = 100
     current_cfe = 0.0
     
     for i in range(max_iterations):
@@ -446,9 +446,11 @@ def recommend_portfolio(load_profile, target_cfe=0.96, excluded_techs=None):
             break
             
         # Prioritize firm/long duration sizing if still low
-        # If we are close (within 5%), small nudges. If far, big nudges.
+        # Adaptive Scaling: If gap is large, scale fast. If stuck, scale fast.
         gap = target_cfe - current_cfe
-        scaler = 1.1 if gap > 0.05 else 1.05
+        scaler = 1.05
+        if gap > 0.10: scaler = 1.2
+        elif gap > 0.05: scaler = 1.1
         
         # Scale up
         if 'Solar' not in excluded_techs:
@@ -459,7 +461,8 @@ def recommend_portfolio(load_profile, target_cfe=0.96, excluded_techs=None):
         # Increase Battery Power and Duration
         if 'Battery' not in excluded_techs:
             recommendation['Battery_MW'] *= scaler
-            if recommendation['Battery_Hours'] < 10: # Allow up to 10h
+            # Allow longer duration effectively if CFE is stubborn
+            if recommendation['Battery_Hours'] < 24: 
                 recommendation['Battery_Hours'] += 0.5
             
     return recommendation
