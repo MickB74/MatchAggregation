@@ -417,7 +417,7 @@ def recommend_portfolio(load_profile, target_cfe=0.95, excluded_techs=None):
         recommendation['Battery_MW'] = peak_load * 0.2
     
     # Iterative Optimization Loop
-    max_iterations = 20
+    max_iterations = 50
     current_cfe = 0.0
     
     for i in range(max_iterations):
@@ -445,23 +445,23 @@ def recommend_portfolio(load_profile, target_cfe=0.95, excluded_techs=None):
         if current_cfe >= target_cfe:
             break
             
-        # Scale up if target not met
-        # Increase Solar/Wind by 10%
-        if 'Solar' not in excluded_techs:
-            recommendation['Solar'] *= 1.1
-        if 'Wind' not in excluded_techs:
-            recommendation['Wind'] *= 1.1
+        # Prioritize firm/long duration sizing if still low
+        # If we are close (within 5%), small nudges. If far, big nudges.
+        gap = target_cfe - current_cfe
+        scaler = 1.1 if gap > 0.05 else 1.05
         
-        # Increase Battery Power by 5% and Duration slightly (up to 8h)
+        # Scale up
+        if 'Solar' not in excluded_techs:
+            recommendation['Solar'] *= scaler
+        if 'Wind' not in excluded_techs:
+            recommendation['Wind'] *= scaler
+        
+        # Increase Battery Power and Duration
         if 'Battery' not in excluded_techs:
-            recommendation['Battery_MW'] *= 1.05
-            if recommendation['Battery_Hours'] < 8:
+            recommendation['Battery_MW'] *= scaler
+            if recommendation['Battery_Hours'] < 10: # Allow up to 10h
                 recommendation['Battery_Hours'] += 0.5
             
-    # Round values for clean output
-    for k, v in recommendation.items():
-        recommendation[k] = round(v, 1)
-        
     return recommendation
 
 def calculate_financials(matched_profile, deficit_profile, tech_profiles, tech_prices, market_price_avg, rec_price):
@@ -528,7 +528,13 @@ def calculate_financials(matched_profile, deficit_profile, tech_profiles, tech_p
     
     # Calculate Weighted Averages for Display
     weighted_ppa_price = total_ppa_cost / total_matched_mwh if total_matched_mwh > 0 else 0.0
-    weighted_market_price = market_value_matched / total_matched_mwh if total_matched_mwh > 0 else 0.0
+    
+    # Capture Value: Market Value of the generated energy (Total Gen)
+    # Note: If market_price_avg is scalar, this will equal market_price_avg.
+    # But we implement the logic for correctness if prices become profiles later.
+    market_value_total_gen = total_gen_profile.sum() * market_price_avg
+    total_gen_mwh = total_gen_profile.sum()
+    weighted_market_price = market_value_total_gen / total_gen_mwh if total_gen_mwh > 0 else 0.0
     
     return {
         'settlement_value': settlement_value,
