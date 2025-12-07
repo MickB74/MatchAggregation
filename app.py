@@ -76,6 +76,7 @@ def load_scenario():
             # 2. Generation Capacities
             if 'solar_capacity' in config: st.session_state.solar_input = float(config['solar_capacity'])
             if 'wind_capacity' in config: st.session_state.wind_input = float(config['wind_capacity'])
+            if 'ccs_capacity' in config: st.session_state.ccs_input = float(config['ccs_capacity'])
             if 'geo_capacity' in config: st.session_state.geo_input = float(config['geo_capacity'])
             if 'nuc_capacity' in config: st.session_state.nuc_input = float(config['nuc_capacity'])
             if 'batt_capacity' in config: st.session_state.batt_input = float(config['batt_capacity'])
@@ -163,6 +164,7 @@ with st.expander("Configuration & Setup", expanded=True):
             solar_capacity = st.number_input("Solar Capacity (MW)", min_value=0.0, step=1.0, key='solar_input')
             
             wind_capacity = st.number_input("Wind Capacity (MW)", min_value=0.0, step=1.0, key='wind_input')
+            ccs_capacity = st.number_input("CCS Gas Capacity (MW)", min_value=0.0, step=1.0, key='ccs_input')
             geo_capacity = st.number_input("Geothermal Capacity (MW)", min_value=0.0, step=1.0, key='geo_input')
             nuc_capacity = st.number_input("Nuclear Capacity (MW)", min_value=0.0, step=1.0, key='nuc_input')
 
@@ -177,7 +179,7 @@ with st.expander("Configuration & Setup", expanded=True):
             # Exclude Tech multiselect
             excluded_techs = st.multiselect(
                 "Exclude Technologies from Recommendation",
-                ['Solar', 'Wind', 'Geothermal', 'Nuclear', 'Battery'],
+                ['Solar', 'Wind', 'CCS Gas', 'Geothermal', 'Nuclear', 'Battery'],
                 key='excluded_techs_input'
             )
 
@@ -264,6 +266,7 @@ chart_font_color = '#FAFAFA'
 # Update session state from inputs
 st.session_state.solar_cap = solar_capacity
 st.session_state.wind_cap = wind_capacity
+st.session_state.ccs_cap = ccs_capacity
 st.session_state.geo_cap = geo_capacity
 st.session_state.nuc_cap = nuc_capacity
 st.session_state.batt_cap = batt_capacity
@@ -316,10 +319,11 @@ else:
         wind_profile = generate_dummy_generation_profile(wind_capacity, 'Wind')
 
     # Geothermal / Nuclear (still dummy for now, rare to resize profile shape)
+    ccs_profile = generate_dummy_generation_profile(ccs_capacity, 'CCS Gas')
     geo_profile = generate_dummy_generation_profile(geo_capacity, 'Geothermal')
     nuc_profile = generate_dummy_generation_profile(nuc_capacity, 'Nuclear')
     
-    total_gen_profile = solar_profile + wind_profile + geo_profile + nuc_profile
+    total_gen_profile = solar_profile + wind_profile + ccs_profile + geo_profile + nuc_profile
     
     # 3. Calculate Surplus/Deficit BEFORE Battery
     surplus = (total_gen_profile - total_load_profile).clip(lower=0)
@@ -337,7 +341,7 @@ else:
     cfe_score, matched_profile = calculate_cfe_score(total_load_profile, total_gen_with_battery)
     
     # Calculate detailed metrics
-    total_gen_capacity = solar_capacity + wind_capacity + geo_capacity + nuc_capacity
+    total_gen_capacity = solar_capacity + wind_capacity + ccs_capacity + geo_capacity + nuc_capacity
     metrics = calculate_portfolio_metrics(total_load_profile, matched_profile, total_gen_capacity)
     
     # Financials
@@ -410,13 +414,14 @@ else:
     fig = go.Figure()
     fig.add_trace(go.Scatter(x=x_axis, y=total_load_profile[start_hour:end_hour],
                              mode='lines', name='Aggregated Load', line=dict(color='red', width=2)))
-    fig.add_trace(go.Scatter(x=x_axis, y=matched_profile[start_hour:end_hour],
-                             mode='lines', name='Hourly Matched Clean Energy', fill='tozeroy', line=dict(color='#FFA500', width=0)))
-    fig.add_trace(go.Scatter(x=x_axis, y=total_gen_profile[start_hour:end_hour],
-                             mode='lines', name='Total Clean Energy', line=dict(color='#2ca02c', width=1, dash='dot')))
-    fig.add_trace(go.Scatter(x=x_axis, y=batt_discharge[start_hour:end_hour],
-                             mode='lines', name='Battery Discharge', fill='tozeroy', line=dict(color='#1f77b4', width=1)))
-    
+    # Stacked generation profiles
+    fig.add_trace(go.Scatter(x=x_axis, y=solar_profile[start_hour:end_hour], name='Solar Gen', stackgroup='one', line=dict(color='gold'), fill='tonexty'))
+    fig.add_trace(go.Scatter(x=x_axis, y=wind_profile[start_hour:end_hour], name='Wind Gen', stackgroup='one', line=dict(color='lightblue'), fill='tonexty'))
+    fig.add_trace(go.Scatter(x=x_axis, y=ccs_profile[start_hour:end_hour], name='CCS Gas Gen', stackgroup='one', line=dict(color='brown'), fill='tonexty'))
+    fig.add_trace(go.Scatter(x=x_axis, y=geo_profile[start_hour:end_hour], name='Geothermal Gen', stackgroup='one', line=dict(color='red'), fill='tonexty'))
+    fig.add_trace(go.Scatter(x=x_axis, y=nuc_profile[start_hour:end_hour], name='Nuclear Gen', stackgroup='one', line=dict(color='purple'), fill='tonexty'))
+    fig.add_trace(go.Scatter(x=x_axis, y=batt_discharge[start_hour:end_hour], name='Battery Discharge', stackgroup='one', line=dict(color='#1f77b4'), fill='tonexty'))
+
     fig.update_layout(
         title=f"Load vs. Matched Generation {title_suffix}", 
         xaxis_title="Date / Time", 
@@ -568,8 +573,10 @@ else:
         'Matched_MW': matched_profile,
         'Solar_MW': solar_profile,
         'Wind_MW': wind_profile,
-        'Geothermal_MW': geo_profile,
-        'Nuclear_MW': nuc_profile,
+        'Geothermal_Gen_MW': geo_profile,
+        'Nuclear_Gen_MW': nuc_profile,
+        'CCS_Gas_Gen_MW': ccs_profile,
+        'Total_Raw_Gen_MW': total_gen_profile,
         'Battery_Discharge_MW': batt_discharge,
         'Battery_State_of_Charge_MWh': batt_soc,
         'Grid_Deficit_MW': deficit,

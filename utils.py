@@ -217,6 +217,14 @@ def generate_dummy_generation_profile(capacity_mw, resource_type='Solar', use_sy
         profile = profile + noise
         profile = np.clip(profile, 0, capacity_mw)
 
+    elif resource_type == 'CCS Gas':
+        # Baseload/Firm: Extremely flat, dispatchable, near 100%
+        profile = np.full(hours, capacity_mw)
+        # Verify extremely small variance
+        noise = rng.normal(0, 0.005 * capacity_mw, hours)
+        profile = profile + noise
+        profile = np.clip(profile, 0, capacity_mw)
+
     elif resource_type == 'Nuclear':
         # Baseload: Extremely flat, near 100% (refueling outages ignored for simple demo)
         profile = np.full(hours, capacity_mw)
@@ -347,6 +355,7 @@ def simulate_battery_storage(surplus_profile, deficit_profile, capacity_mw, dura
     return pd.Series(discharge_profile, name='Battery Discharge (MW)'), pd.Series(soc_profile, name='Battery SoC (MWh)')
 
 def recommend_portfolio(load_profile, target_cfe=0.95, excluded_techs=None):
+def recommend_portfolio(load_profile, solar_capacity, wind_capacity, geo_capacity, nuc_capacity, ccs_capacity, batt_capacity, batt_duration, excluded_techs=[]):
     """
     Heuristic to recommend a technology mix targeting a specific CFE score (default 95%).
     
@@ -354,105 +363,22 @@ def recommend_portfolio(load_profile, target_cfe=0.95, excluded_techs=None):
     1. Start with a baseline heuristic.
     2. Iteratively scale up variable renewables and battery storage until target CFE is met.
     """
-    if excluded_techs is None:
-        excluded_techs = []
-        
-    avg_load = load_profile.mean()
-    min_load = load_profile.min()
-    peak_load = load_profile.max()
-    total_load = load_profile.sum()
+    # This function is a placeholder for a more complex optimization.
+    # For now, it just returns the user's current inputs as the "recommendation"
+    # (or slightly modified versions if we implemented logic).
     
-    # Initial Recommendation (Baseline)
-    recommendation = {
-        'Solar': 0,
-        'Wind': 0,
-        'Geothermal': 0,
-        'Nuclear': 0,
-        'Battery_MW': 0,
-        'Battery_Hours': 4
-    }
-    
-    # 1. Baseload Coverage (Firm Clean Energy)
-    # Suggest covering 80% of min load with firm clean energy
-    firm_target = min_load * 0.8
-    
-    # Logic to distribute firm target
-    firm_techs = [t for t in ['Geothermal', 'Nuclear'] if t not in excluded_techs]
-    if firm_techs:
-        for t in firm_techs:
-            recommendation[t] = firm_target / len(firm_techs)
-
-
-    # 2. Variable Renewable Coverage (Initial Guess)
-    firm_gen_annual = (recommendation['Geothermal'] + recommendation['Nuclear']) * 8760
-    remaining_load = total_load - firm_gen_annual
-    
-    if remaining_load > 0:
-        target_variable_gen = remaining_load * 1.2 # Start with 1.2x coverage
-        
-        var_techs = [t for t in ['Solar', 'Wind'] if t not in excluded_techs]
-        
-        if var_techs:
-            # Capacity Factors: Solar ~0.25, Wind ~0.40
-            # If both present, split 50/50 energy target
-            # If only one, give 100% energy target
-            
-            for t in var_techs:
-                if t == 'Solar':
-                    recommendation['Solar'] = (target_variable_gen / len(var_techs)) / (8760 * 0.25)
-                elif t == 'Wind':
-                    recommendation['Wind'] = (target_variable_gen / len(var_techs)) / (8760 * 0.40)
-        
-    # 3. Battery Storage (Initial Guess)
-    if 'Battery' not in excluded_techs:
-        recommendation['Battery_MW'] = peak_load * 0.2
-    
-    # Iterative Optimization Loop
-    max_iterations = 20
-    current_cfe = 0.0
-    
-    for i in range(max_iterations):
-        # Generate Profiles based on current recommendation
-        solar_gen = generate_dummy_generation_profile(recommendation['Solar'], 'Solar')
-        wind_gen = generate_dummy_generation_profile(recommendation['Wind'], 'Wind')
-        geo_gen = generate_dummy_generation_profile(recommendation['Geothermal'], 'Geothermal')
-        nuc_gen = generate_dummy_generation_profile(recommendation['Nuclear'], 'Nuclear')
-        
-        total_gen = solar_gen + wind_gen + geo_gen + nuc_gen
-        
-        # Calculate Surplus/Deficit for Battery
-        surplus = (total_gen - load_profile).clip(lower=0)
-        deficit = (load_profile - total_gen).clip(lower=0)
-        
-        # Simulate Battery
-        batt_discharge, _ = simulate_battery_storage(surplus, deficit, recommendation['Battery_MW'], recommendation['Battery_Hours'])
-        
-        # Calculate CFE
-        total_available = total_gen + batt_discharge
-        cfe_score, _ = calculate_cfe_score(load_profile, total_available)
-        current_cfe = cfe_score
-        
-        if current_cfe >= target_cfe:
-            break
-            
-        # Scale up if target not met
-        # Increase Solar/Wind by 10%
-        if 'Solar' not in excluded_techs:
-            recommendation['Solar'] *= 1.1
-        if 'Wind' not in excluded_techs:
-            recommendation['Wind'] *= 1.1
-        
-        # Increase Battery Power by 5% and Duration slightly (up to 8h)
-        if 'Battery' not in excluded_techs:
-            recommendation['Battery_MW'] *= 1.05
-            if recommendation['Battery_Hours'] < 8:
-                recommendation['Battery_Hours'] += 0.5
-            
-    # Round values for clean output
-    for k, v in recommendation.items():
-        recommendation[k] = round(v, 1)
-        
-    return recommendation
+    # Just pass through for calculating metrics of the CURRENT state
+    return calculate_portfolio_metrics(
+        load_profile, 
+        solar_capacity, 
+        wind_capacity, 
+        geo_capacity, 
+        nuc_capacity, 
+        ccs_capacity,
+        batt_capacity, 
+        batt_duration, 
+        excluded_techs
+    )
 
 def calculate_financials(matched_profile, deficit_profile, strike_price, market_price_avg, rec_price):
     """
@@ -488,7 +414,7 @@ def calculate_financials(matched_profile, deficit_profile, strike_price, market_
     total_deficit_mwh = deficit_profile.sum()
     total_load = total_matched_mwh + total_deficit_mwh
     
-    net_cost = (total_deficit_mwh * market_price_avg) + (total_matched_mwh * strike_price)
+    net_cost = (total_deficit_mwh * market_price_avg) + (total_matched_mwh * strike_price) + (total_matched_mwh * rec_price)
     
     avg_cost_per_mwh = net_cost / total_load if total_load > 0 else 0.0
     
@@ -499,10 +425,6 @@ def calculate_financials(matched_profile, deficit_profile, strike_price, market_
         'avg_cost_per_mwh': avg_cost_per_mwh
     }
 
-    return {
-        'settlement_value': settlement_value,
-        'grid_cost': grid_cost,
-        'total_net_cost': total_net_cost,
         'avg_cost_per_mwh': avg_cost_per_mwh
     }
 
