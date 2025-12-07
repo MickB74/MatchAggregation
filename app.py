@@ -559,6 +559,7 @@ else:
         
         # Create Scenario Configuration
         scenario_config = {
+            "region": "ERCOT North",
             "solar_capacity": solar_capacity,
             "wind_capacity": wind_capacity,
             "geo_capacity": geo_capacity,
