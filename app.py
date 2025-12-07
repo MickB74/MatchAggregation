@@ -376,23 +376,32 @@ else:
     # 2. Battery (Middle)
     fig_bar.add_trace(go.Bar(x=monthly_stats.index, y=monthly_stats['Battery'], name='Battery Discharge', marker_color='#1f77b4')) # Standard blue
     
-    # 3. Matched Energy (Foreground - with labels)
+    # 3. Matched Energy (Foreground Bar)
     fig_bar.add_trace(go.Bar(
         x=monthly_stats.index, 
         y=monthly_stats['Matched'], 
         name='Hourly Matched Clean Energy', 
-        marker_color='#FFA500',
+        marker_color='#FFA500'
+    )) # Orange without labels (labels moved to separate trace)
+    
+    # 4. Load (Line)
+    fig_bar.add_trace(go.Scatter(x=monthly_stats.index, y=monthly_stats['Load'], name='Load', mode='lines', line=dict(color='red', width=3)))
+
+    # 5. Percentage Labels (Absolute Top Layer)
+    fig_bar.add_trace(go.Scatter(
+        x=monthly_stats.index, 
+        y=monthly_stats['Matched'], 
+        mode='text',
+        name='Matched %',
         text=monthly_stats['Matched_Pct'],
-        textposition='outside',
+        textposition='top center',
         textfont=dict(
             family="Arial Black",
             size=14,
             color="white"
-        )
-    )) # Orange with labels
-    
-    # 4. Load (Top-most Line)
-    fig_bar.add_trace(go.Scatter(x=monthly_stats.index, y=monthly_stats['Load'], name='Load', mode='lines', line=dict(color='red', width=3)))
+        ),
+        showlegend=False
+    ))
     
     fig_bar.update_layout(
         title="Monthly Energy Totals", 
