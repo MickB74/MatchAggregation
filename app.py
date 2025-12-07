@@ -586,6 +586,6 @@ else:
         mime="application/zip"
     )
     
-    st.write("### Preview Data")
-    st.dataframe(results_df, use_container_width=True)
+    with st.expander("Preview Data"):
+        st.dataframe(results_df, use_container_width=True)
     
