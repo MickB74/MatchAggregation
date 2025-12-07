@@ -524,6 +524,8 @@ def calculate_financials(matched_profile, deficit_profile, tech_profiles, tech_p
     
     net_cost = market_cost_deficit + total_ppa_cost + rec_cost
     
+    avg_cost_per_mwh = net_cost / total_load if total_load > 0 else 0.0
+    
     # Calculate Weighted Averages for Display
     weighted_ppa_price = total_ppa_cost / total_matched_mwh if total_matched_mwh > 0 else 0.0
     weighted_market_price = market_value_matched / total_matched_mwh if total_matched_mwh > 0 else 0.0
