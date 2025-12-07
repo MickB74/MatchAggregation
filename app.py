@@ -279,7 +279,7 @@ else:
     st.subheader("Financial Overview")
     col9, col10 = st.columns(2)
     col9.metric("PPA Settlement Value", f"${fin_metrics['settlement_value']:,.0f}", help="Revenue (or Cost) from PPA Settlement: (Market - Strike) * Matched Vol")
-    col10.metric("REC Cost", f"${fin_metrics['rec_cost']:,.0f}", help="Cost of RECs for matched energy")
+    col10.metric("REC Value", f"${fin_metrics['rec_cost']:,.0f}", help="Revenue from REC Sales (or Cost if purchasing)")
     
     # Charts
     st.subheader("Hourly Energy Balance")
