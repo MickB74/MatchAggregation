@@ -30,7 +30,7 @@ if 'participants' not in st.session_state:
 # MUST be defined BEFORE the widgets that use these session state values are instantiated.
 with st.sidebar:
     st.markdown("### Load Scenario")
-    uploaded_scenario = st.file_uploader("Upload scenario_config.json", type=['json'])
+    uploaded_scenario = st.file_uploader("Upload scenario_config.json", type=['json', 'txt'])
     
     if uploaded_scenario is not None:
         try:
@@ -110,7 +110,7 @@ with st.expander("Configuration & Setup", expanded=True):
                 
             st.markdown("---")
             st.markdown("#### Or Upload Aggregate Load Profile")
-            uploaded_load_file = st.file_uploader("Upload CSV (Hourly load in MW)", type=['csv'], key='uploaded_load_file')
+            uploaded_load_file = st.file_uploader("Upload CSV (Hourly load in MW)", type=['csv', 'txt'], key='uploaded_load_file')
 
 
     # --- Tab 2: Generation Portfolio ---
@@ -178,8 +178,8 @@ with st.expander("Configuration & Setup", expanded=True):
 
         st.markdown("#### Custom Profiles (Upload Unit Profiles)")
         c_prof_1, c_prof_2 = st.columns(2)
-        uploaded_solar_file = c_prof_1.file_uploader("Upload Solar Profile (CSV)", type=['csv'])
-        uploaded_wind_file = c_prof_2.file_uploader("Upload Wind Profile (CSV)", type=['csv'])
+        uploaded_solar_file = c_prof_1.file_uploader("Upload Solar Profile (CSV)", type=['csv', 'txt'])
+        uploaded_wind_file = c_prof_2.file_uploader("Upload Wind Profile (CSV)", type=['csv', 'txt'])
 
 
     # --- Tab 3: Financials ---
