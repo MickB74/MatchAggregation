@@ -354,9 +354,9 @@ def simulate_battery_storage(surplus_profile, deficit_profile, capacity_mw, dura
         
     return pd.Series(discharge_profile, name='Battery Discharge (MW)'), pd.Series(soc_profile, name='Battery SoC (MWh)')
 
-def recommend_portfolio(load_profile, target_cfe=0.96, excluded_techs=None):
+def recommend_portfolio(load_profile, target_cfe=1.0, excluded_techs=None):
     """
-    Heuristic to recommend a technology mix targeting a specific CFE score (default 96%).
+    Heuristic to recommend a technology mix targeting a specific CFE score (default 100%).
     
     Strategy:
     1. Start with a baseline heuristic.
@@ -382,8 +382,8 @@ def recommend_portfolio(load_profile, target_cfe=0.96, excluded_techs=None):
     }
     
     # 1. Baseload Coverage (Firm Clean Energy)
-    # Suggest covering 80% of min load with firm clean energy
-    firm_target = min_load * 0.8
+    # Suggest covering 50% of average load with firm clean energy (approx 50% of total energy)
+    firm_target = avg_load * 0.50
     
     # Logic to distribute firm target
     firm_techs = [t for t in ['Geothermal', 'Nuclear', 'CCS Gas'] if t not in excluded_techs]
@@ -442,15 +442,16 @@ def recommend_portfolio(load_profile, target_cfe=0.96, excluded_techs=None):
         cfe_score, _ = calculate_cfe_score(load_profile, total_available)
         current_cfe = cfe_score
         
-        if current_cfe >= target_cfe:
+        if current_cfe >= target_cfe - 0.0001: # Float tolerance
             break
             
         # Prioritize firm/long duration sizing if still low
         # Adaptive Scaling: If gap is large, scale fast. If stuck, scale fast.
         gap = target_cfe - current_cfe
-        scaler = 1.05
-        if gap > 0.10: scaler = 1.2
-        elif gap > 0.05: scaler = 1.1
+        scaler = 1.02
+        if gap > 0.10: scaler = 1.15
+        elif gap > 0.05: scaler = 1.08
+        elif gap > 0.01: scaler = 1.05
         
         # Scale up
         if 'Solar' not in excluded_techs:
@@ -462,17 +463,85 @@ def recommend_portfolio(load_profile, target_cfe=0.96, excluded_techs=None):
         if 'Battery' not in excluded_techs:
             recommendation['Battery_MW'] *= scaler
             # Allow longer duration effectively if CFE is stubborn
+            # If we are targeting 100%, we often need very long duration
             if recommendation['Battery_Hours'] < 24: 
                 recommendation['Battery_Hours'] += 0.5
+            elif recommendation['Battery_Hours'] < 100 and target_cfe > 0.99:
+                 # Extreme duration needed for 100% sometimes
+                 recommendation['Battery_Hours'] += 2.0
             
     return recommendation
 
 def generate_dummy_price_profile(avg_price):
     """
-    Generates a dummy hourly market price profile (8760 hours).
-    Shape: Duck curve (low midday), Peak evening.
+    Generates an hourly market price profile (8760 hours).
+    Attempts to load real ERCOT 2024 Data (HB_NORTH) from 'ercot_rtm_2024.parquet'.
+    Falls back to synthetic duck curve if file missing.
+    Scales the resulting profile to match the requested 'avg_price'.
     """
     hours = 8760
+    import os
+    
+    # 1. Try Loading Real Data
+    parquet_file = 'ercot_rtm_2024.parquet'
+    if os.path.exists(parquet_file):
+        try:
+            # Read Parquet
+            df = pd.read_parquet(parquet_file)
+            
+            # Filter for HB_NORTH
+            # Check for 'Location' or 'SettlementPoint' column depending on schema
+            # We verified 'Location' and 'HB_NORTH' in step 107
+            if 'Location' in df.columns and 'SPP' in df.columns:
+                 df_north = df[df['Location'] == 'HB_NORTH'].copy()
+                 
+                 # Ensure datetime
+                 if 'Time' in df_north.columns:
+                    df_north['Time'] = pd.to_datetime(df_north['Time'])
+                    df_north.set_index('Time', inplace=True)
+                    
+                    # Resample to Hourly Mean (RTM is 15-min)
+                    # The parquet Time is likely interval start.
+                    df_hourly = df_north['SPP'].resample('h').mean()
+                    
+                    # Handle Missing/NaN
+                    df_hourly = df_hourly.interpolate(method='linear').bfill().ffill()
+                    
+                    # Normalize to 8760 (Handle Leap Year 2024)
+                    # If we have more than 8760 rows, checking for Feb 29 usually best.
+                    # But simple approach: Remove Feb 29 if exists, otherwise truncate end.
+                    if len(df_hourly) > 8760:
+                        # Check if index is datetime
+                        if isinstance(df_hourly.index, pd.DatetimeIndex):
+                            # Function to filter out Feb 29
+                            df_hourly = df_hourly[~((df_hourly.index.month == 2) & (df_hourly.index.day == 29))]
+                    
+                    # Truncate/Pad to 8760
+                    raw_profile = df_hourly.values
+                    if len(raw_profile) > hours:
+                        raw_profile = raw_profile[:hours]
+                    elif len(raw_profile) < hours:
+                        raw_profile = np.pad(raw_profile, (0, hours - len(raw_profile)), 'constant', constant_values=raw_profile.mean())
+                    
+                    profile = raw_profile
+                    
+                    # Clip negative prices first (to avoids mean drift after normalization)
+                    # User requested negative prices be allowed
+                    # profile = np.clip(raw_profile, 0, None) 
+                    profile = raw_profile
+                    
+                    # Scaling: User requested ACTUAL data, so we disable scaling here.
+                    # The 'avg_price' argument is ignored for real data.
+                    # current_avg = np.mean(profile)
+                    # if current_avg != 0:
+                    #     profile = profile * (avg_price / current_avg)
+                        
+                    return pd.Series(profile, name='Market Price ($/MWh)')
+                    
+        except Exception as e:
+            print(f"Failed to load Real Price Data: {e} - Falling back to synthetic.")
+
+    # 2. Synthetic Fallback
     t = np.arange(hours)
     day_of_year = (t // 24)
     

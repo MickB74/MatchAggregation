@@ -208,7 +208,7 @@ with st.expander("Configuration & Setup", expanded=True):
                     
                     if temp_load.sum() > 0:
                         # Pass excluded techs from session state (widget key='excluded_techs_input')
-                        rec = recommend_portfolio(temp_load, excluded_techs=st.session_state.excluded_techs_input)
+                        rec = recommend_portfolio(temp_load, target_cfe=1.0, excluded_techs=st.session_state.excluded_techs_input)
                         st.session_state.solar_input = rec['Solar']
                         st.session_state.wind_input = rec['Wind']
                         st.session_state.geo_input = rec['Geothermal']
