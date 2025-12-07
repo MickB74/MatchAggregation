@@ -331,7 +331,7 @@ else:
     fig.add_trace(go.Scatter(x=x_axis, y=total_gen_profile[start_hour:end_hour],
                              mode='lines', name='Total Clean Energy', line=dict(color='#2ca02c', width=1, dash='dot')))
     fig.add_trace(go.Scatter(x=x_axis, y=batt_discharge[start_hour:end_hour],
-                             mode='lines', name='Battery Discharge', line=dict(color='#1f77b4', width=1)))
+                             mode='lines', name='Battery Discharge', fill='tozeroy', line=dict(color='#1f77b4', width=1)))
     
     fig.update_layout(
         title=f"Load vs. Matched Generation {title_suffix}", 
