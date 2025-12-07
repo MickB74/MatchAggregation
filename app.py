@@ -243,20 +243,20 @@ with st.expander("Configuration & Setup", expanded=True):
         st.markdown("#### PPA Prices ($/MWh)")
         c_fin_1, c_fin_2, c_fin_3 = st.columns(3)
         with c_fin_1:
-            solar_price = st.number_input("Solar PPA Price", min_value=0.0, value=30.0, step=1.0, key='solar_price_input')
-            wind_price = st.number_input("Wind PPA Price", min_value=0.0, value=30.0, step=1.0, key='wind_price_input')
+            solar_price = st.number_input("Solar PPA Price", min_value=0.0, value=48.5, step=1.0, key='solar_price_input', help="Updated 2025 Market est: $45-52")
+            wind_price = st.number_input("Wind PPA Price", min_value=0.0, value=42.5, step=1.0, key='wind_price_input', help="Updated 2025 Market est: $40-45")
         with c_fin_2:
-            ccs_price = st.number_input("CCS Gas PPA Price", min_value=0.0, value=100.0, step=1.0, key='ccs_price_input')
-            geo_price = st.number_input("Geothermal PPA Price", min_value=0.0, value=80.0, step=1.0, key='geo_price_input')
+            ccs_price = st.number_input("CCS Gas PPA Price", min_value=0.0, value=65.0, step=1.0, key='ccs_price_input', help="Updated 2025 Market est: $55-75 (w/ 45Q)")
+            geo_price = st.number_input("Geothermal PPA Price", min_value=0.0, value=77.5, step=1.0, key='geo_price_input', help="Updated 2025 Market est: $70-85")
         with c_fin_3:
-            nuc_price = st.number_input("Nuclear PPA Price", min_value=0.0, value=80.0, step=1.0, key='nuc_price_input')
+            nuc_price = st.number_input("Nuclear PPA Price", min_value=0.0, value=95.0, step=1.0, key='nuc_price_input', help="Updated 2025 Market est: $90-100+")
             batt_price = st.number_input("Battery Storage Adder ($/MWh Discharged)", min_value=0.0, value=10.0, step=1.0, key='batt_price_input', help="Cost adder for battery throughput")
 
         st.markdown("---")
         st.markdown("#### Market Assumptions")
         c_mkt_1, c_mkt_2 = st.columns(2)
         market_price = c_mkt_1.number_input("Avg Market Price ($/MWh)", min_value=0.0, value=35.0, step=1.0, key='market_input')
-        rec_price = c_mkt_2.number_input("REC Price ($/MWh)", min_value=0.0, value=8.0, step=0.5, key='rec_input')
+        rec_price = c_mkt_2.number_input("REC Price ($/MWh)", min_value=0.0, value=3.0, step=0.5, key='rec_input', help="Updated 2025 Market est: $2-4")
 
 
 # --- Global Settings (Sidebar) ---

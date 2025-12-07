@@ -1,0 +1,35 @@
+Based on current market data for late 2024 and 2025 in the ERCOT North region, here are realistic PPA prices for each technology in your scenario configuration.
+Summary of Recommended Updates
+Your current config values for Solar and Wind ($30) are too low for new 2025 contracts. Your Battery and Nuclear prices are reasonable but require context, while your CCS price is conservative (high) if you account for tax credits.
+Technology	Your Config Price	Realistic Market Price (2025)	Unit	Notes
+Solar	$30.0	$45.00 – $52.00	$/MWh	Prices have stabilized but remain elevated due to financing costs.
+Wind	$30.0	$40.00 – $45.00	$/MWh	Wind PPA prices in ERCOT have risen due to scarcity of new high-quality sites.
+Battery	$10.0	$8.00 – $12.00	$/kW-mo	Spot revenues crashed in 2024 (~$4.60/kW-mo), but fixed contracts (tolls) still command a premium for certainty.
+Geothermal	$80.0	$70.00 – $85.00	$/MWh	Based on recent US PPAs (e.g., Fervo Energy in CA/NV). Texas projects (e.g., Presidio) likely fall in this range for early adopters.
+Nuclear	$80.0	$90.00 – $100.00+	$/MWh	For new SMR capacity. Existing nuclear doesn't typically sign new PPAs, but new builds are expensive ($100+ without heavy subsidy).
+CCS (Gas)	$100.0	$55.00 – $75.00	$/MWh	Assuming 45Q tax credits. Unsubsidized, your $100 is accurate. With credits, new NGCC+CCS can be competitive.[1]
+REC Price	$8.0	$2.00 – $4.00	$/MWh	Generic Texas wind/solar RECs (Green-e) are abundant and cheap. $8 is high unless it's a specific compliance product.
+Detailed Market Context
+1. Solar PV ($45 - $52/MWh)
+Market Reality: While module prices have dropped, higher interest rates and interconnection costs in ERCOT North have kept PPA offer prices in the high $40s to low $50s.
+Trend: Prices stabilized in late 2024 after rising for two years. Competition in ERCOT North is high, but $30/MWh is no longer achievable for new build contracts.
+2. Onshore Wind ($40 - $45/MWh)
+Market Reality: Wind prices have crept up.[2] Finding unconstrained interconnection capacity in the North hub is difficult, driving a premium for projects that can actually deliver there.
+Trend: Wind is increasingly valued for its generation profile complementary to solar (generating more at night/evening), which supports a price floor around $40.
+3. Battery Storage ($8 - $12/kW-month)
+Pricing Structure: Batteries typically sign "Tolling Agreements" priced in $/kW-month, not $/MWh.
+Market Reality: 2024 was a brutal year for battery revenue in ERCOT, with average realized revenues dropping to ~$55/kW-year (approx. $4.60/kW-month) due to market saturation.
+Contract vs. Spot: despite low spot revenues, a fixed price PPA/Toll transfers risk to the offtaker. Developers will not finance new projects for $4.60/kW-mo. A realistic "bankable" tolling fee to get a project built is likely $8 - $10/kW-month. Your $10 value is realistic for a contract, even if current market revenue is lower.
+4. Geothermal ($70 - $85/MWh)
+Market Reality: Texas is seeing emerging activity (e.g., the Presidio project), but commercial price data is scarce.
+Benchmark: Recent commercial Geothermal PPAs in California (like Fervo Energy's deal with SCE) are priced around $68 - $75/MWh. Given Texas's drilling expertise but lack of state-level mandates compared to CA, $80 is a very solid, realistic estimate for a "First-of-a-Kind" commercial project.
+5. Nuclear ($90 - $100+/MWh)
+Market Reality: This price refers to Small Modular Reactors (SMRs) or new builds, as existing plants are fully depreciated.
+Cost: First-of-a-kind SMR estimates often exceed $100/MWh. However, with the InflationReductionAct(IRA)productiontaxcredits(PTC),theeffectivePPApriceforanofftakercouldbebroughtdowntothe$80-$90 range. Your $80 is optimistic but plausible if assuming mature supply chains or maximum subsidies.
+6. CCS (Natural Gas with Carbon Capture) ($55 - $75/MWh)
+Market Reality: A standard Combined Cycle Gas Turbine (CCGT) runs ~$35-$45/MWh (fuel dependent). Adding Carbon Capture (CCS) adds Capex and efficiency losses.
+Impact of Policy: The 45Q tax credit (up to $85/ton of CO2) significantly offsets the cost. With 45Q, an NGCC+CCS plant can offer power at $55-$75/MWh. Without the tax credit, the cost would indeed be $100/MWh.
+Recommendation: If your scenario assumes US federal tax credits apply, lower this to ~$65.
+7. REC Prices ($2 - $4/MWh)
+Market Reality: ERCOT does not have a tight mandatory Renewable Portfolio Standard (RPS) driving prices up (unlike NEPOOL where RECs can be $30+). Texas RECs are primarily "voluntary" (Green-e).[3]
+Price: Supply of wind/solar RECs in Texas is massive. Prices for 2024/2025 vintages are typically $2.00 - $3.50/MWh. $8.00 is an outlier unless you are modeling a specific scarcity scenario or a "bundled" premium product.
