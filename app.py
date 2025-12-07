@@ -443,21 +443,24 @@ else:
     
     z_data = percent_met.reshape((365, 24)).T # Transpose to get 24 rows, 365 cols
     
+    # Generate labels
+    dates_x = pd.date_range(start='2024-01-01', periods=365, freq='D')
+    times_y = [datetime.time(h).strftime('%I %p') for h in range(24)] # "12 AM", "01 AM"...
+    # Cleanup time labels to remove leading zeros if preferred, e.g. "1 AM"
+    times_y = [t.lstrip('0') for t in times_y]
+
     fig_heat = go.Figure(data=go.Heatmap(
         z=z_data,
-        x=list(range(1, 366)),
-        y=list(range(24)),
+        x=dates_x,
+        y=times_y,
         colorscale='RdYlGn', # Red to Green
-        zmin=0, zmax=1,
-        colorbar=dict(title="Matched %"),
-        hovertemplate='Day: %{x}<br>Hour: %{y}<br>Matched: %{z:.1%}<extra></extra>'
+        hovertemplate='Date: %{x|%b %d}<br>Time: %{y}<br>Matched: %{z:.1%}<extra></extra>'
     ))
     
     fig_heat.update_layout(
-        title="24/7 Matching Heatmap (Hour vs Day)",
-        xaxis_title="Day of Year",
-        yaxis_title="Hour of Day",
-        height=400,
+        title="24/7 Matching Heatmap", 
+        xaxis_title="Date", 
+        yaxis_title="Time of Day", 
         template=chart_template,
         paper_bgcolor=chart_bg,
         plot_bgcolor=chart_bg,
