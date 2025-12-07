@@ -464,22 +464,62 @@ def recommend_portfolio(load_profile, target_cfe=0.95, excluded_techs=None):
             
     return recommendation
 
+def generate_dummy_price_profile(avg_price):
+    """
+    Generates a dummy hourly market price profile (8760 hours).
+    Shape: Duck curve (low midday), Peak evening.
+    """
+    hours = 8760
+    t = np.arange(hours)
+    day_of_year = (t // 24)
+    
+    rng = np.random.default_rng(999) # Fixed seed
+    
+    profile = np.zeros(hours)
+    
+    for h in range(hours):
+        hour_of_day = h % 24
+        
+        # Diurnal: High Evening (17-21), Low Midday (10-15)
+        # Base shape
+        diurnal = 1.0 + 0.4 * np.sin(2 * np.pi * (hour_of_day - 14) / 24) 
+        # Shift peak to ~20:00 (Hour 20) -> (20-14)/24 = 6/24 = 0.25 -> sin(pi/2) = 1
+        # Trough ~8:00
+        
+        # Sharp evening peak adder
+        if 16 <= hour_of_day <= 21:
+            diurnal += 0.5
+            
+        # Depress midday (solar cannibalization effect)
+        if 10 <= hour_of_day <= 15:
+            diurnal -= 0.3
+            
+        # Seasonal
+        current_day = day_of_year[h]
+        seasonal = 1.0 + 0.2 * np.cos(2 * np.pi * (current_day - 172) / 365) # Summer peak
+        
+        # Noise
+        noise = rng.normal(0, 0.1)
+        
+        profile[h] = diurnal * seasonal + noise
+        
+    # Normalize to match avg_price
+    current_avg = profile.mean()
+    if current_avg != 0:
+        profile = profile * (avg_price / current_avg)
+        
+    # Clip negative prices (simplified) unless desired
+    profile = np.clip(profile, 0, None)
+    
+    return pd.Series(profile, name='Market Price ($/MWh)')
+
 def calculate_financials(matched_profile, deficit_profile, tech_profiles, tech_prices, market_price_avg, rec_price):
     """
-    Calculates financial metrics for the portfolio using per-technology pricing.
-    
-    Args:
-        matched_profile (pd.Series): Hourly matched renewable energy (MWh).
-        deficit_profile (pd.Series): Hourly unmatched load (MWh).
-        tech_profiles (dict): Dict of hourly generation profiles (pd.Series) for each tech.
-            Keys should match keys in tech_prices (e.g., 'Solar', 'Wind').
-        tech_prices (dict): Dict of PPA prices ($/MWh) for each tech.
-        market_price_avg (float): Average Wholesale Market Price ($/MWh).
-        rec_price (float): Price of RECs ($/REC or $/MWh of clean energy).
-        
-    Returns:
-        dict: Financial metrics including Settlement Value, REC Cost, Net Cost.
+    Calculates financial metrics for the portfolio using per-technology pricing and HOURLY market prices.
     """
+    # Generate Hourly Market Prices
+    market_price_profile = generate_dummy_price_profile(market_price_avg)
+    
     # 1. Calculate PPA Cost of Matched Energy (Weighted Attribution)
     # We assume 'matched_profile' is composed of the various techs in proportion to their generation.
     # Total Available Generation at each hour
@@ -494,53 +534,42 @@ def calculate_financials(matched_profile, deficit_profile, tech_profiles, tech_p
     
     for tech, profile in tech_profiles.items():
         price = tech_prices.get(tech, 0.0)
-        # Matched MWh from this tech = Total Matched * (Tech Gen / Total Gen) 
-        # which simplifies to: Tech Gen * (Matched / Total Gen) -> Tech Gen * attribution_factor
+        # Matched MWh from this tech
         matched_mwh_tech = profile * attribution_factors
         tech_cost = matched_mwh_tech.sum() * price
         total_ppa_cost += tech_cost
         
-    # 2. Market Value of Matched Energy
-    # Value = Matched MWh * Market Price
-    total_matched_mwh = matched_profile.sum()
-    market_value_matched = total_matched_mwh * market_price_avg
+    # 2. Market Value of Matched Energy (HOURLY)
+    # Value = Sum(Matched[h] * MarketPrice[h])
+    market_value_matched = (matched_profile * market_price_profile).sum()
     
     # 3. Settlement Value
     # PPA Settlement = Market Value - PPA Cost
-    # (Positive means we made money relative to PPA cost)
     settlement_value = market_value_matched - total_ppa_cost
     
     # 4. REC Cost
+    total_matched_mwh = matched_profile.sum()
     rec_cost = total_matched_mwh * rec_price
     
     # 5. Net Energy Cost
     # Cost to serve load = (Deficit * Market) + (Matched * PPA Price) + (Matched * REC)
-    # Note: 'Matched * PPA Price' is exactly 'total_ppa_cost' calculated above
-    
-    total_deficit_mwh = deficit_profile.sum()
-    total_load = total_matched_mwh + total_deficit_mwh
-    
-    market_cost_deficit = total_deficit_mwh * market_price_avg
+    market_cost_deficit = (deficit_profile * market_price_profile).sum()
     
     net_cost = market_cost_deficit + total_ppa_cost + rec_cost
     
+    total_deficit_mwh = deficit_profile.sum()
+    total_load = total_matched_mwh + total_deficit_mwh
     avg_cost_per_mwh = net_cost / total_load if total_load > 0 else 0.0
     
     # Calculate Weighted Averages for Display
     weighted_ppa_price = total_ppa_cost / total_matched_mwh if total_matched_mwh > 0 else 0.0
     
-    # Capture Value: Market Value of the generated energy (VPPA Generation only, excluding Battery)
-    # Note: If market_price_avg is scalar, this will equal market_price_avg.
-    # But we implement the logic for correctness if prices become profiles later.
+    # Capture Value: Market Value of the generated energy (Total Available Generation)
+    # Includes Battery Discharge as it is part of the supply available to match/sell.
     
-    gen_only_profiles = [p for t, p in tech_profiles.items() if t != 'Battery']
-    if gen_only_profiles:
-        total_gen_only = sum(gen_only_profiles)
-        market_value_total_gen = total_gen_only.sum() * market_price_avg
-        total_gen_mwh = total_gen_only.sum()
-        weighted_market_price = market_value_total_gen / total_gen_mwh if total_gen_mwh > 0 else 0.0
-    else:
-        weighted_market_price = 0.0
+    market_value_total_gen = (total_gen_profile * market_price_profile).sum()
+    total_gen_mwh = total_gen_profile.sum()
+    weighted_market_price = market_value_total_gen / total_gen_mwh if total_gen_mwh > 0 else 0.0
     
     return {
         'settlement_value': settlement_value,
