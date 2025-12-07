@@ -369,7 +369,14 @@ else:
     monthly_stats['Matched_Pct'] = (monthly_stats['Matched'] / monthly_stats['Load']).apply(lambda x: f"{x:.0%}")
     
     fig_bar = go.Figure()
-    fig_bar.add_trace(go.Scatter(x=monthly_stats.index, y=monthly_stats['Load'], name='Load', mode='lines', line=dict(color='red', width=3)))
+    
+    # 1. Total Generation (Background)
+    fig_bar.add_trace(go.Bar(x=monthly_stats.index, y=monthly_stats['Generation'], name='Total Clean Energy', marker_color='#2ca02c', opacity=0.6)) # Standard Green
+    
+    # 2. Battery (Middle)
+    fig_bar.add_trace(go.Bar(x=monthly_stats.index, y=monthly_stats['Battery'], name='Battery Discharge', marker_color='#1f77b4')) # Standard blue
+    
+    # 3. Matched Energy (Foreground - with labels)
     fig_bar.add_trace(go.Bar(
         x=monthly_stats.index, 
         y=monthly_stats['Matched'], 
@@ -383,8 +390,9 @@ else:
             color="white"
         )
     )) # Orange with labels
-    fig_bar.add_trace(go.Bar(x=monthly_stats.index, y=monthly_stats['Generation'], name='Total Clean Energy', marker_color='#2ca02c', opacity=0.6)) # Standard Green
-    fig_bar.add_trace(go.Bar(x=monthly_stats.index, y=monthly_stats['Battery'], name='Battery Discharge', marker_color='#1f77b4')) # Standard blue
+    
+    # 4. Load (Top-most Line)
+    fig_bar.add_trace(go.Scatter(x=monthly_stats.index, y=monthly_stats['Load'], name='Load', mode='lines', line=dict(color='red', width=3)))
     
     fig_bar.update_layout(
         title="Monthly Energy Totals", 
