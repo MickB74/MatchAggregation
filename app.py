@@ -64,31 +64,35 @@ with st.sidebar:
                         st.code(content_str[:1000])
                     st.stop()
 
-            # Apply to Session State
-            # 1. Participants
-            if 'participants' in config:
-                st.session_state.participants = config['participants']
-            
-            # 2. Generation Capacities
-            if 'solar_capacity' in config: st.session_state.solar_input = float(config['solar_capacity'])
-            if 'wind_capacity' in config: st.session_state.wind_input = float(config['wind_capacity'])
-            if 'geo_capacity' in config: st.session_state.geo_input = float(config['geo_capacity'])
-            if 'nuc_capacity' in config: st.session_state.nuc_input = float(config['nuc_capacity'])
-            if 'batt_capacity' in config: st.session_state.batt_input = float(config['batt_capacity'])
-            if 'batt_duration' in config: st.session_state.batt_duration_input = float(config['batt_duration'])
-            
-            # 3. Financials
-            if 'strike_price' in config: st.session_state.strike_input = float(config['strike_price'])
-            if 'market_price' in config: st.session_state.market_input = float(config['market_price'])
-            if 'rec_price' in config: st.session_state.rec_input = float(config['rec_price'])
-            
-            # 4. Exclusions
-            if 'excluded_techs' in config: st.session_state.excluded_techs_input = config['excluded_techs']
-            
-            st.success("Scenario Loaded! Click Apply to update.")
-            
-            if st.button("Apply Loaded Scenario"):
-                st.rerun()
+            # Check if this file has already been loaded to prevent overwriting manual changes
+            if uploaded_scenario.name != st.session_state.get('loaded_scenario_name'):
+                # Apply to Session State
+                # 1. Participants
+                if 'participants' in config:
+                    st.session_state.participants = config['participants']
+                
+                # 2. Generation Capacities
+                if 'solar_capacity' in config: st.session_state.solar_input = float(config['solar_capacity'])
+                if 'wind_capacity' in config: st.session_state.wind_input = float(config['wind_capacity'])
+                if 'geo_capacity' in config: st.session_state.geo_input = float(config['geo_capacity'])
+                if 'nuc_capacity' in config: st.session_state.nuc_input = float(config['nuc_capacity'])
+                if 'batt_capacity' in config: st.session_state.batt_input = float(config['batt_capacity'])
+                if 'batt_duration' in config: st.session_state.batt_duration_input = float(config['batt_duration'])
+                
+                # 3. Financials
+                if 'strike_price' in config: st.session_state.strike_input = float(config['strike_price'])
+                if 'market_price' in config: st.session_state.market_input = float(config['market_price'])
+                if 'rec_price' in config: st.session_state.rec_input = float(config['rec_price'])
+                
+                # 4. Exclusions
+                if 'excluded_techs' in config: st.session_state.excluded_techs_input = config['excluded_techs']
+                
+                # Mark as loaded
+                st.session_state.loaded_scenario_name = uploaded_scenario.name
+                st.toast("Scenario Loaded Successfully!")
+            else:
+                # File is present but already loaded. Do not re-apply configs.
+                pass
                 
         except Exception as e:
             st.error(f"Error parsing scenario: {e}")
