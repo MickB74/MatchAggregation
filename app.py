@@ -335,7 +335,7 @@ else:
     # Metrics - Row 3 (Financials)
     st.subheader("Financial Overview")
     col9, col10 = st.columns(2)
-    col9.metric("PPA Settlement Value", f"${fin_metrics['settlement_value']:,.0f}", help="Revenue (or Cost) from PPA Settlement: (Market - Strike) * Matched Vol")
+    col9.metric("Annual PPA Settlement Value", f"${fin_metrics['settlement_value']:,.0f}", help="Annual Revenue (or Cost) from PPA Settlement: (Market - Strike) * Matched Vol")
     col10.metric("REC Value", f"${fin_metrics['rec_cost']:,.0f}", help="Value of RECs")
     
     # Charts
