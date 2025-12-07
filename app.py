@@ -16,7 +16,8 @@ from utils import (
     recommend_portfolio, 
     calculate_portfolio_metrics, 
     calculate_financials, 
-    process_uploaded_profile
+    process_uploaded_profile,
+    generate_dummy_price_profile
 )
 
 st.set_page_config(page_title="ERCOT North Aggregation", layout="wide")
@@ -635,6 +636,45 @@ else:
         'Grid_Deficit_MW': deficit,
         'Surplus_MW': surplus
     })
+
+    # --- Financial Columns for CSV ---
+    # 1. Market Price (Hourly)
+    market_price_profile = generate_dummy_price_profile(market_price)
+    results_df['Market_Capture_Price_$/MWh'] = market_price_profile
+    
+    # 2. Technology PPA Prices (Constant)
+    results_df['Solar_PPA_Price'] = solar_price
+    results_df['Wind_PPA_Price'] = wind_price
+    results_df['Geothermal_PPA_Price'] = geo_price
+    results_df['Nuclear_PPA_Price'] = nuc_price
+    results_df['CCS_Gas_PPA_Price'] = ccs_price
+    results_df['Battery_Adder_Price'] = batt_price
+    
+    # 3. Hourly Blended PPA Price
+    # Cost = Sum(Gen_i * Price_i)
+    # Price = Cost / TotalGen
+    
+    # Calculate Total Generation Cost per Hour
+    # (Using the profiles already in the DF for consistency)
+    hourly_gen_cost = (
+        results_df['Solar_MW'] * solar_price +
+        results_df['Wind_MW'] * wind_price +
+        results_df['Geothermal_Gen_MW'] * geo_price +
+        results_df['Nuclear_Gen_MW'] * nuc_price +
+        results_df['CCS_Gas_Gen_MW'] * ccs_price + 
+        # Battery discharge cost? Typically PPA structures vary.
+        # Here we assume discharge implies a cost adder? Or just energy throughput cost?
+        # User asked for "blended PPA price". 
+        results_df['Battery_Discharge_MW'] * batt_price
+    )
+    
+    # Total Energy Serving Load (Matched + Surplus? Or just Total Generated?)
+    # "Blended PPA Price" usually means the price of the energy produced.
+    total_production = results_df['Total_Raw_Gen_MW'] + results_df['Battery_Discharge_MW']
+    
+    # Avoid zero division
+    results_df['Hourly_Blended_PPA_Price_$/MWh'] = hourly_gen_cost / total_production
+    results_df['Hourly_Blended_PPA_Price_$/MWh'] = results_df['Hourly_Blended_PPA_Price_$/MWh'].fillna(0.0) # Handle hours with 0 gen
     
     csv = results_df.to_csv(index=False).encode('utf-8')
 
