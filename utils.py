@@ -354,9 +354,9 @@ def simulate_battery_storage(surplus_profile, deficit_profile, capacity_mw, dura
         
     return pd.Series(discharge_profile, name='Battery Discharge (MW)'), pd.Series(soc_profile, name='Battery SoC (MWh)')
 
-def recommend_portfolio(load_profile, target_cfe=0.95, excluded_techs=None):
+def recommend_portfolio(load_profile, target_cfe=0.96, excluded_techs=None):
     """
-    Heuristic to recommend a technology mix targeting a specific CFE score (default 95%).
+    Heuristic to recommend a technology mix targeting a specific CFE score (default 96%).
     
     Strategy:
     1. Start with a baseline heuristic.
