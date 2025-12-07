@@ -329,7 +329,7 @@ else:
     fig.add_trace(go.Scatter(x=x_axis, y=matched_profile[start_hour:end_hour],
                              mode='lines', name='Hourly Matched Clean Energy', fill='tozeroy', line=dict(color='#FFA500', width=0)))
     fig.add_trace(go.Scatter(x=x_axis, y=total_gen_profile[start_hour:end_hour],
-                             mode='lines', name='Total Renewable Generation', line=dict(color='#2ca02c', width=1, dash='dot')))
+                             mode='lines', name='Total Clean Energy', line=dict(color='#2ca02c', width=1, dash='dot')))
     fig.add_trace(go.Scatter(x=x_axis, y=batt_discharge[start_hour:end_hour],
                              mode='lines', name='Battery Discharge', line=dict(color='#1f77b4', width=1)))
     
@@ -383,7 +383,7 @@ else:
             color="white"
         )
     )) # Orange with labels
-    fig_bar.add_trace(go.Bar(x=monthly_stats.index, y=monthly_stats['Generation'], name='Total Renewable Generation', marker_color='#2ca02c', opacity=0.6)) # Standard Green
+    fig_bar.add_trace(go.Bar(x=monthly_stats.index, y=monthly_stats['Generation'], name='Total Clean Energy', marker_color='#2ca02c', opacity=0.6)) # Standard Green
     fig_bar.add_trace(go.Bar(x=monthly_stats.index, y=monthly_stats['Battery'], name='Battery Discharge', marker_color='#1f77b4')) # Standard blue
     
     fig_bar.update_layout(
