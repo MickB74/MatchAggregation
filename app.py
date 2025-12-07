@@ -35,6 +35,9 @@ def load_scenario():
     uploaded_file = st.session_state.get('uploaded_scenario_file')
     if uploaded_file is not None:
         try:
+            # Reset file pointer to beginning
+            uploaded_file.seek(0)
+            
             # Robust loading:
             content_bytes = uploaded_file.read()
             content_str = content_bytes.decode('utf-8').strip()
@@ -58,6 +61,11 @@ def load_scenario():
                     config = ast.literal_eval(content_str)
                 except (ValueError, SyntaxError):
                     st.error("Could not parse file.")
+                    return
+            
+            # DEBUG: Uncomment to see what was parsed
+            # st.sidebar.write("DEBUG: Parsed Config:", config)
+
                     return
 
             # Apply to Session State
