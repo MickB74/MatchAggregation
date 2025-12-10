@@ -53,10 +53,31 @@ def filter_projects_by_technology(df, tech_type):
         'Wind': ['WIN'],
         'Nuclear': ['NUC'],
         'Battery': ['OTH'],  # Battery is OTH with Technology = BA
-        'CCS Gas': ['GAS'],
         'Geothermal': ['GEO']
     }
     
+    # Special handling for CCS Gas - search by keywords in project name
+    if tech_type == 'CCS Gas':
+        if 'Project Name' not in df.columns:
+            return pd.DataFrame()
+        
+        # CCS keywords to search for in project names
+        ccs_keywords = ['ccs', 'carbon capture', 'carbon sequestration', 'low carbon', 'clean gas']
+        
+        # Filter gas projects first
+        gas_projects = df[df['Fuel'] == 'GAS'].copy()
+        
+        # Search for CCS keywords in project names (case-insensitive)
+        ccs_mask = gas_projects['Project Name'].str.lower().str.contains(
+            '|'.join(ccs_keywords), 
+            case=False, 
+            na=False
+        )
+        
+        filtered = gas_projects[ccs_mask]
+        return filtered
+    
+    # Standard filtering for other technologies
     fuel_codes = fuel_map.get(tech_type, [])
     if not fuel_codes:
         return pd.DataFrame()
