@@ -233,8 +233,23 @@ with st.expander("Configuration & Setup", expanded=True):
                         temp_load += generate_dummy_load_profile(p['load'], p['type'])
                     
                     if temp_load.sum() > 0:
+                        # Check for existing capacity values
+                        existing_capacities = {
+                            'Solar': st.session_state.get('solar_input', 0.0),
+                            'Wind': st.session_state.get('wind_input', 0.0),
+                            'CCS Gas': st.session_state.get('ccs_input', 0.0),
+                            'Geothermal': st.session_state.get('geo_input', 0.0),
+                            'Nuclear': st.session_state.get('nuc_input', 0.0),
+                            'Battery_MW': st.session_state.get('batt_input', 0.0)
+                        }
+                        
                         # Pass excluded techs from session state (widget key='excluded_techs_input')
-                        rec = recommend_portfolio(temp_load, target_cfe=1.0, excluded_techs=st.session_state.excluded_techs_input)
+                        rec = recommend_portfolio(
+                            temp_load, 
+                            target_cfe=1.0, 
+                            excluded_techs=st.session_state.excluded_techs_input,
+                            existing_capacities=existing_capacities
+                        )
                         st.session_state.solar_input = rec['Solar']
                         st.session_state.wind_input = rec['Wind']
                         st.session_state.ccs_input = rec['CCS Gas']

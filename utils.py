@@ -349,22 +349,31 @@ def simulate_battery_storage(surplus_profile, deficit_profile, capacity_mw, dura
         # Clamp to 0 to avoid floating point errors showing negative zero
         if current_energy_mwh < 0:
             current_energy_mwh = 0.0
-            
-        soc_profile[h] = current_energy_mwh
+        
+    soc_profile[h] = current_energy_mwh
         
     return pd.Series(discharge_profile, name='Battery Discharge (MW)'), pd.Series(soc_profile, name='Battery SoC (MWh)')
 
-def recommend_portfolio(load_profile, target_cfe=1.0, excluded_techs=None):
+def recommend_portfolio(load_profile, target_cfe=0.95, excluded_techs=None, existing_capacities=None):
     """
-    Heuristic to recommend a technology mix targeting a specific CFE score (default 100%).
+    Heuristic recommendation for initial portfolio based on load.
+    If existing_capacities provided, builds around those values (keeps non-zero values, fills zeros).
     
-    Strategy:
-    1. Start with a baseline heuristic.
-    2. Iteratively scale up variable renewables and battery storage until target CFE is met.
+    Args:
+        load_profile (pd.Series): Hourly load profile
+        target_cfe (float): Target CFE score (default 0.95)
+        excluded_techs (list): List of technologies to exclude from recommendation
+        existing_capacities (dict): Existing capacity values to build around
+    
+    Returns:
+        dict: Recommended capacities
     """
     if excluded_techs is None:
         excluded_techs = []
-        
+    
+    if existing_capacities is None:
+        existing_capacities = {}
+    
     avg_load = load_profile.mean()
     min_load = load_profile.min()
     peak_load = load_profile.max()
@@ -372,48 +381,22 @@ def recommend_portfolio(load_profile, target_cfe=1.0, excluded_techs=None):
     
     # Initial Recommendation (Baseline)
     recommendation = {
-        'Solar': 0,
-        'Wind': 0,
-        'Geothermal': 0,
-        'Nuclear': 0,
-        'CCS Gas': 0,
-        'Battery_MW': 0,
+        'Solar': existing_capacities.get('Solar', 0),
+        'Wind': existing_capacities.get('Wind', 0),
+        'Geothermal': existing_capacities.get('Geothermal', 0),
+        'Nuclear': existing_capacities.get('Nuclear', 0),
+        'CCS Gas': existing_capacities.get('CCS Gas', 0),
+        'Battery_MW': existing_capacities.get('Battery_MW', 0),
         'Battery_Hours': 2
     }
     
-    # 1. Baseload Coverage (Firm Clean Energy)
-    # Increased to 80% to compensate for limited battery duration
+    # Check if we have any existing non-zero capacities
+    has_existing = any(v > 0 for v in existing_capacities.values() if v is not None)
+    
+    # 1. Baseload Coverage (Firm Clean Energy) - Only set if not already specified
+    # Suggest covering 80% of average load with firm clean energy
     firm_target = avg_load * 0.80
     
-    # Logic to distribute firm target - Prioritize CCS Gas for baseload
-    if 'CCS Gas' not in excluded_techs:
-        # Use CCS Gas as primary baseload
-        recommendation['CCS Gas'] = firm_target
-    elif 'Nuclear' not in excluded_techs:
-        # Fallback to Nuclear if CCS is excluded
-        recommendation['Nuclear'] = firm_target
-    elif 'Geothermal' not in excluded_techs:
-        # Final fallback to Geothermal
-        recommendation['Geothermal'] = firm_target
-
-
-    # 2. Variable Renewable Coverage (Initial Guess)
-    firm_gen_annual = (recommendation['Geothermal'] + recommendation['Nuclear'] + recommendation['CCS Gas']) * 8760
-    remaining_load = total_load - firm_gen_annual
-    
-    if remaining_load > 0:
-        target_variable_gen = remaining_load * 2.0 # Increased from 1.2x to 2.0x for better coverage
-        
-        var_techs = [t for t in ['Solar', 'Wind'] if t not in excluded_techs]
-        
-        if var_techs:
-            # Capacity Factors: Solar ~0.25, Wind ~0.40
-            # If both present, split 50/50 energy target
-            # If only one, give 100% energy target
-            
-            for t in var_techs:
-                if t == 'Solar':
-                    recommendation['Solar'] = (target_variable_gen / len(var_techs)) / (8760 * 0.25)
                 elif t == 'Wind':
                     recommendation['Wind'] = (target_variable_gen / len(var_techs)) / (8760 * 0.40)
         
