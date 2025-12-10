@@ -541,13 +541,31 @@ else:
         'Battery': batt_discharge
     }
     
+    # --- Financial Analysis ---
+    st.markdown("---")
+    st.markdown("#### Economic Analysis")
+    
+    # Calculate Effective Battery Price ($/MWh) from Capacity Payment ($/kW-mo)
+    # Input: batt_price ($/kW-mo)
+    # Annual Cost per MW = batt_price * 1000 kW/MW * 12 months
+    # Annual Cost = (batt_price * 12000) * batt_capacity
+    # Effective $/MWh = Annual Cost / Total Annual Discharge MWh
+    
+    total_discharge_mwh = batt_discharge.sum()
+    
+    if total_discharge_mwh > 0:
+        annual_batt_cost = batt_price * 12 * 1000 * batt_capacity
+        effective_batt_price_mwh = annual_batt_cost / total_discharge_mwh
+    else:
+        effective_batt_price_mwh = 0.0
+        
     tech_prices = {
         'Solar': solar_price,
         'Wind': wind_price,
         'CCS Gas': ccs_price,
         'Geothermal': geo_price,
         'Nuclear': nuc_price,
-        'Battery': batt_price
+        'Battery': effective_batt_price_mwh # Use calculated effective price
     }
     
     fin_metrics = calculate_financials(matched_profile, deficit, tech_profiles, tech_prices, market_price, rec_price, price_scaler)
@@ -902,7 +920,11 @@ else:
     results_df['Geothermal_PPA_Price'] = geo_price
     results_df['Nuclear_PPA_Price'] = nuc_price
     results_df['CCS_Gas_PPA_Price'] = ccs_price
-    results_df['Battery_Adder_Price'] = batt_price
+    
+    # Recalculate effective battery price for CSV if local variable not available in scope
+    # (Though it should be available since defined above in main script flow)
+    # Using 'effective_batt_price_mwh' calculated earlier 
+    results_df['Battery_Adder_Price'] = effective_batt_price_mwh
     
     # 3. Hourly Blended PPA Price
     # Cost = Sum(Gen_i * Price_i)
@@ -916,10 +938,8 @@ else:
         results_df['Geothermal_Gen_MW'] * geo_price +
         results_df['Nuclear_Gen_MW'] * nuc_price +
         results_df['CCS_Gas_Gen_MW'] * ccs_price + 
-        # Battery discharge cost? Typically PPA structures vary.
-        # Here we assume discharge implies a cost adder? Or just energy throughput cost?
-        # User asked for "blended PPA price". 
-        results_df['Battery_Discharge_MW'] * batt_price
+        # Use EFFECTIVE battery price (converted to energy)
+        results_df['Battery_Discharge_MW'] * effective_batt_price_mwh
     )
     
     # Total Energy Serving Load (Matched + Surplus? Or just Total Generated?)
