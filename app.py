@@ -686,34 +686,7 @@ else:
                       delta=f"{batt_financials['actual_rte'] - batt_guar_rte:.1%}",
                       help=f"Target: {batt_guar_rte:.1%}")
                       
-        # Visualization of Settlement Components
-        # Waterfall Chart
-        fig_batt = go.Figure(go.Waterfall(
-            name = "Settlement", orientation = "v",
-            measure = ["relative", "relative", "relative", "total"],
-            x = ["Capacity Payment", "VOM Payment", "RTE Penalty", "Net Invoice"],
-            textposition = "outside",
-            text = [f"${batt_financials['capacity_payment']/1000:.0f}k", 
-                    f"${batt_financials['vom_payment']/1000:.0f}k", 
-                    f"-${batt_financials['rte_penalty']/1000:.0f}k", 
-                    f"${batt_financials['net_invoice']/1000:.0f}k"],
-            y = [batt_financials['capacity_payment'], 
-                 batt_financials['vom_payment'], 
-                 -batt_financials['rte_penalty'], 
-                 0],
-            connector = {"line":{"color":"rgb(63, 63, 63)"}},
-        ))
 
-        fig_batt.update_layout(
-                title = "Battery Settlement Waterfall",
-                showlegend = False,
-                template=chart_template,
-                paper_bgcolor=chart_bg,
-                plot_bgcolor=chart_bg,
-                font=dict(color=chart_font_color)
-        )
-
-        st.plotly_chart(fig_batt, use_container_width=True)
     
     # Charts
     st.markdown("---")
@@ -1004,6 +977,41 @@ else:
                 )
     else:
         st.info("Add generation capacity to see PPA vs Capture Value comparison")
+
+    # --- Battery Waterfall (Moved to Bottom) ---
+    if enable_battery and batt_capacity > 0:
+        st.markdown("---")
+        st.subheader("Battery Financial Settlement")
+        st.markdown("Breakdown of battery revenue components and penalties.")
+        
+        # Waterfall Chart
+        fig_batt = go.Figure(go.Waterfall(
+            name = "Settlement", orientation = "v",
+            measure = ["relative", "relative", "relative", "total"],
+            x = ["Capacity Payment", "VOM Payment", "RTE Penalty", "Net Invoice"],
+            textposition = "outside",
+            text = [f"${batt_financials['capacity_payment']/1000:.0f}k", 
+                    f"${batt_financials['vom_payment']/1000:.0f}k", 
+                    f"-${batt_financials['rte_penalty']/1000:.0f}k", 
+                    f"${batt_financials['net_invoice']/1000:.0f}k"],
+            y = [batt_financials['capacity_payment'], 
+                 batt_financials['vom_payment'], 
+                 -batt_financials['rte_penalty'], 
+                 0],
+            connector = {"line":{"color":"rgb(63, 63, 63)"}},
+        ))
+
+        fig_batt.update_layout(
+                title = "Battery Settlement Waterfall",
+                showlegend = False,
+                template=chart_template,
+                paper_bgcolor=chart_bg,
+                plot_bgcolor=chart_bg,
+                font=dict(color=chart_font_color),
+                height=500, # Consistent height
+        )
+
+        st.plotly_chart(fig_batt, use_container_width=True)
 
     # --- Data Export ---
     st.subheader("Export Results")
