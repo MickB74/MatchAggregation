@@ -212,6 +212,7 @@ with st.expander("Configuration & Setup", expanded=True):
                         rec = recommend_portfolio(temp_load, target_cfe=1.0, excluded_techs=st.session_state.excluded_techs_input)
                         st.session_state.solar_input = rec['Solar']
                         st.session_state.wind_input = rec['Wind']
+                        st.session_state.ccs_input = rec['CCS Gas']
                         st.session_state.geo_input = rec['Geothermal']
                         st.session_state.nuc_input = rec['Nuclear']
                         st.session_state.batt_input = rec['Battery_MW']
