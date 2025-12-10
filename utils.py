@@ -495,15 +495,22 @@ def recommend_portfolio(load_profile, target_cfe=0.95, excluded_techs=None, exis
             
     return recommendation
 
-def generate_dummy_price_profile(avg_price):
+def generate_dummy_price_profile(avg_price, return_base_avg=False):
     """
     Generates an hourly market price profile (8760 hours).
     Attempts to load real ERCOT 2024 Data (HB_NORTH) from 'ercot_rtm_2024.parquet'.
     Falls back to synthetic duck curve if file missing.
-    Scales the resulting profile to match the requested 'avg_price'.
+    
+    Args:
+        avg_price: Average price (used only for synthetic fallback)
+        return_base_avg: If True, returns (profile, base_average) tuple
+        
+    Returns:
+        pd.Series or tuple: Price profile, or (profile, base_avg) if return_base_avg=True
     """
     hours = 8760
     import os
+    base_average = avg_price  # Default for synthetic
     
     # 1. Try Loading Real Data
     parquet_file = 'ercot_rtm_2024.parquet'
@@ -553,12 +560,17 @@ def generate_dummy_price_profile(avg_price):
                     # profile = np.clip(raw_profile, 0, None) 
                     profile = raw_profile
                     
+                    # Calculate base average from real data
+                    base_average = np.mean(profile)
+                    
                     # Scaling: User requested ACTUAL data, so we disable scaling here.
                     # The 'avg_price' argument is ignored for real data.
                     # current_avg = np.mean(profile)
                     # if current_avg != 0:
                     #     profile = profile * (avg_price / current_avg)
-                        
+                    
+                    if return_base_avg:
+                        return pd.Series(profile, name='Market Price ($/MWh)'), base_average
                     return pd.Series(profile, name='Market Price ($/MWh)')
                     
         except Exception as e:
@@ -602,10 +614,13 @@ def generate_dummy_price_profile(avg_price):
     current_avg = profile.mean()
     if current_avg != 0:
         profile = profile * (avg_price / current_avg)
+    base_average = avg_price
         
     # Clip negative prices (simplified) unless desired
     profile = np.clip(profile, 0, None)
     
+    if return_base_avg:
+        return pd.Series(profile, name='Market Price ($/MWh)'), base_average
     return pd.Series(profile, name='Market Price ($/MWh)')
 
 def calculate_financials(matched_profile, deficit_profile, tech_profiles, tech_prices, market_price_avg, rec_price, price_scaler=1.0):

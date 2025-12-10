@@ -328,9 +328,28 @@ with st.expander("Configuration & Setup", expanded=True):
         st.markdown("---")
         st.markdown("#### Market Assumptions")
         c_mkt_1, c_mkt_2, c_mkt_3 = st.columns(3)
-        market_price = c_mkt_1.number_input("Avg Market Price ($/MWh)", min_value=0.0, value=32.0, step=1.0, key='market_input')
-        price_scaler = c_mkt_2.number_input("Price Scaler (2024 Base)", min_value=0.1, max_value=5.0, value=1.0, step=0.1, key='price_scaler_input', help="Multiply 2024 ERCOT prices by this factor")
-        rec_price = c_mkt_3.number_input("REC Price ($/MWh)", min_value=0.0, value=3.5, step=0.5, key='rec_input', help="Q4 2024: ~$3.50. Green-e certified, slight premium for TX Wind RECs.")
+        
+        # Get base average from actual data
+        _, base_market_avg = generate_dummy_price_profile(32.0, return_base_avg=True)
+        market_price = base_market_avg  # Use the actual base average
+        
+        # Display base average (read-only)
+        c_mkt_1.metric(
+            "Avg Market Price ($/MWh)", 
+            f"${base_market_avg:.2f}",
+            help="Average from 2024 ERCOT HB_NORTH data (read-only)"
+        )
+        
+        price_scaler = c_mkt_2.number_input(
+            "Price Scaler (2024 Base)", 
+            min_value=0.1, 
+            max_value=5.0, 
+            value=1.0, 
+            step=0.1, 
+            key='price_scaler_input',
+            help="Multiplier for 2024 prices. 1.4x = 40% increase for future projection"
+        )
+        rec_price = c_mkt_3.number_input("REC Price ($/MWh)", min_value=0.0, value=3.50, step=0.5, key='rec_input', help="Market est: $2-4/MWh")
 
 
 # --- Global Settings (Sidebar) ---
