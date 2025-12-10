@@ -479,6 +479,99 @@ else:
     col12.metric("REC Value", f"${fin_metrics['rec_cost']:,.0f}", help="Value of RECs")
     
     # Charts
+    st.markdown("---")
+    st.subheader("Economic Analysis")
+    
+    # PPA Price vs Capture Value Chart
+    st.markdown("#### PPA Price vs Capture Value by Technology")
+    
+    # Calculate capture value for each technology
+    market_price_profile = generate_dummy_price_profile(market_price) * price_scaler
+    
+    tech_data = []
+    tech_capacities = {
+        'Solar': solar_capacity,
+        'Wind': wind_capacity,
+        'CCS Gas': ccs_capacity,
+        'Geothermal': geo_capacity,
+        'Nuclear': nuc_capacity,
+        'Battery': batt_capacity
+    }
+    
+    for tech, capacity in tech_capacities.items():
+        if capacity > 0:
+            # Get generation profile for this tech
+            if tech in tech_profiles:
+                tech_gen = tech_profiles[tech]
+                # Calculate capture value (time-weighted average market price)
+                capture_value = (tech_gen * market_price_profile).sum() / tech_gen.sum() if tech_gen.sum() > 0 else 0
+            else:
+                capture_value = 0
+            
+            # Get PPA price
+            ppa_price = tech_prices.get(tech, 0)
+            
+            tech_data.append({
+                'Technology': tech,
+                'PPA Price': ppa_price,
+                'Capture Value': capture_value,
+                'Spread': capture_value - ppa_price
+            })
+    
+    if tech_data:
+        # Create grouped bar chart
+        tech_df = pd.DataFrame(tech_data)
+        
+        fig_ppa = go.Figure()
+        
+        fig_ppa.add_trace(go.Bar(
+            name='PPA Price',
+            x=tech_df['Technology'],
+            y=tech_df['PPA Price'],
+            marker_color='#e74c3c',
+            text=tech_df['PPA Price'].round(2),
+            textposition='outside',
+            texttemplate='$%{text:.2f}'
+        ))
+        
+        fig_ppa.add_trace(go.Bar(
+            name='Capture Value (2024 Base)',
+            x=tech_df['Technology'],
+            y=tech_df['Capture Value'],
+            marker_color='#2ecc71',
+            text=tech_df['Capture Value'].round(2),
+            textposition='outside',
+            texttemplate='$%{text:.2f}'
+        ))
+        
+        fig_ppa.update_layout(
+            barmode='group',
+            xaxis_title='Technology',
+            yaxis_title='Price ($/MWh)',
+            legend=dict(x=0.01, y=0.99),
+            height=400,
+            hovermode='x unified'
+        )
+        
+        st.plotly_chart(fig_ppa, use_container_width=True)
+        
+        # Show spread analysis
+        st.markdown("**Value Spread Analysis** (Capture Value - PPA Price)")
+        spread_cols = st.columns(len(tech_data))
+        for idx, row in enumerate(tech_data):
+            with spread_cols[idx]:
+                spread_val = row['Spread']
+                delta_color = "normal" if spread_val >= 0 else "inverse"
+                st.metric(
+                    row['Technology'],
+                    f"${spread_val:.2f}/MWh",
+                    delta=None,
+                    delta_color=delta_color
+                )
+    else:
+        st.info("Add generation capacity to see PPA vs Capture Value comparison")
+    
+    st.markdown("---")
     st.subheader("Hourly Energy Balance")
     
     # Use columns to make the slider more compact
