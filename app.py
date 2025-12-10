@@ -19,6 +19,7 @@ from utils import (
     process_uploaded_profile,
     generate_dummy_price_profile
 )
+import project_matcher
 
 st.set_page_config(page_title="ERCOT North Aggregation", layout="wide")
 
@@ -217,6 +218,11 @@ with st.expander("Configuration & Setup", expanded=True):
                         st.session_state.nuc_input = rec['Nuclear']
                         st.session_state.batt_input = rec['Battery_MW']
                         st.session_state.batt_duration_input = rec['Battery_Hours']
+                        
+                        # Match projects from ERCOT queue
+                        matched_projects = project_matcher.match_projects_to_recommendation(rec, max_projects_per_tech=5)
+                        st.session_state.matched_projects = matched_projects
+                        
                         st.session_state.portfolio_recommended = True
                     else:
                         st.session_state.portfolio_error = "Participant load is zero."
@@ -232,6 +238,33 @@ with st.expander("Configuration & Setup", expanded=True):
             if st.session_state.get('portfolio_error', None):
                 st.warning(st.session_state.portfolio_error)
                 st.session_state.portfolio_error = None # Reset error
+            
+            # Display matched projects if available
+            if st.session_state.get('matched_projects'):
+                st.markdown("---")
+                st.markdown("#### 📋 Suggested Projects from ERCOT Queue")
+                st.markdown("*Based on recommended portfolio capacities*")
+                
+                matched = st.session_state.matched_projects
+                
+                for tech, projects in matched.items():
+                    if projects:
+                        with st.expander(f"**{tech}** Projects ({len(projects)} suggested)", expanded=False):
+                            # Create DataFrame for display
+                            proj_data = []
+                            for proj in projects:
+                                proj_data.append({
+                                    'Project Name': proj['name'],
+                                    'Capacity (MW)': f"{proj['capacity_mw']:.1f}",
+                                    'County': proj['county'],
+                                    'Status': proj['status'],
+                                    'Proj. COD': str(proj['projected_cod'])[:10] if proj['projected_cod'] != 'Unknown' else 'TBD'
+                                })
+                            
+                            if proj_data:
+                                proj_df = pd.DataFrame(proj_data)
+                                st.dataframe(proj_df, hide_index=True, use_container_width=True)
+            
 
         st.markdown("#### Custom Profiles (Upload Unit Profiles)")
         c_prof_1, c_prof_2 = st.columns(2)
