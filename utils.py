@@ -589,12 +589,12 @@ def generate_dummy_price_profile(avg_price):
     
     return pd.Series(profile, name='Market Price ($/MWh)')
 
-def calculate_financials(matched_profile, deficit_profile, tech_profiles, tech_prices, market_price_avg, rec_price):
+def calculate_financials(matched_profile, deficit_profile, tech_profiles, tech_prices, market_price_avg, rec_price, price_scaler=1.0):
     """
     Calculates financial metrics for the portfolio using per-technology pricing and HOURLY market prices.
     """
-    # Generate Hourly Market Prices
-    market_price_profile = generate_dummy_price_profile(market_price_avg)
+    # Generate Hourly Market Prices and apply scaler
+    market_price_profile = generate_dummy_price_profile(market_price_avg) * price_scaler
     
     # 1. Calculate PPA Cost of Matched Energy (Weighted Attribution)
     # We assume 'matched_profile' is composed of the various techs in proportion to their generation.

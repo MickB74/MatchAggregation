@@ -255,9 +255,10 @@ with st.expander("Configuration & Setup", expanded=True):
 
         st.markdown("---")
         st.markdown("#### Market Assumptions")
-        c_mkt_1, c_mkt_2 = st.columns(2)
+        c_mkt_1, c_mkt_2, c_mkt_3 = st.columns(3)
         market_price = c_mkt_1.number_input("Avg Market Price ($/MWh)", min_value=0.0, value=32.0, step=1.0, key='market_input')
-        rec_price = c_mkt_2.number_input("REC Price ($/MWh)", min_value=0.0, value=3.5, step=0.5, key='rec_input', help="Q4 2024: ~$3.50. Green-e certified, slight premium for TX Wind RECs.")
+        price_scaler = c_mkt_2.number_input("Price Scaler (2024 Base)", min_value=0.1, max_value=3.0, value=1.0, step=0.1, key='price_scaler_input', help="Multiply 2024 ERCOT prices by this factor")
+        rec_price = c_mkt_3.number_input("REC Price ($/MWh)", min_value=0.0, value=3.5, step=0.5, key='rec_input', help="Q4 2024: ~$3.50. Green-e certified, slight premium for TX Wind RECs.")
 
 
 # --- Global Settings (Sidebar) ---
@@ -394,7 +395,7 @@ else:
         'Battery': batt_price
     }
     
-    fin_metrics = calculate_financials(matched_profile, deficit, tech_profiles, tech_prices, market_price, rec_price)
+    fin_metrics = calculate_financials(matched_profile, deficit, tech_profiles, tech_prices, market_price, rec_price, price_scaler)
     
     # --- Dashboard ---
     
@@ -417,7 +418,7 @@ else:
     col9, col10, col11, col12 = st.columns(4)
     col9.metric("Annual PPA Settlement Value", f"${fin_metrics['settlement_value']:,.0f}", help="Annual Revenue (or Cost) from PPA Settlement: (Market - Strike) * Matched Vol")
     col10.metric("Weighted Avg PPA Price", f"${fin_metrics['weighted_ppa_price']:.2f}/MWh", help="Average cost of matched energy based on technology mix")
-    col11.metric("Capture Value", f"${fin_metrics['weighted_market_price']:.2f}/MWh", help="Average market value of matched energy")
+    col11.metric("Capture Value (2024 Base)", f"${fin_metrics['weighted_market_price']:.2f}/MWh", help="Average market value of matched energy (2024 ERCOT prices × scaler)")
     col12.metric("REC Value", f"${fin_metrics['rec_cost']:,.0f}", help="Value of RECs")
     
     # Charts
