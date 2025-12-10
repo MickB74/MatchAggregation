@@ -327,7 +327,7 @@ with st.expander("Configuration & Setup", expanded=True):
 
         st.markdown("---")
         st.markdown("#### Market Assumptions")
-        c_mkt_1, c_mkt_2, c_mkt_3 = st.columns(3)
+        c_mkt_1, c_mkt_2, c_mkt_3, c_mkt_4 = st.columns(4)
         
         # Get base average from actual data
         _, base_market_avg = generate_dummy_price_profile(32.0, return_base_avg=True)
@@ -335,21 +335,31 @@ with st.expander("Configuration & Setup", expanded=True):
         
         # Display base average (read-only)
         c_mkt_1.metric(
-            "Avg Market Price ($/MWh)", 
+            "Base Avg (2024)", 
             f"${base_market_avg:.2f}",
-            help="Average from 2024 ERCOT HB_NORTH data (read-only)"
+            help="Average from 2024 ERCOT HB_NORTH data"
         )
         
         price_scaler = c_mkt_2.number_input(
-            "Price Scaler (2024 Base)", 
+            "Price Scaler", 
             min_value=0.1, 
             max_value=5.0, 
             value=1.0, 
             step=0.1, 
             key='price_scaler_input',
-            help="Multiplier for 2024 prices. 1.4x = 40% increase for future projection"
+            help="Multiplier for 2024 prices"
         )
-        rec_price = c_mkt_3.number_input("REC Price ($/MWh)", min_value=0.0, value=3.50, step=0.5, key='rec_input', help="Market est: $2-4/MWh")
+        
+        # Show scaled price
+        scaled_price = base_market_avg * price_scaler
+        c_mkt_3.metric(
+            "Scaled Avg",
+            f"${scaled_price:.2f}",
+            delta=f"{(price_scaler-1)*100:+.0f}%",
+            help="Base × Scaler = Effective market price"
+        )
+        
+        rec_price = c_mkt_4.number_input("REC Price ($/MWh)", min_value=0.0, value=3.50, step=0.5, key='rec_input', help="Market est: $2-4/MWh")
 
 
 # --- Global Settings (Sidebar) ---
