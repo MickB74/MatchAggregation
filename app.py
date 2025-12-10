@@ -226,19 +226,33 @@ with st.expander("Configuration & Setup", expanded=True):
 
     # --- Tab 2: Generation Portfolio ---
     with tab_gen:
-        col_gen_1, col_gen_2 = st.columns(2)
+        col_gen_1, col_gen_2 = st.columns([1, 1])
         
         with col_gen_1:
             st.markdown("#### Capacities")
-            # Solar
-            use_synthetic_solar = st.checkbox("Use Synthetic Solar Profile (Ignore CSV)", value=False)
-            solar_capacity = st.number_input("Solar Capacity (MW)", min_value=0.0, step=1.0, key='solar_input')
             
+            # Clear Portfolio Button for manual reset
+            if st.button("🗑️ Clear Portfolio (Reset to 0)"):
+                st.session_state.solar_input = 0.0
+                st.session_state.wind_input = 0.0
+                st.session_state.ccs_input = 0.0
+                st.session_state.geo_input = 0.0
+                st.session_state.nuc_input = 0.0
+                st.session_state.batt_input = 0.0
+                st.session_state.batt_duration_input = 2.0
+                st.session_state.matched_projects = {}
+                st.session_state.portfolio_recommended = False
+                st.rerun()
+
+            use_synthetic_solar = st.checkbox("Use Synthetic Solar Profile (Ignore CSV)", value=False)
+            
+            # Input Widgets (Keys mapped to session state)
+            solar_capacity = st.number_input("Solar Capacity (MW)", min_value=0.0, step=1.0, key='solar_input')
             wind_capacity = st.number_input("Wind Capacity (MW)", min_value=0.0, step=1.0, key='wind_input')
-            geo_capacity = st.number_input("Geothermal Capacity (MW)", min_value=0.0, step=10.0, key='geo_input')
-            nuc_capacity = st.number_input("Nuclear Capacity (MW)", min_value=0.0, step=10.0, key='nuc_input')
-            ccs_capacity = st.number_input("CCS Gas Capacity (MW)", min_value=0.0, step=10.0, key='ccs_input')
-        
+            geo_capacity = st.number_input("Geothermal Capacity (MW)", min_value=0.0, step=1.0, key='geo_input')
+            nuc_capacity = st.number_input("Nuclear Capacity (MW)", min_value=0.0, step=1.0, key='nuc_input')
+            ccs_capacity = st.number_input("CCS Gas Capacity (MW)", min_value=0.0, step=1.0, key='ccs_input')
+            
             # Automatically update project suggestions when capacities change
             # Build current recommendation from slider values
             current_recommendation = {
