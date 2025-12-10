@@ -17,7 +17,8 @@ from utils import (
     calculate_portfolio_metrics, 
     calculate_financials, 
     process_uploaded_profile,
-    generate_dummy_price_profile
+    generate_dummy_price_profile,
+    calculate_battery_financials
 )
 import project_matcher
 
@@ -399,7 +400,17 @@ with st.expander("Configuration & Setup", expanded=True):
             geo_price = st.number_input("Geothermal PPA Price", min_value=0.0, value=77.5, step=1.0, key='geo_price_input', help="Updated 2025 Market est: $70-85")
         with c_fin_3:
             nuc_price = st.number_input("Nuclear PPA Price", min_value=0.0, value=112.0, step=1.0, key='nuc_price_input', help="Q4 2024 Market: ~$112. Based on recent Vistra data center deal. Firm clean power premium.")
-            batt_price = st.number_input("Battery Storage Toll ($/kW-mo → $/MWh)", min_value=0.0, value=6.0, step=1.0, key='batt_price_input', help="Q4 2024: $6/kW-mo. Merchant revenues crashed to $2.50-3.50/kW-mo.")
+        
+        st.markdown("#### Battery Contract Terms")
+        c_bat_1, c_bat_2 = st.columns(2)
+        with c_bat_1:
+            batt_base_rate = st.number_input("Base Capacity Rate ($/MW-mo)", value=12000.0, step=500.0, help="Fixed monthly payment per MW of capacity.")
+            batt_guar_avail = st.number_input("Guaranteed Availability (%)", value=0.98, step=0.01, min_value=0.0, max_value=1.0, help="Owner guarantees this uptime.")
+        with c_bat_2:
+            batt_guar_rte = st.number_input("Guaranteed RTE (%)", value=0.85, step=0.01, min_value=0.0, max_value=1.0, help="Round Trip Efficiency guarantee.")
+            batt_vom = st.number_input("Variable O&M ($/MWh)", value=2.0, step=0.1, help="Wear and tear charge per MWh discharged.")
+            
+        simulate_outages = st.checkbox("Simulate Random Battery Outages (~2%)", value=False, help="Randomly drop availability to test performance penalties.")
 
         st.markdown("---")
         st.markdown("#### Market Assumptions")
@@ -538,11 +549,23 @@ else:
     deficit = (total_load_profile - total_gen_profile).clip(lower=0)
     
     # 4. Simulate Battery
+    
+    # Generate Availability Profile (for Outage Simulation)
+    availability_profile = pd.Series(batt_capacity, index=range(8760))
+    if simulate_outages and batt_capacity > 0:
+        # Create random outages (~2% of year = ~175 hours)
+        # Use a fixed seed for reproducibility of the "random" outages in this session
+        rng_outage = np.random.default_rng(42)
+        outage_mask = rng_outage.random(8760) < 0.02 # 2% probability
+        availability_profile[outage_mask] = 0.0 # Full outage for that hour
+    
     if enable_battery:
-        batt_discharge, batt_soc = simulate_battery_storage(surplus, deficit, batt_capacity, batt_duration)
+        batt_discharge, batt_soc, batt_charge = simulate_battery_storage(surplus, deficit, batt_capacity, batt_duration, availability_profile)
     else:
         batt_discharge = pd.Series(0.0, index=range(8760))
+        batt_charge = pd.Series(0.0, index=range(8760))
         batt_soc = pd.Series(0.0, index=range(8760))
+        availability_profile = pd.Series(0.0, index=range(8760))
     
     # 5. Final Matching
     total_gen_with_battery = total_gen_profile + batt_discharge
@@ -576,10 +599,36 @@ else:
     total_discharge_mwh = batt_discharge.sum()
     
     if total_discharge_mwh > 0:
-        annual_batt_cost = batt_price * 12 * 1000 * batt_capacity
-        effective_batt_price_mwh = annual_batt_cost / total_discharge_mwh
+        # Calculate Battery Financials Detailed
+        batt_contract_params = {
+            'capacity_mw': batt_capacity,
+            'base_rate_monthly': batt_base_rate,
+            'guaranteed_availability': batt_guar_avail,
+            'guaranteed_rte': batt_guar_rte,
+            'vom_rate': batt_vom
+        }
+        
+        # Helper to generate market price series for the financial calc
+        market_price_profile_series = generate_dummy_price_profile(market_price) * price_scaler
+        
+        batt_ops_data = {
+            'available_mw_profile': availability_profile,
+            'discharge_mwh_profile': batt_discharge,
+            'charge_mwh_profile': batt_charge,
+            'market_price_profile': market_price_profile_series
+        }
+        
+        batt_financials = calculate_battery_financials(batt_contract_params, batt_ops_data)
+        
+        # Effective Price for Global Financials logic (Net Cost / MWh)
+        effective_batt_price_mwh = batt_financials['net_invoice'] / total_discharge_mwh
     else:
         effective_batt_price_mwh = 0.0
+        batt_financials = {
+            'net_invoice': 0.0, 'capacity_payment': 0.0, 
+            'vom_payment': 0.0, 'rte_penalty': 0.0,
+            'actual_availability': 1.0, 'actual_rte': 0.0
+        }
         
     tech_prices = {
         'Solar': solar_price,
@@ -615,6 +664,56 @@ else:
     col10.metric("Weighted Avg PPA Price", f"${fin_metrics['weighted_ppa_price']:.2f}/MWh", help="Average cost of matched energy based on technology mix")
     col11.metric("Capture Value (2024 Base)", f"${fin_metrics['weighted_market_price']:.2f}/MWh", help="Average market value of matched energy (2024 ERCOT prices × scaler)")
     col12.metric("REC Value", f"${fin_metrics['rec_cost']:,.0f}", help="Value of RECs")
+
+    # Battery Financials Detailed Section
+    if enable_battery and batt_capacity > 0:
+        st.markdown("---")
+        st.subheader("🔋 Battery Settlement Detailed")
+        
+        b_col1, b_col2, b_col3, b_col4 = st.columns(4)
+        
+        b_col1.metric("Net Annual Invoice", f"${batt_financials['net_invoice']:,.0f}", 
+                      delta=f"-${batt_financials['rte_penalty']:,.0f} Penalty" if batt_financials['rte_penalty'] > 0 else None,
+                      help="Total Payment to Owner = Capacity + VOM - Penalties")
+        
+        b_col2.metric("Capacity Payment", f"${batt_financials['capacity_payment']:,.0f}",
+                      help=f"Base: ${batt_capacity * batt_base_rate * 12:,.0f} adjusted for Avail {batt_financials['actual_availability']:.1%}")
+                      
+        b_col3.metric("VOM Payment", f"${batt_financials['vom_payment']:,.0f}",
+                      help=f"Usage Fee based on {batt_financials['total_discharged']:,.0f} MWh discharged")
+                      
+        b_col4.metric("Realized RTE", f"{batt_financials['actual_rte']:.1%}",
+                      delta=f"{batt_financials['actual_rte'] - batt_guar_rte:.1%}",
+                      help=f"Target: {batt_guar_rte:.1%}")
+                      
+        # Visualization of Settlement Components
+        # Waterfall Chart
+        fig_batt = go.Figure(go.Waterfall(
+            name = "Settlement", orientation = "v",
+            measure = ["relative", "relative", "relative", "total"],
+            x = ["Capacity Payment", "VOM Payment", "RTE Penalty", "Net Invoice"],
+            textposition = "outside",
+            text = [f"${batt_financials['capacity_payment']/1000:.0f}k", 
+                    f"${batt_financials['vom_payment']/1000:.0f}k", 
+                    f"-${batt_financials['rte_penalty']/1000:.0f}k", 
+                    f"${batt_financials['net_invoice']/1000:.0f}k"],
+            y = [batt_financials['capacity_payment'], 
+                 batt_financials['vom_payment'], 
+                 -batt_financials['rte_penalty'], 
+                 0],
+            connector = {"line":{"color":"rgb(63, 63, 63)"}},
+        ))
+
+        fig_batt.update_layout(
+                title = "Battery Settlement Waterfall",
+                showlegend = False,
+                template=chart_template,
+                paper_bgcolor=chart_bg,
+                plot_bgcolor=chart_bg,
+                font=dict(color=chart_font_color)
+        )
+
+        st.plotly_chart(fig_batt, use_container_width=True)
     
     # Charts
     st.markdown("---")

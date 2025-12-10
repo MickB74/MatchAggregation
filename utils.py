@@ -295,7 +295,7 @@ def calculate_portfolio_metrics(load_profile, matched_profile, total_gen_capacit
         'grid_consumption': grid_consumption
     }
 
-def simulate_battery_storage(surplus_profile, deficit_profile, capacity_mw, duration_hours):
+def simulate_battery_storage(surplus_profile, deficit_profile, capacity_mw, duration_hours, availability_profile=None):
     """
     Simulates a simple battery storage system.
     Charges from surplus, discharges to cover deficit.
@@ -305,16 +305,19 @@ def simulate_battery_storage(surplus_profile, deficit_profile, capacity_mw, dura
         deficit_profile (pd.Series): Hourly energy deficit (MW).
         capacity_mw (float): Battery power capacity (MW).
         duration_hours (float): Battery duration (hours).
+        availability_profile (pd.Series, optional): Max available capacity per hour (MW). Used for outages.
         
     Returns:
         pd.Series: Battery discharge profile (MW).
         pd.Series: Battery state of charge (MWh).
+        pd.Series: Battery charge profile (MW).
     """
     hours = len(surplus_profile)
     max_energy_mwh = capacity_mw * duration_hours
     current_energy_mwh = max_energy_mwh * 0.5 # Start at 50%
     
     discharge_profile = np.zeros(hours)
+    charge_profile = np.zeros(hours)
     soc_profile = np.zeros(hours)
     
     # Efficiency
@@ -326,21 +329,31 @@ def simulate_battery_storage(surplus_profile, deficit_profile, capacity_mw, dura
         surplus = surplus_profile[h]
         deficit = deficit_profile[h]
         
+        # Determine available capacity for this hour
+        available_cap = capacity_mw
+        if availability_profile is not None:
+            available_cap = availability_profile.iloc[h] if hasattr(availability_profile, 'iloc') else availability_profile[h]
+        
         # Charge
         if surplus > 0 and current_energy_mwh < max_energy_mwh:
-            charge_power = min(surplus, capacity_mw)
+            # Can only charge up to available capacity
+            charge_power = min(surplus, available_cap)
             energy_to_add = charge_power * charge_eff
             space_available = max_energy_mwh - current_energy_mwh
             
             real_energy_added = min(energy_to_add, space_available)
+            real_charge_power = real_energy_added / charge_eff
+            
+            charge_profile[h] = real_charge_power
             current_energy_mwh += real_energy_added
             
         # Discharge
         elif deficit > 0 and current_energy_mwh > 0:
             discharge_power_needed = deficit
-            max_discharge_possible = min(capacity_mw, current_energy_mwh / discharge_eff)
+            # Can only discharge up to available capacity
+            max_discharge_power = min(available_cap, current_energy_mwh / discharge_eff)
             
-            real_discharge = min(discharge_power_needed, max_discharge_possible)
+            real_discharge = min(discharge_power_needed, max_discharge_power)
             discharge_profile[h] = real_discharge
             
             energy_removed = real_discharge / discharge_eff
@@ -350,9 +363,111 @@ def simulate_battery_storage(surplus_profile, deficit_profile, capacity_mw, dura
         if current_energy_mwh < 0:
             current_energy_mwh = 0.0
         
-    soc_profile[h] = current_energy_mwh
+        soc_profile[h] = current_energy_mwh
         
-    return pd.Series(discharge_profile, name='Battery Discharge (MW)'), pd.Series(soc_profile, name='Battery SoC (MWh)')
+    return (pd.Series(discharge_profile, name='Battery Discharge (MW)'), 
+            pd.Series(soc_profile, name='Battery SoC (MWh)'),
+            pd.Series(charge_profile, name='Battery Charge (MW)'))
+
+def calculate_battery_financials(contract_params, ops_data):
+    """
+    Calculates detailed battery settlement based on contract terms.
+    
+    Args:
+        contract_params (dict):
+            - capacity_mw
+            - base_rate_monthly ($/MW-month)
+            - guaranteed_availability (%)
+            - guaranteed_rte (%)
+            - vom_rate ($/MWh)
+            
+        ops_data (dict):
+            - available_mw_profile (pd.Series)
+            - discharge_mwh_profile (pd.Series)
+            - charge_mwh_profile (pd.Series)
+            - market_price_profile (pd.Series)
+            
+    Returns:
+        dict: Financial results
+    """
+    # Unpack Inputs
+    cap_mw = contract_params['capacity_mw']
+    rate_mo = contract_params['base_rate_monthly']
+    guar_avail = contract_params['guaranteed_availability']
+    guar_rte = contract_params['guaranteed_rte']
+    vom_rate = contract_params['vom_rate']
+    
+    avail_mw = ops_data['available_mw_profile']
+    discharged = ops_data['discharge_mwh_profile']
+    charged = ops_data['charge_mwh_profile']
+    prices = ops_data['market_price_profile']
+    
+    hours_in_year = 8760 # Approximation
+    intervals_per_month = 730 # Approx hours/month
+    
+    # --- Step 1: Capacity Payment ---
+    # Actual logic usually aggregates monthly, but we'll do an annual aggregate for this demo
+    # to be compatible with the single-year simulation.
+    
+    # Calculate Average Annual Availability
+    total_avail_mw_hours = avail_mw.sum()
+    max_possible_mw_hours = cap_mw * len(avail_mw)
+    
+    actual_availability = total_avail_mw_hours / max_possible_mw_hours if max_possible_mw_hours > 0 else 0.0
+    
+    # Performance Factor
+    # If Actual >= Guaranteed -> 1.0
+    # If Actual < Guaranteed -> Actual / Guaranteed
+    if actual_availability >= guar_avail:
+        perf_factor = 1.0
+    else:
+        perf_factor = actual_availability / guar_avail if guar_avail > 0 else 0.0
+        
+    # Annualize Capacity Payment
+    annual_base_payment = (cap_mw * rate_mo) * 12
+    final_capacity_payment = annual_base_payment * perf_factor
+    
+    
+    # --- Step 2: RTE Adjustment ---
+    total_discharged = discharged.sum()
+    total_charged = charged.sum()
+    
+    actual_rte = total_discharged / total_charged if total_charged > 0 else 0.0
+    
+    rte_penalty = 0.0
+    if actual_rte < guar_rte:
+        # Calculate Excess Energy Loss
+        # How much we SHOULD have lost (or consumed) vs how much we DID consume
+        # Standard formulation: Excess_Loss = Charged * (Guar_RTE - Actual_RTE) ??
+        # Wait, user formula: Excess_Energy_Loss_MWh = Total Charged MWh * (Guaranteed RTE - Actual RTE)
+        # This represents the MISSING energy output relative to input.
+        
+        excess_loss = total_charged * (guar_rte - actual_rte)
+        
+        # Penalty = Excess Loss * Weighted Avg Charge Price
+        # Calculate Weighted Avg Charge Price (LMP Charging)
+        charge_cost = (charged * prices).sum()
+        weighted_charge_price = charge_cost / total_charged if total_charged > 0 else 0.0
+        
+        rte_penalty = excess_loss * weighted_charge_price
+        
+    # --- Step 3: VOM Payment ---
+    vom_payment = total_discharged * vom_rate
+    
+    # --- Final Settlement ---
+    # Invoice = Capacity + VOM - RTE Penalty
+    net_invoice = final_capacity_payment + vom_payment - rte_penalty
+    
+    return {
+        'net_invoice': net_invoice,
+        'capacity_payment': final_capacity_payment,
+        'vom_payment': vom_payment,
+        'rte_penalty': rte_penalty,
+        'actual_availability': actual_availability,
+        'actual_rte': actual_rte,
+        'total_discharged': total_discharged,
+        'total_charged': total_charged
+    }
 
 def recommend_portfolio(load_profile, target_cfe=0.95, excluded_techs=None, existing_capacities=None):
     """
@@ -459,7 +574,7 @@ def recommend_portfolio(load_profile, target_cfe=0.95, excluded_techs=None, exis
         deficit = (load_profile - total_gen).clip(lower=0)
         
         # Simulate Battery
-        batt_discharge, _ = simulate_battery_storage(surplus, deficit, recommendation['Battery_MW'], recommendation['Battery_Hours'])
+        batt_discharge, _, _ = simulate_battery_storage(surplus, deficit, recommendation['Battery_MW'], recommendation['Battery_Hours'])
         
         # Calculate CFE
         total_available = total_gen + batt_discharge
