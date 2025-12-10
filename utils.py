@@ -382,8 +382,8 @@ def recommend_portfolio(load_profile, target_cfe=1.0, excluded_techs=None):
     }
     
     # 1. Baseload Coverage (Firm Clean Energy)
-    # Suggest covering 50% of average load with firm clean energy (approx 50% of total energy)
-    firm_target = avg_load * 0.50
+    # Increased to 80% to compensate for limited battery duration
+    firm_target = avg_load * 0.80
     
     # Logic to distribute firm target - Prioritize CCS Gas for baseload
     if 'CCS Gas' not in excluded_techs:
@@ -402,7 +402,7 @@ def recommend_portfolio(load_profile, target_cfe=1.0, excluded_techs=None):
     remaining_load = total_load - firm_gen_annual
     
     if remaining_load > 0:
-        target_variable_gen = remaining_load * 1.2 # Start with 1.2x coverage
+        target_variable_gen = remaining_load * 2.0 # Increased from 1.2x to 2.0x for better coverage
         
         var_techs = [t for t in ['Solar', 'Wind'] if t not in excluded_techs]
         
@@ -419,7 +419,7 @@ def recommend_portfolio(load_profile, target_cfe=1.0, excluded_techs=None):
         
     # 3. Battery Storage (Initial Guess)
     if 'Battery' not in excluded_techs:
-        recommendation['Battery_MW'] = peak_load * 0.2
+        recommendation['Battery_MW'] = peak_load * 0.40 # Increased from 0.2 to 0.4
     
     # Iterative Optimization Loop
     max_iterations = 100
@@ -450,21 +450,20 @@ def recommend_portfolio(load_profile, target_cfe=1.0, excluded_techs=None):
         if current_cfe >= target_cfe - 0.0001: # Float tolerance
             break
             
-        # Prioritize firm/long duration sizing if still low
-        # Adaptive Scaling: If gap is large, scale fast. If stuck, scale fast.
+        # More aggressive scaling to compensate for 2-hour battery limit
         gap = target_cfe - current_cfe
-        scaler = 1.02
-        if gap > 0.10: scaler = 1.15
-        elif gap > 0.05: scaler = 1.08
-        elif gap > 0.01: scaler = 1.05
+        scaler = 1.03
+        if gap > 0.10: scaler = 1.20  # Increased from 1.15
+        elif gap > 0.05: scaler = 1.12  # Increased from 1.08
+        elif gap > 0.01: scaler = 1.08  # Increased from 1.05
         
-        # Scale up
+        # Scale up all technologies
         if 'Solar' not in excluded_techs:
             recommendation['Solar'] *= scaler
         if 'Wind' not in excluded_techs:
             recommendation['Wind'] *= scaler
             
-        # Also scale Firm generation if needed (critical for scenarios with low VRE/Battery)
+        # Also scale Firm generation (critical for 100% CFE with limited battery)
         for t in ['Geothermal', 'Nuclear', 'CCS Gas']:
             if t not in excluded_techs:
                 recommendation[t] *= scaler
