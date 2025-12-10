@@ -181,9 +181,33 @@ with st.expander("Configuration & Setup", expanded=True):
             solar_capacity = st.number_input("Solar Capacity (MW)", min_value=0.0, step=1.0, key='solar_input')
             
             wind_capacity = st.number_input("Wind Capacity (MW)", min_value=0.0, step=1.0, key='wind_input')
-            ccs_capacity = st.number_input("CCS Gas Capacity (MW)", min_value=0.0, step=1.0, key='ccs_input')
-            geo_capacity = st.number_input("Geothermal Capacity (MW)", min_value=0.0, step=1.0, key='geo_input')
-            nuc_capacity = st.number_input("Nuclear Capacity (MW)", min_value=0.0, step=1.0, key='nuc_input')
+            geo_capacity = st.number_input("Geothermal Capacity (MW)", min_value=0.0, step=10.0, key='geo_input')
+            nuc_capacity = st.number_input("Nuclear Capacity (MW)", min_value=0.0, step=10.0, key='nuc_input')
+            ccs_capacity = st.number_input("CCS Gas Capacity (MW)", min_value=0.0, step=10.0, key='ccs_input')
+        
+            # Automatically update project suggestions when capacities change
+            # Build current recommendation from slider values
+            current_recommendation = {
+                'Solar': solar_capacity,
+                'Wind': wind_capacity,
+                'CCS Gas': ccs_capacity,
+                'Geothermal': geo_capacity,
+                'Nuclear': nuc_capacity,
+                'Battery_MW': st.session_state.get('batt_input', 0.0) # Use session state for batt_input as it's in col_gen_2
+            }
+            
+            # Check if any capacity is set (not all zeros)
+            has_capacity = any(v > 0 for v in current_recommendation.values())
+            
+            # Update matched projects dynamically
+            if has_capacity:
+                matched_projects = project_matcher.match_projects_to_recommendation(current_recommendation, max_projects_per_tech=5)
+                st.session_state.matched_projects = matched_projects
+            else:
+                # Clear matched projects if all capacities are zero
+                st.session_state.matched_projects = {}
+            
+            st.markdown("---")
 
         with col_gen_2:
             st.markdown("#### Storage & Recommendation")
