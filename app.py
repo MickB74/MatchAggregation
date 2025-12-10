@@ -1013,6 +1013,38 @@ else:
 
         st.plotly_chart(fig_batt, use_container_width=True)
 
+        # --- Pro Forma Table ---
+        st.markdown("#### 📊 Battery Pro Forma")
+        
+        # Calculate Market Value items
+        # Charging Cost = Sum(Charge_MW * Price)
+        total_charge_cost = (batt_charge * market_price_profile_series).sum()
+        
+        # Revenue (Discharge Value) = Sum(Discharge_MW * Price)
+        total_discharge_value = (batt_discharge * market_price_profile_series).sum()
+        
+        # Net Benefit
+        total_expense = batt_financials['capacity_payment'] + batt_financials['vom_payment'] + total_charge_cost - batt_financials['rte_penalty']
+        net_benefit = total_discharge_value - total_expense
+        
+        pro_forma_data = [
+            {"Category": "Revenue", "Item": "Energy Arbitrage (Market Value)", "Amount": total_discharge_value, "Notes": "Value of energy sent to grid"},
+            {"Category": "Expense", "Item": "Capacity Payment (Lease)", "Amount": -batt_financials['capacity_payment'], "Notes": "Fixed cost for capacity"},
+            {"Category": "Expense", "Item": "Charging Cost", "Amount": -total_charge_cost, "Notes": "Cost of energy from grid/gen"},
+            {"Category": "Expense", "Item": "VOM Charges", "Amount": -batt_financials['vom_payment'], "Notes": "Variable usage fee"},
+            {"Category": "Contra-Expense", "Item": "Performance Penalties", "Amount": batt_financials['rte_penalty'], "Notes": "Credit for underperformance"},
+            {"Category": "Net", "Item": "NET BENEFIT (Profit/Loss)", "Amount": net_benefit, "Notes": "Total Economic Value"}
+        ]
+        
+        pf_df = pd.DataFrame(pro_forma_data)
+        
+        # Formatting
+        st.dataframe(
+            pf_df.style.format({"Amount": "${:,.0f}"}), 
+            hide_index=True, 
+            use_container_width=True
+        )
+
     # --- Data Export ---
     st.subheader("Export Results")
     
