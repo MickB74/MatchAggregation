@@ -404,7 +404,7 @@ with st.expander("Configuration & Setup", expanded=True):
         st.markdown("#### Battery Contract Terms")
         c_bat_1, c_bat_2 = st.columns(2)
         with c_bat_1:
-            batt_base_rate = st.number_input("Base Capacity Rate ($/MW-mo)", value=12000.0, step=500.0, help="Fixed monthly payment per MW of capacity.")
+            batt_base_rate = st.number_input("Base Capacity Rate ($/MW-mo)", value=8000.0, step=500.0, help="~8/kW-mo. 2025 estimates range $6k-10k depending on duration and location.")
             batt_guar_avail = st.number_input("Guaranteed Availability (%)", value=0.98, step=0.01, min_value=0.0, max_value=1.0, help="Owner guarantees this uptime.")
         with c_bat_2:
             batt_guar_rte = st.number_input("Guaranteed RTE (%)", value=0.85, step=0.01, min_value=0.0, max_value=1.0, help="Round Trip Efficiency guarantee.")
