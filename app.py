@@ -1093,7 +1093,10 @@ else:
             "ccs_price": ccs_price,
             "geo_price": geo_price,
             "nuc_price": nuc_price,
-            "batt_price": batt_price,
+            "batt_base_rate": batt_base_rate,
+            "batt_guar_avail": batt_guar_avail,
+            "batt_guar_rte": batt_guar_rte,
+            "batt_vom": batt_vom,
             "market_price": market_price,
             "rec_price": rec_price,
             # Extract participants from session state
