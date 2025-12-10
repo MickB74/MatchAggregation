@@ -257,7 +257,7 @@ with st.expander("Configuration & Setup", expanded=True):
         st.markdown("#### Market Assumptions")
         c_mkt_1, c_mkt_2, c_mkt_3 = st.columns(3)
         market_price = c_mkt_1.number_input("Avg Market Price ($/MWh)", min_value=0.0, value=32.0, step=1.0, key='market_input')
-        price_scaler = c_mkt_2.number_input("Price Scaler (2024 Base)", min_value=0.1, max_value=3.0, value=1.0, step=0.1, key='price_scaler_input', help="Multiply 2024 ERCOT prices by this factor")
+        price_scaler = c_mkt_2.number_input("Price Scaler (2024 Base)", min_value=0.1, max_value=5.0, value=1.0, step=0.1, key='price_scaler_input', help="Multiply 2024 ERCOT prices by this factor")
         rec_price = c_mkt_3.number_input("REC Price ($/MWh)", min_value=0.0, value=3.5, step=0.5, key='rec_input', help="Q4 2024: ~$3.50. Green-e certified, slight premium for TX Wind RECs.")
 
 
