@@ -735,20 +735,22 @@ else:
             name='PPA Price',
             x=tech_df['Technology'],
             y=tech_df['PPA Price'],
-            marker_color='#e74c3c',
+            marker_color='#3498db',  # Blue instead of red
             text=tech_df['PPA Price'].round(2),
             textposition='outside',
-            texttemplate='$%{text:.2f}'
+            texttemplate='$%{text:.2f}',
+            textfont=dict(size=14, color='white')
         ))
         
         fig_ppa.add_trace(go.Bar(
             name='Capture Value (2024 Base)',
             x=tech_df['Technology'],
             y=tech_df['Capture Value'],
-            marker_color='#2ecc71',
+            marker_color='#f39c12',  # Orange instead of green
             text=tech_df['Capture Value'].round(2),
             textposition='outside',
-            texttemplate='$%{text:.2f}'
+            texttemplate='$%{text:.2f}',
+            textfont=dict(size=14, color='white')
         ))
         
         fig_ppa.update_layout(
@@ -756,12 +758,13 @@ else:
             xaxis_title='Technology',
             yaxis_title='Price ($/MWh)',
             legend=dict(x=0.01, y=0.99),
-            height=400,
+            height=500,  # Increased from 400 for more space
             hovermode='x unified',
             template=chart_template,
             paper_bgcolor=chart_bg,
             plot_bgcolor=chart_bg,
-            font=dict(color=chart_font_color)
+            font=dict(color=chart_font_color),
+            margin=dict(t=50, b=50, l=50, r=50)  # Add margins for labels
         )
         
         st.plotly_chart(fig_ppa, use_container_width=True)
