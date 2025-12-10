@@ -287,15 +287,21 @@ with st.expander("Configuration & Setup", expanded=True):
                         temp_load += generate_dummy_load_profile(p['load'], p['type'])
                     
                     if temp_load.sum() > 0:
-                        # Check for existing capacity values
-                        existing_capacities = {
-                            'Solar': st.session_state.get('solar_input', 0.0),
-                            'Wind': st.session_state.get('wind_input', 0.0),
-                            'CCS Gas': st.session_state.get('ccs_input', 0.0),
-                            'Geothermal': st.session_state.get('geo_input', 0.0),
-                            'Nuclear': st.session_state.get('nuc_input', 0.0),
-                            'Battery_MW': st.session_state.get('batt_input', 0.0)
-                        }
+                        # Check whether to use existing capacities or reset
+                        force_reset = st.session_state.get('force_reset_rec', False)
+                        
+                        if force_reset:
+                            existing_capacities = {} # Ignore current values
+                        else:
+                            # Use existing values to build around them
+                            existing_capacities = {
+                                'Solar': st.session_state.get('solar_input', 0.0),
+                                'Wind': st.session_state.get('wind_input', 0.0),
+                                'CCS Gas': st.session_state.get('ccs_input', 0.0),
+                                'Geothermal': st.session_state.get('geo_input', 0.0),
+                                'Nuclear': st.session_state.get('nuc_input', 0.0),
+                                'Battery_MW': st.session_state.get('batt_input', 0.0)
+                            }
                         
                         # Pass excluded techs from session state (widget key='excluded_techs_input')
                         rec = recommend_portfolio(
@@ -322,7 +328,9 @@ with st.expander("Configuration & Setup", expanded=True):
                 else:
                     st.session_state.portfolio_error = "Add participants first."
 
-            st.button("✨ Recommend Portfolio", on_click=apply_recommendation)
+            col_btn, col_chk = st.columns([1, 1])
+            col_btn.button("✨ Recommend Portfolio", on_click=apply_recommendation)
+            col_chk.checkbox("Force Reset (Ignore current values)", value=False, key='force_reset_rec', help="Check this to discard current slider values and generate a fresh recommendation from scratch.")
             
             # Show success/error messages after rerun
             if st.session_state.get('portfolio_recommended', False):
