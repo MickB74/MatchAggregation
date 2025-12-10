@@ -188,7 +188,7 @@ with st.expander("Configuration & Setup", expanded=True):
             st.markdown("#### Storage & Recommendation")
             enable_battery = st.checkbox("Enable Battery Storage", value=True)
             batt_capacity = st.number_input("Battery Power (MW)", min_value=0.0, step=1.0, key='batt_input', disabled=not enable_battery)
-            batt_duration = st.number_input("Battery Duration (Hours)", min_value=0.5, step=0.5, key='batt_duration_input', disabled=not enable_battery)
+            batt_duration = st.number_input("Battery Duration (Hours)", min_value=0.5, value=2.0, step=0.5, key='batt_duration_input', disabled=not enable_battery)
             
             st.markdown("---")
             
@@ -243,20 +243,20 @@ with st.expander("Configuration & Setup", expanded=True):
         st.markdown("#### PPA Prices ($/MWh)")
         c_fin_1, c_fin_2, c_fin_3 = st.columns(3)
         with c_fin_1:
-            solar_price = st.number_input("Solar PPA Price", min_value=0.0, value=48.5, step=1.0, key='solar_price_input', help="Updated 2025 Market est: $45-52")
-            wind_price = st.number_input("Wind PPA Price", min_value=0.0, value=42.5, step=1.0, key='wind_price_input', help="Updated 2025 Market est: $40-45")
+            solar_price = st.number_input("Solar PPA Price", min_value=0.0, value=46.5, step=1.0, key='solar_price_input', help="Q4 2024 Market: $45-47. Adjusted down ~2% due to high saturation.")
+            wind_price = st.number_input("Wind PPA Price", min_value=0.0, value=54.0, step=1.0, key='wind_price_input', help="Q4 2024 Market: ~$54. Up ~3.3%. Trades at $8-10 premium over solar.")
         with c_fin_2:
             ccs_price = st.number_input("CCS Gas PPA Price", min_value=0.0, value=65.0, step=1.0, key='ccs_price_input', help="Updated 2025 Market est: $55-75 (w/ 45Q)")
             geo_price = st.number_input("Geothermal PPA Price", min_value=0.0, value=77.5, step=1.0, key='geo_price_input', help="Updated 2025 Market est: $70-85")
         with c_fin_3:
-            nuc_price = st.number_input("Nuclear PPA Price", min_value=0.0, value=95.0, step=1.0, key='nuc_price_input', help="Updated 2025 Market est: $90-100+")
-            batt_price = st.number_input("Battery Storage Adder ($/MWh Discharged)", min_value=0.0, value=10.0, step=1.0, key='batt_price_input', help="Cost adder for battery throughput")
+            nuc_price = st.number_input("Nuclear PPA Price", min_value=0.0, value=112.0, step=1.0, key='nuc_price_input', help="Q4 2024 Market: ~$112. Based on recent Vistra data center deal. Firm clean power premium.")
+            batt_price = st.number_input("Battery Storage Toll ($/kW-mo → $/MWh)", min_value=0.0, value=6.0, step=1.0, key='batt_price_input', help="Q4 2024: $6/kW-mo. Merchant revenues crashed to $2.50-3.50/kW-mo.")
 
         st.markdown("---")
         st.markdown("#### Market Assumptions")
         c_mkt_1, c_mkt_2 = st.columns(2)
-        market_price = c_mkt_1.number_input("Avg Market Price ($/MWh)", min_value=0.0, value=35.0, step=1.0, key='market_input')
-        rec_price = c_mkt_2.number_input("REC Price ($/MWh)", min_value=0.0, value=3.0, step=0.5, key='rec_input', help="Updated 2025 Market est: $2-4")
+        market_price = c_mkt_1.number_input("Avg Market Price ($/MWh)", min_value=0.0, value=32.0, step=1.0, key='market_input')
+        rec_price = c_mkt_2.number_input("REC Price ($/MWh)", min_value=0.0, value=3.5, step=0.5, key='rec_input', help="Q4 2024: ~$3.50. Green-e certified, slight premium for TX Wind RECs.")
 
 
 # --- Global Settings (Sidebar) ---

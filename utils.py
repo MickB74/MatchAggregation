@@ -378,18 +378,23 @@ def recommend_portfolio(load_profile, target_cfe=1.0, excluded_techs=None):
         'Nuclear': 0,
         'CCS Gas': 0,
         'Battery_MW': 0,
-        'Battery_Hours': 4
+        'Battery_Hours': 2
     }
     
     # 1. Baseload Coverage (Firm Clean Energy)
     # Suggest covering 50% of average load with firm clean energy (approx 50% of total energy)
     firm_target = avg_load * 0.50
     
-    # Logic to distribute firm target
-    firm_techs = [t for t in ['Geothermal', 'Nuclear', 'CCS Gas'] if t not in excluded_techs]
-    if firm_techs:
-        for t in firm_techs:
-            recommendation[t] = firm_target / len(firm_techs)
+    # Logic to distribute firm target - Prioritize CCS Gas for baseload
+    if 'CCS Gas' not in excluded_techs:
+        # Use CCS Gas as primary baseload
+        recommendation['CCS Gas'] = firm_target
+    elif 'Nuclear' not in excluded_techs:
+        # Fallback to Nuclear if CCS is excluded
+        recommendation['Nuclear'] = firm_target
+    elif 'Geothermal' not in excluded_techs:
+        # Final fallback to Geothermal
+        recommendation['Geothermal'] = firm_target
 
 
     # 2. Variable Renewable Coverage (Initial Guess)
@@ -464,16 +469,11 @@ def recommend_portfolio(load_profile, target_cfe=1.0, excluded_techs=None):
             if t not in excluded_techs:
                 recommendation[t] *= scaler
         
-        # Increase Battery Power and Duration
+        # Increase Battery Power (Duration capped at 2 hours)
         if 'Battery' not in excluded_techs:
             recommendation['Battery_MW'] *= scaler
-            # Allow longer duration effectively if CFE is stubborn
-            # If we are targeting 100%, we often need very long duration
-            if recommendation['Battery_Hours'] < 24: 
-                recommendation['Battery_Hours'] += 0.5
-            elif recommendation['Battery_Hours'] < 100 and target_cfe > 0.99:
-                 # Extreme duration needed for 100% sometimes
-                 recommendation['Battery_Hours'] += 2.0
+            # Keep battery duration capped at 2 hours for scenarios
+            # Users can still manually set higher values if desired
             
     return recommendation
 
