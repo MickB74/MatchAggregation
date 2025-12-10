@@ -490,6 +490,11 @@ def recommend_portfolio(load_profile, target_cfe=0.95, excluded_techs=None, exis
         # Increase Battery Power (Duration capped at 2 hours)
         if 'Battery' not in excluded_techs:
             recommendation['Battery_MW'] *= scaler
+            # CAP: Limit battery power to 1.1x Peak Load to enforce realistic sizing
+            # It's rarely economic to size battery significantly larger than peak load
+            if recommendation['Battery_MW'] > peak_load * 1.1:
+                recommendation['Battery_MW'] = peak_load * 1.1
+                
             # Keep battery duration capped at 2 hours for scenarios
             # Users can still manually set higher values if desired
             
