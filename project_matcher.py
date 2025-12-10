@@ -35,7 +35,7 @@ def load_projects(csv_path='projects_in_queue_all_generators.csv'):
 
 def filter_projects_by_technology(df, tech_type):
     """
-    Filter projects by technology type.
+    Filter projects by technology type and ERCOT North region.
     
     Args:
         df (pd.DataFrame): Projects dataframe
@@ -46,6 +46,10 @@ def filter_projects_by_technology(df, tech_type):
     """
     if df.empty or 'Fuel' not in df.columns:
         return pd.DataFrame()
+    
+    # Filter by ERCOT North region first
+    if 'CDR Reporting Zone' in df.columns:
+        df = df[df['CDR Reporting Zone'] == 'NORTH'].copy()
     
     # Map portfolio tech types to CSV Fuel codes
     fuel_map = {
