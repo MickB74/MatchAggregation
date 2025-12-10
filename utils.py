@@ -397,11 +397,47 @@ def recommend_portfolio(load_profile, target_cfe=0.95, excluded_techs=None, exis
     # Suggest covering 80% of average load with firm clean energy
     firm_target = avg_load * 0.80
     
+    # Only set baseload if user hasn't specified any firm techs
+    existing_firm = recommendation.get('CCS Gas', 0) + recommendation.get('Nuclear', 0) + recommendation.get('Geothermal', 0)
+    
+    if existing_firm == 0:
+        # Logic to distribute firm target - Prioritize CCS Gas for baseload
+        if 'CCS Gas' not in excluded_techs:
+            # Use CCS Gas as primary baseload
+            recommendation['CCS Gas'] = firm_target
+        elif 'Nuclear' not in excluded_techs:
+            # Fallback to Nuclear if CCS is excluded
+            recommendation['Nuclear'] = firm_target
+        elif 'Geothermal' not in excluded_techs:
+            # Final fallback to Geothermal
+            recommendation['Geothermal'] = firm_target
+
+
+    # 2. Variable Renewable Coverage (Initial Guess)
+    firm_gen_annual = (recommendation['Geothermal'] + recommendation['Nuclear'] + recommendation['CCS Gas']) * 8760
+    remaining_load = total_load - firm_gen_annual
+    
+    # Only set VRE if user hasn't specified any
+    existing_vre = recommendation.get('Solar', 0) + recommendation.get('Wind', 0)
+    
+    if remaining_load > 0 and existing_vre == 0:
+        target_variable_gen = remaining_load * 2.0 # Increased from 1.2x to 2.0x for better coverage
+        
+        var_techs = [t for t in ['Solar', 'Wind'] if t not in excluded_techs]
+        
+        if var_techs:
+            # Capacity Factors: Solar ~0.25, Wind ~0.40
+            # If both present, split 50/50 energy target
+            # If only one, give 100% energy target
+            
+            for t in var_techs:
+                if t == 'Solar':
+                    recommendation['Solar'] = (target_variable_gen / len(var_techs)) / (8760 * 0.25)
                 elif t == 'Wind':
                     recommendation['Wind'] = (target_variable_gen / len(var_techs)) / (8760 * 0.40)
         
-    # 3. Battery Storage (Initial Guess)
-    if 'Battery' not in excluded_techs:
+    # 3. Battery Storage - Only set if not already specified
+    if recommendation.get('Battery_MW', 0) == 0 and 'Battery' not in excluded_techs:
         recommendation['Battery_MW'] = peak_load * 0.40 # Increased from 0.2 to 0.4
     
     # Iterative Optimization Loop
