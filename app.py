@@ -156,6 +156,60 @@ with st.expander("Configuration & Setup", expanded=True):
                 if st.button("Clear Participants"):
                     st.session_state.participants = []
                     st.rerun()
+            
+            st.markdown("---")
+            if st.button("🎲 Random Scenario (>500 GWh)"):
+                # Clear existing
+                st.session_state.participants = []
+                
+                # Logic to generate random scenario > 500k MWh
+                import random
+                current_total_load = 0
+                count = 1
+                
+                # Target at least 500k
+                while current_total_load < 500000:
+                    # Randomly choose type
+                    # Weighted towards Data Centers for higher load
+                    p_type = random.choice(["Data Center", "Data Center", "Office", "Office", "Ammonia Plant"])
+                    
+                    if p_type == "Data Center":
+                        # Large load: 100k - 300k MWh
+                        load = random.randint(100000, 300000)
+                    elif p_type == "Ammonia Plant":
+                         # Large constant load: 200k - 400k MWh (mapped to Flat/DataCenter profile logic usually, but we use 'Flat' for now)
+                         # We'll use 'Flat' profile type for Ammonia internally if 'Ammonia Plant' isn't in utils yet
+                         # Actually utils only has ['Flat', 'Data Center', 'Office']
+                         # Let's map Ammonia to 'Flat' effectively by just calling it 'Flat' in the backend, 
+                         # OR we stick to the selectbox types.
+                         # The user asked for "random scenarios", so diversity is good.
+                         # Let's stick to valid types for now to ensure profile generation works:
+                         # 'Data Center', 'Office', 'Flat'
+                         p_type = "Flat"
+                         load = random.randint(150000, 400000)
+                         p_name = f"Ind. Plant {count}" 
+                    else: # Office
+                        # Medium load: 10k - 50k MWh
+                        load = random.randint(10000, 50000)
+                        
+                    if p_type == "Data Center":
+                         p_name = f"Data Center {count}"
+                    elif p_type == "Office":
+                         p_name = f"Office Park {count}"
+                    elif p_type == "Flat":
+                         p_name = f"Industrial {count}"
+
+                    st.session_state.participants.append({
+                        "name": p_name,
+                        "type": p_type,
+                        "load": load
+                    })
+                    
+                    current_total_load += load
+                    count += 1
+                
+                st.success(f"Generated {count-1} participants with {current_total_load:,.0f} MWh total load!")
+                st.rerun()
 
         with col_load_2:
             st.markdown("#### Current Participants")
