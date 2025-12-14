@@ -782,6 +782,7 @@ else:
     
     # Generate Availability Profile (for Outage Simulation)
     availability_profile = pd.Series(batt_capacity, index=range(8760))
+    simulate_outages = False # Default to False as tab was removed
     if simulate_outages and batt_capacity > 0:
         # Create random outages (~2% of year = ~175 hours)
         # Use a fixed seed for reproducibility of the "random" outages in this session
