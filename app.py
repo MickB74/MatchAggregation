@@ -279,9 +279,14 @@ with st.expander("Configuration & Setup", expanded=True):
             
             st.markdown("---")
 
+            # Battery Sizing (Physical)
+            # define enable_battery first so we can use it
+            enable_battery = st.checkbox("Enable Battery Storage", value=True)
+            batt_capacity = st.number_input("Battery Power (MW)", min_value=0.0, step=1.0, key='batt_input', disabled=not enable_battery)
+            batt_duration = st.number_input("Battery Duration (Hours)", min_value=0.5, value=2.0, step=0.5, key='batt_duration_input', disabled=not enable_battery)
+
         with col_gen_2:
             st.markdown("#### Portfolio Recommendation")
-            st.info("Configuration moved to Financials Tab")
             
             st.markdown("---")
             
@@ -400,16 +405,11 @@ with st.expander("Configuration & Setup", expanded=True):
         with c_fin_3:
             nuc_price = st.number_input("Nuclear PPA Price", min_value=0.0, value=112.0, step=1.0, key='nuc_price_input', help="Q4 2024 Market: ~$112. Based on recent Vistra data center deal. Firm clean power premium.")
         
-        st.markdown("#### Battery Configuration")
+        st.markdown("#### Battery Contract Terms")
         
-        # Sizing Section
-        c_bat_size_1, c_bat_size_2, c_bat_size_3 = st.columns(3)
-        with c_bat_size_1:
-             enable_battery = st.checkbox("Enable Battery Storage", value=True)
-        with c_bat_size_2:
-             batt_capacity = st.number_input("Battery Power (MW)", min_value=0.0, step=1.0, key='batt_input', disabled=not enable_battery)
-        with c_bat_size_3:
-             batt_duration = st.number_input("Battery Duration (Hours)", min_value=0.5, value=2.0, step=0.5, key='batt_duration_input', disabled=not enable_battery)
+        # Sizing inputs moved back to Generation Portfolio Tab
+        # Display current sizing as info
+        st.info(f"**Battery Config:** {batt_capacity} MW / {batt_duration} Hr ({'Enabled' if enable_battery else 'Disabled'})")
 
         st.markdown("**Contract Terms**")
         c_bat_1, c_bat_2 = st.columns(2)
