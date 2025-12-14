@@ -1292,7 +1292,7 @@ else:
                           delta=f"-${batt_financials['rte_penalty']:,.0f} Penalty" if batt_financials['rte_penalty'] > 0 else None)
             b_col2.metric("Capacity Payment", f"${batt_financials['capacity_payment']:,.0f}")
             b_col3.metric("VOM Payment", f"${batt_financials['vom_payment']:,.0f}")
-            b_col4.metric("Realized RTE", f"{batt_financials['actual_rte']:.1%}", delta=f"{batt_financials['actual_rte'] - batt_guar_rte:.1%}")
+            b_col4.metric("Realized RTE", f"{batt_financials['actual_rte']:.1%}", delta=f"{batt_financials['actual_rte'] - (cvta_rte/100.0):.1%}")
 
             # Waterfall Chart
             fig_batt = go.Figure(go.Waterfall(
