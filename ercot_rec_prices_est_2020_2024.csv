@@ -1,0 +1,21 @@
+Date,Price_USD_MWh,Notes
+2020-01-01,0.65,Estimated Low
+2020-04-01,0.70,Estimated
+2020-07-01,0.85,Summer
+2020-10-01,0.90,Fall
+2021-01-01,1.10,Rising
+2021-04-01,1.50,Estimated
+2021-07-01,2.00,Summer Spike
+2021-10-01,2.25,Fall
+2022-01-01,3.50,Rapid Rise
+2022-04-01,4.50,Supply Tightness
+2022-07-01,6.50,Peak Demand
+2022-10-01,5.00,Correction
+2023-01-01,4.25,Stabilizing
+2023-04-01,3.75,Estimated
+2023-07-01,3.50,Summer
+2023-10-01,3.25,Fall
+2024-01-01,3.00,Current Trend
+2024-04-01,2.75,Estimated
+2024-07-01,2.50,Summer
+2024-10-01,2.85,Projected

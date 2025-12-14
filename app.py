@@ -515,6 +515,30 @@ with st.expander("Configuration & Setup", expanded=True):
         )
         
         rec_price = c_mkt_4.number_input("REC Price ($/MWh)", min_value=0.0, value=3.50, step=0.5, key='rec_input', help="Market est: $2-4/MWh")
+        
+        # Download Historical REC Data
+        with open("ercot_rec_prices_est_2020_2024.csv", "rb") as f:
+            c_mkt_4.download_button(
+                label="📉 REC History (Est)",
+                data=f,
+                file_name="ercot_rec_prices_est_2020_2024.csv",
+                mime="text/csv",
+                help="Download estimated historical ERCOT REC prices (2020-2024)"
+            )
+        
+        # Display Historical Averages
+        try:
+            if os.path.exists("ercot_rec_prices_est_2020_2024.csv"):
+                rec_df = pd.read_csv("ercot_rec_prices_est_2020_2024.csv")
+                rec_df['Date'] = pd.to_datetime(rec_df['Date'])
+                rec_avgs = rec_df.groupby(rec_df['Date'].dt.year)['Price_USD_MWh'].mean()
+                
+                c_mkt_4.markdown("---")
+                c_mkt_4.caption("**Hist. Avg ($/MWh)**")
+                for yr, pr in rec_avgs.items():
+                    c_mkt_4.caption(f"{yr}: **${pr:.2f}**")
+        except Exception:
+            pass
 
 
 # --- Global Settings (Sidebar) ---
