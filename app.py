@@ -19,7 +19,8 @@ from utils import (
     process_uploaded_profile,
     get_market_price_profile,
     calculate_battery_financials,
-    calculate_buyer_pl
+    calculate_buyer_pl,
+    calculate_proxy_battery_revenue
 )
 import project_matcher
 
@@ -532,115 +533,163 @@ with st.expander("Configuration & Setup", expanded=True):
             pass
 
 
-    # --- Tab 5: Offtake Structuring ---
+    # --- Tab 5: Offtake Structuring (CVTA) ---
     with tab_offtake:
-        st.markdown("#### Battery Offtake & Tolling Structures")
-        st.markdown("Model the financial split between Asset Owner and Offtaker.")
+        st.markdown("#### 🔋 Corporate Virtual Tolling Agreement (CVTA)")
+        st.caption("Financial Battery PPA | Proxy Battery Model")
         
-        c_off_1, c_off_2 = st.columns([1, 1])
+        col_cvta_inputs, col_cvta_charts = st.columns([1, 2])
         
-        with c_off_1:
-            st.markdown("##### 1. Tolling Agreement")
-            tolling_rate = st.number_input("Tolling: Fixed Rate ($/kW-mo)", value=8000.0, step=500.0, key='offtake_tolling_rate', help="Offtaker pays fixed fee for full capacity rights.")
+        with col_cvta_inputs:
+            st.markdown("##### 1. Battery Specs")
+            cvta_cap = st.number_input("Power Capacity (MW)", value=100.0, step=10.0, key='cvta_cap')
+            cvta_dur = st.number_input("Duration (Hours)", value=2.0, step=0.5, key='cvta_dur')
+            cvta_rte = st.number_input("Round Trip Efficiency (%)", value=85.0, step=1.0, key='cvta_rte')
+            cvta_vom = st.number_input("Variable O&M ($/MWh)", value=2.0, step=0.1, key='cvta_vom')
             
-            st.markdown("##### 2. Floor + Revenue Share")
-            floor_rate = st.number_input("Floor: Min. Payment ($/kW-mo)", value=4000.0, step=500.0, key='offtake_floor_rate', help="Guaranteed minimum payment to Owner.")
-            floor_share_pct = st.number_input("Floor: Owner Share of Upside (%)", value=50.0, min_value=0.0, max_value=100.0, step=5.0, key='offtake_floor_share', help="% of revenue above floor that Owner keeps.") / 100.0
+            st.markdown("---")
+            st.markdown("##### 2. Contract Terms")
+            cvta_fixed_price = st.number_input("Fixed Capacity Price ($/kW-mo)", value=8000.0, step=250.0, help="Monthly fixed payment from Corporate to Developer per kW.", key='cvta_fixed')
             
-        with c_off_2:
-            st.markdown("##### 3. Pure Revenue Share")
-            rev_share_pct = st.number_input("Rev Share: Owner Share (%)", value=80.0, min_value=0.0, max_value=100.0, step=5.0, key='offtake_rev_share', help="% of ALL revenue that Owner keeps (remainder to Optimizer/Offtaker).")
+            st.markdown("---")
+            st.markdown("##### 3. Market Data")
+            uploaded_lmp = st.file_uploader("Upload Hourly LMP CSV (Columns: Datetime, Price)", type=['csv'])
             
-            st.markdown("##### 4. Merchant")
-            st.caption("Owner takes 100% of risk and reward (100% Share).")
+            # Data Loading
+            df_prices = None
+            if uploaded_lmp:
+                try:
+                    df_prices = pd.read_csv(uploaded_lmp)
+                    # Try to parse datetime
+                    if 'Datetime' in df_prices.columns:
+                        df_prices['Datetime'] = pd.to_datetime(df_prices['Datetime'])
+                        df_prices.set_index('Datetime', inplace=True)
+                    elif 'Time' in df_prices.columns:
+                        df_prices['Time'] = pd.to_datetime(df_prices['Time'])
+                        df_prices.set_index('Time', inplace=True)
+                    else:
+                        st.error("CSV must have 'Datetime' or 'Time' column.")
+                        df_prices = None
+                except Exception as e:
+                    st.error(f"Error parsing file: {e}")
             
-        st.markdown("---")
+            if df_prices is None:
+                # Default / Test Data
+                if st.button("🔄 Generate Test Data (2024 Proxy)"): # Or auto-load
+                    # Use existing util to get 2024 profile
+                    price_series = get_market_price_profile(30.0, year=2024)
+                    dates = pd.date_range(start='2024-01-01', periods=len(price_series), freq='h')
+                    df_prices = pd.DataFrame({'Price': price_series.values}, index=dates)
+                    st.session_state.cvta_prices = df_prices
+                
+                # Check session state for persistence
+                if 'cvta_prices' in st.session_state:
+                    df_prices = st.session_state.cvta_prices
+                    st.success("Using Generated Test Data")
         
-        # Calculate Scenarios (if Battery active)
-        if enable_battery and 'batt_financials' in locals() and batt_capacity > 0:
-            # Get Estimated Annual Gross Revenue (Market Value)
-            # We use the 'batt_financials' calculated earlier or re-estimate?
-            # Ideally we need the Gross Market Revenue (Arbitrage + Est. Ancillary)
-            # Let's derive it from the 'batt_financials' net invoice if possible, or re-calc.
-            # actually batt_financials['net_invoice'] is the cost to the BUYER (Invoice Amount).
-            # The Invoice Amount is typically Capacity Payment + VOM - Credits.
-            # This is specifically for the TOLLING view.
-            
-            # We need the "Market Value" of the battery dispatch to model the Revenue Share.
-            # Value = Discharge * Market Price - Charge * Market Price
-            if 'batt_ops_data' in locals():
-                d_prof = batt_ops_data['discharge_mwh_profile']
-                c_prof = batt_ops_data['charge_mwh_profile']
-                m_prof = batt_ops_data['market_price_profile']
+        with col_cvta_charts:
+            if df_prices is not None:
+                # --- RUN MODEL ---
+                # 1. Fixed Leg (Debit)
+                # Cap MW * 1000 kW/MW * Price/kW-mo * 12 months (Annualized for comparison, but we do monthly)
+                monthly_fixed_cost = cvta_cap * 1000 * cvta_fixed_price
                 
-                # Energy Arbitrage Revenue
-                market_revenue = (d_prof * m_prof).sum()
-                charging_cost = (c_prof * m_prof).sum()
-                gross_energy_margin = market_revenue - charging_cost
+                # 2. Floating Leg (Credit) - Proxy Dispatch
+                daily_results = calculate_proxy_battery_revenue(df_prices, cvta_cap, cvta_dur, cvta_rte, cvta_vom)
                 
-                # Ancillary Services Uplift (Estimate)
-                # Assume AS adds ~20-30% to energy value for BESS in ERCOT
-                as_uplift_pct = 0.25 
-                gross_revenue_total = gross_energy_margin * (1 + as_uplift_pct)
-                
-                st.info(f"**Est. Gross Market Revenue** (Energy + AS): **${gross_revenue_total:,.0f}** / year (Based on current dispatch)")
-                
-                # --- Scenario Calculations ---
-                
-                # 1. Tolling
-                # Owner Revenue = Capacity Payment
-                # Offtaker Net = Gross Revenue - Capacity Payment
-                tolling_payment = tolling_rate * 12 * batt_capacity * 1000 # $/kW-mo * 12 * MW * 1000
-                scen_1_owner = tolling_payment
-                scen_1_offtaker = gross_revenue_total - tolling_payment
-                
-                # 2. Floor + Share
-                # Floor Payment
-                floor_payment = floor_rate * 12 * batt_capacity * 1000
-                # Upside
-                upside = max(0, gross_revenue_total - floor_payment)
-                scen_2_owner = floor_payment + (upside * floor_share_pct)
-                scen_2_offtaker = gross_revenue_total - scen_2_owner
-                
-                # 3. Pure Rev Share
-                scen_3_owner = gross_revenue_total * rev_share_pct
-                scen_3_offtaker = gross_revenue_total - scen_3_owner
-                
-                # 4. Merchant
-                scen_4_owner = gross_revenue_total
-                scen_4_offtaker = 0.0 # No offtaker
-                
-                # Visualization
-                scenarios = ['Tolling', 'Floor + Share', 'Rev Share', 'Merchant']
-                owner_revs = [scen_1_owner, scen_2_owner, scen_3_owner, scen_4_owner]
-                offtaker_revs = [scen_1_offtaker, scen_2_offtaker, scen_3_offtaker, scen_4_offtaker]
-                
-                fig_struct = go.Figure()
-                fig_struct.add_trace(go.Bar(name='Owner Revenue', x=scenarios, y=owner_revs, marker_color='#2ca02c'))
-                fig_struct.add_trace(go.Bar(name='Offtaker Net', x=scenarios, y=offtaker_revs, marker_color='#1f77b4'))
-                
-                fig_struct.update_layout(
-                    barmode='group',
-                    title='Annual Financial Outcome by Agreement Structure',
-                    yaxis_title='Annual Value ($)',
-                    legend_title='Perspective',
-                    template=chart_template
-                )
-                
-                st.plotly_chart(fig_struct, use_container_width=True)
-                
-                # Metrics Table
-                st.markdown("###### Detailed Split ($ Millions)")
-                metrics_data = {
-                    "Structure": scenarios,
-                    "Owner Rev ($M)": [f"${x/1e6:.2f}M" for x in owner_revs],
-                    "Offtaker Net ($M)": [f"${x/1e6:.2f}M" for x in offtaker_revs],
-                    "Owner Share (%)": [f"{x/gross_revenue_total*100:.1f}%" if gross_revenue_total > 0 else "0%" for x in owner_revs]
-                }
-                st.dataframe(pd.DataFrame(metrics_data), hide_index=True)
-                
-        else:
-            st.warning("Enable Battery and Configure Capacity to see analysis.")
+                if not daily_results.empty:
+                    # Aggregate Monthly
+                    monthly_results = daily_results.resample('ME').sum()
+                    monthly_results['Fixed_Payment'] = monthly_fixed_cost
+                    monthly_results['Net_Settlement'] = monthly_fixed_cost - monthly_results['Net_Revenue'] 
+                    # Net Settlement > 0: Corporate PAYS (Fixed > Floating) -> Cost
+                    # Net Settlement < 0: Corporate RECEIVES (Floating > Fixed) -> Gain
+                    
+                    monthly_results['Month'] = monthly_results.index.strftime('%b')
+                    
+                    # --- VIZ 1: Monthly Settlement Bars ---
+                    # Stacked Bar: Fixed (Cost) vs Floating (Revenue)
+                    # Actually standard way to show this is "Net Cost" bar
+                    fig_settlement = go.Figure()
+                    
+                    fig_settlement.add_trace(go.Bar(
+                        x=monthly_results['Month'], 
+                        y=monthly_results['Fixed_Payment'],
+                        name='Fixed Payment (Cost)',
+                        marker_color='#d62728' # Red
+                    ))
+                    
+                    fig_settlement.add_trace(go.Bar(
+                        x=monthly_results['Month'], 
+                        y=monthly_results['Net_Revenue'], # This is the credit back
+                        name='Market Revenue (Credit)',
+                        marker_color='#2ca02c' # Green
+                    ))
+                    
+                    fig_settlement.update_layout(
+                        title='Monthly Settlement: Fixed Payment vs. Market Revenue',
+                        barmode='group',
+                        yaxis_title='Value ($)',
+                        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+                        template=chart_template
+                    )
+                    st.plotly_chart(fig_settlement, use_container_width=True)
+                    
+                    # --- VIZ 2: Cumulative Cash Flow ---
+                    monthly_results['Cumulative_Net_Cost'] = monthly_results['Net_Settlement'].cumsum()
+                    
+                    fig_cum = go.Figure()
+                    fig_cum.add_trace(go.Scatter(
+                        x=monthly_results['Month'], 
+                        y=monthly_results['Cumulative_Net_Cost'],
+                        mode='lines+markers',
+                        name='Cumulative Net Cost',
+                        line=dict(width=3, color='#F63366'),
+                        fill='tozeroy'
+                    ))
+                    fig_cum.update_layout(
+                        title='Cumulative Net Cost to Corporate Offtaker',
+                        yaxis_title='Cumulative $ (Positive = Cost, Negative = Gain)',
+                        template=chart_template
+                    )
+                    st.plotly_chart(fig_cum, use_container_width=True)
+                    
+                    # --- VIZ 3: Arbitrage Spread Heatmap/Scatter ---
+                    # daily_results has 'Daily_Spread'
+                    fig_spread = go.Figure()
+                    fig_spread.add_trace(go.Scatter(
+                        x=daily_results.index,
+                        y=daily_results['Daily_Spread'],
+                        mode='markers',
+                        marker=dict(
+                            size=6,
+                            color=daily_results['Daily_Spread'], # Set color equal to value
+                            colorscale='Plasma', 
+                            showscale=True
+                        ),
+                        name='Daily Spread'
+                    ))
+                    fig_spread.update_layout(
+                        title='Daily Price Volatility (Avg High - Avg Low)',
+                        yaxis_title='Spread ($/MWh)',
+                        template=chart_template
+                    )
+                    st.plotly_chart(fig_spread, use_container_width=True)
+                    
+                    # Summary Metrics (Top of Col 2)
+                    total_fixed = monthly_results['Fixed_Payment'].sum()
+                    total_floating = monthly_results['Net_Revenue'].sum()
+                    net_outcome = monthly_results['Net_Settlement'].sum()
+                    
+                    m1, m2, m3 = st.columns(3)
+                    m1.metric("Annual Fixed Pmt", f"${total_fixed/1e6:.2f}M")
+                    m2.metric("Annual Market Rev", f"${total_floating/1e6:.2f}M")
+                    m3.metric("Net Cost to Corp", f"${net_outcome/1e6:.2f}M", 
+                              delta=f"{-net_outcome/1e6:.2f}M", delta_color="inverse") # Inverse: Negative Cost (Profit) is Green
+                else:
+                    st.warning("No valid daily dispatch results. Check data or params.")
+            else:
+                 st.info("👈 Upload data or generates test data to see results.")
 
 
 # --- Global Settings (Sidebar) ---

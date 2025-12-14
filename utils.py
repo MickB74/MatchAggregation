@@ -234,6 +234,92 @@ def generate_dummy_generation_profile(capacity_mw, resource_type='Solar', use_sy
         
     return pd.Series(profile, name=f'{resource_type} Generation (MW)')
 
+def calculate_proxy_battery_revenue(prices_df, capacity_mw, duration_hours, rte_percent, vom_rate):
+    """
+    Simulates a 'Proxy Battery' with perfect hindsight daily dispatch.
+    
+    Algorithm:
+    For each 24-hour period:
+      1. Identify N lowest price hours to charge (N = duration).
+      2. Identify N highest price hours to discharge.
+      3. Charge Cost = Sum(Low Prices) / Efficiency * Capacity.
+      4. Discharge Rev = Sum(High Prices) * Capacity.
+      5. Net = Rev - Cost - VOM.
+      
+    Args:
+        prices_df (pd.DataFrame): DataFrame with datetime index and 'Price' column.
+        capacity_mw (float): Battery Power (MW).
+        duration_hours (float): Duration (Hours).
+        rte_percent (float): Round Trip Efficiency (0-100).
+        vom_rate (float): Variable O&M ($/MWh discharged).
+        
+    Returns:
+        pd.DataFrame: Daily result with columns ['Net_Revenue', 'Cost_Charge', 'Rev_Discharge', 'Spread'].
+    """
+    # Working copy
+    df = prices_df.copy()
+    if 'Price' not in df.columns:
+        # Fallback if single column
+        df.columns = ['Price']
+        
+    eff = rte_percent / 100.0
+    n_hours = int(duration_hours) # Ensure integer hours for index selection
+    
+    results = []
+    
+    # Group by Date
+    # Assuming index is Datetime
+    grouped = df.groupby(df.index.date)
+    
+    for date, group in grouped:
+        if len(group) < 24:
+            continue # Skip incomplete days
+            
+        prices = group['Price'].values
+        
+        # Sort prices (Small to Large)
+        sorted_prices = np.sort(prices)
+        
+        # Lowest N for Charging
+        low_prices = sorted_prices[:n_hours]
+        
+        # Highest N for Discharging
+        high_prices = sorted_prices[-n_hours:]
+        
+        # Financials (Per MW)
+        # Cost to Charge 1 MW output = Sum(Low) / Eff
+        cost_charge_per_mw = np.sum(low_prices) / eff
+        
+        # Revenue from Discharge 1 MW
+        rev_discharge_per_mw = np.sum(high_prices)
+        
+        # VOM (applied to Discharge MWh)
+        vom_cost_per_mw = vom_rate * n_hours
+        
+        # Net per MW
+        net_per_mw = rev_discharge_per_mw - cost_charge_per_mw - vom_cost_per_mw
+        
+        # Spread Metric (Avg High - Avg Low)
+        avg_high = np.mean(high_prices)
+        avg_low = np.mean(low_prices)
+        spread = avg_high - avg_low
+        
+        results.append({
+            'Date': date,
+            'Net_Revenue': net_per_mw * capacity_mw,
+            'Cost_Charge': cost_charge_per_mw * capacity_mw,
+            'Rev_Discharge': rev_discharge_per_mw * capacity_mw,
+            'Daily_Spread': spread
+        })
+        
+    results_df = pd.DataFrame(results)
+    if not results_df.empty:
+        results_df['Date'] = pd.to_datetime(results_df['Date'])
+        results_df.set_index('Date', inplace=True)
+        
+    return results_df
+
+
 def calculate_cfe_score(load_profile, generation_profile):
     """
     Calculates the Carbon Free Energy (CFE) score.
