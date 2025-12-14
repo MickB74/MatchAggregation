@@ -894,7 +894,8 @@ else:
                 'actual_availability': 1.0,
                 'actual_rte': cvta_rte / 100.0,
                 # Store extra metadata for global table override
-                'financial_mwh': cvta_daily_results['Discharge_MW'].sum(),
+                # Proxy model discharges full duration every day of the results
+                'financial_mwh': len(cvta_daily_results) * batt_capacity * batt_duration,
                 'market_revenue': annual_market_revenue
             }
         else:
