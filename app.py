@@ -76,7 +76,8 @@ def load_scenario():
             # DEBUG: Uncomment to see what was parsed
             # st.sidebar.write("DEBUG: Parsed Config:", config)
 
-                    return
+            # DEBUG: Uncomment to see what was parsed
+            # st.sidebar.write("DEBUG: Parsed Config:", config)
 
             # Apply to Session State
             # 1. Participants
@@ -108,6 +109,17 @@ def load_scenario():
             if 'geo_price' in config: st.session_state.geo_price_input = float(config['geo_price'])
             if 'nuc_price' in config: st.session_state.nuc_price_input = float(config['nuc_price'])
             if 'batt_price' in config: st.session_state.batt_price_input = float(config['batt_price'])
+            
+            # CVTA Support
+            # Map legacy or new keys to CVTA session state controls
+            if 'batt_base_rate' in config: st.session_state.cvta_fixed = float(config['batt_base_rate']) # Map legacy
+            if 'cvta_fixed_price' in config: st.session_state.cvta_fixed = float(config['cvta_fixed_price'])
+            
+            if 'batt_guar_rte' in config: st.session_state.cvta_rte = float(config['batt_guar_rte'])
+            if 'cvta_rte' in config: st.session_state.cvta_rte = float(config['cvta_rte'])
+            
+            if 'batt_vom' in config: st.session_state.cvta_vom = float(config['batt_vom'])
+            if 'cvta_vom' in config: st.session_state.cvta_vom = float(config['cvta_vom'])
 
             if 'market_price' in config: st.session_state.market_input = float(config['market_price'])
             if 'rec_price' in config: st.session_state.rec_input = float(config['rec_price'])
