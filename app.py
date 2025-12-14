@@ -757,9 +757,9 @@ else:
         )
         
         # Summarize Results
-        total_profit = buyer_pl_df['Net_Profit'].sum()
-        best_month = buyer_pl_df.loc[buyer_pl_df['Net_Profit'].idxmax()]
-        worst_month = buyer_pl_df.loc[buyer_pl_df['Net_Profit'].idxmin()]
+        total_profit = batt_pl_df['Net_Profit'].sum()
+        best_month = batt_pl_df.loc[batt_pl_df['Net_Profit'].idxmax()]
+        worst_month = batt_pl_df.loc[batt_pl_df['Net_Profit'].idxmin()]
         
         # Metrics
         m_col1, m_col2, m_col3 = st.columns(3)
@@ -776,37 +776,36 @@ else:
         
         # Revenues (Positive)
         fig_buyer.add_trace(go.Bar(
-            x=buyer_pl_df['Month'], 
-            y=buyer_pl_df['Revenue_Arb'],
+            x=batt_pl_df['Month'], 
+            y=batt_pl_df['Revenue_Arb'],
             name='Arbitrage Rev',
             marker_color='#2ca02c'
         ))
         
         fig_buyer.add_trace(go.Bar(
-            x=buyer_pl_df['Month'], 
-            y=buyer_pl_df['Ancillary_Rev'],
+            x=batt_pl_df['Month'], 
+            y=batt_pl_df['Ancillary_Rev'],
             name='Ancillary Rev',
             marker_color='#98df8a'
         ))
         
         # Costs (Negative)
         fig_buyer.add_trace(go.Bar(
-            x=buyer_pl_df['Month'], 
-            y=-buyer_pl_df['Toll_Cost'],
+            x=batt_pl_df['Month'], 
+            y=-batt_pl_df['Toll_Cost'],
             name='Fixed Toll',
             marker_color='#d62728'
         ))
         
         fig_buyer.add_trace(go.Bar(
-            x=buyer_pl_df['Month'], 
-            y=-buyer_pl_df['Cost_Charge'],
+            x=batt_pl_df['Month'], 
+            y=-batt_pl_df['Cost_Charge'],
             name='Charging Cost',
             marker_color='#ff9896'
         ))
         
         # Net Profit Line
         fig_buyer.add_trace(go.Scatter(
-            x=buyer_pl_df['Month'],
             y=buyer_pl_df['Net_Profit'],
             name='Net Profit',
             line=dict(color='white', width=3, dash='dot'),
