@@ -892,13 +892,17 @@ else:
                 'vom_payment': 0.0, # Implicit in net revenue for proxy
                 'rte_penalty': 0.0, # Not explicit in this deal structure
                 'actual_availability': 1.0,
-                'actual_rte': cvta_rte / 100.0
+                'actual_rte': cvta_rte / 100.0,
+                # Store extra metadata for global table override
+                'financial_mwh': cvta_daily_results['Discharge_MW'].sum(),
+                'market_revenue': annual_market_revenue
             }
         else:
             batt_financials = {
                 'net_invoice': 0.0, 'capacity_payment': 0.0, 
                 'vom_payment': 0.0, 'rte_penalty': 0.0,
-                'actual_availability': 1.0, 'actual_rte': 0.0
+                'actual_availability': 1.0, 'actual_rte': 0.0,
+                'financial_mwh': 0.0, 'market_revenue': 0.0
             }
         
         # Effective Price for Global Financials logic (Net Cost / MWh)
@@ -921,6 +925,25 @@ else:
     }
     
     fin_metrics = calculate_financials(matched_profile, deficit, tech_profiles, tech_prices, market_price, rec_price, price_scaler, year=market_year)
+    
+    # --- GLOBAL TABLE OVERRIDE FOR BATTERY (Ensure Match with CVTA) ---
+    if 'Battery' in fin_metrics['tech_details'] and batt_capacity > 0:
+        # Override the Physical Dispatch based numbers with Financial Dispatch Numbers from CVTA
+        # Net Settlement (Value - Cost) should equal -Net Invoice (Revenue - Fixed)
+        # Note: Global Table Logic is: Settlement = Market Value - PPA Cost.
+        # So we map: PPA Cost -> Fixed Payment, Market Value -> Financial Revenue.
+        
+        f_mwh = batt_financials.get('financial_mwh', 0.0)
+        f_rev = batt_financials.get('market_revenue', 0.0)
+        f_cost = batt_financials.get('capacity_payment', 0.0) # Fixed Payment
+        
+        fin_metrics['tech_details']['Battery'] = {
+            'Matched_MWh': f_mwh,
+            'PPA_Price': (f_cost / f_mwh) if f_mwh > 0 else 0.0, # Implied Price
+            'Total_Cost': f_cost, # Fixed Payment
+            'Market_Value': f_rev, # Financial Revenue
+            'Settlement': f_rev - f_cost # Net Settlement (should be neg of Net Invoice)
+        }
     
     # --- Dashboard moved to Tabs ---
     
