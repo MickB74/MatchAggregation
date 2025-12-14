@@ -579,18 +579,20 @@ with st.expander("Configuration & Setup", expanded=True):
                     st.error(f"Error parsing file: {e}")
             
             if df_prices is None:
-                # Default / Test Data
-                if st.button("🔄 Generate Test Data (2024 Proxy)"): # Or auto-load
-                    # Use existing util to get 2024 profile
+                # Default to Auto-Load ERCOT 2024 Data
+                # Use existing util to get 2024 profile
+                # We reuse the logic from get_market_price_profile which handles parquet loading
+                try:
                     price_series = get_market_price_profile(30.0, year=2024)
                     dates = pd.date_range(start='2024-01-01', periods=len(price_series), freq='h')
                     df_prices = pd.DataFrame({'Price': price_series.values}, index=dates)
-                    st.session_state.cvta_prices = df_prices
-                
-                # Check session state for persistence
-                if 'cvta_prices' in st.session_state:
-                    df_prices = st.session_state.cvta_prices
-                    st.success("Using Generated Test Data")
+                    
+                    st.success("✅ Using Default Data: **ERCOT HB_NORTH 2024**")
+                    with st.expander("View Data Preview"):
+                         st.dataframe(df_prices.head(24), use_container_width=True)
+                         
+                except Exception as e:
+                    st.error(f"Failed to load default data: {e}")
         
         with col_cvta_charts:
             if df_prices is not None:
