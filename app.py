@@ -599,6 +599,16 @@ else:
     
     total_discharge_mwh = batt_discharge.sum()
     
+    # Helper to generate market price series for the financial calc
+    market_price_profile_series = generate_dummy_price_profile(market_price) * price_scaler
+    
+    batt_ops_data = {
+        'available_mw_profile': availability_profile,
+        'discharge_mwh_profile': batt_discharge,
+        'charge_mwh_profile': batt_charge,
+        'market_price_profile': market_price_profile_series
+    }
+
     if total_discharge_mwh > 0:
         # Calculate Battery Financials Detailed
         batt_contract_params = {
@@ -607,16 +617,6 @@ else:
             'guaranteed_availability': batt_guar_avail,
             'guaranteed_rte': batt_guar_rte,
             'vom_rate': batt_vom
-        }
-        
-        # Helper to generate market price series for the financial calc
-        market_price_profile_series = generate_dummy_price_profile(market_price) * price_scaler
-        
-        batt_ops_data = {
-            'available_mw_profile': availability_profile,
-            'discharge_mwh_profile': batt_discharge,
-            'charge_mwh_profile': batt_charge,
-            'market_price_profile': market_price_profile_series
         }
         
         batt_financials = calculate_battery_financials(batt_contract_params, batt_ops_data)
