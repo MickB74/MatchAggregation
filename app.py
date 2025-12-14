@@ -280,10 +280,8 @@ with st.expander("Configuration & Setup", expanded=True):
             st.markdown("---")
 
         with col_gen_2:
-            st.markdown("#### Storage & Recommendation")
-            enable_battery = st.checkbox("Enable Battery Storage", value=True)
-            batt_capacity = st.number_input("Battery Power (MW)", min_value=0.0, step=1.0, key='batt_input', disabled=not enable_battery)
-            batt_duration = st.number_input("Battery Duration (Hours)", min_value=0.5, value=2.0, step=0.5, key='batt_duration_input', disabled=not enable_battery)
+            st.markdown("#### Portfolio Recommendation")
+            st.info("Configuration moved to Financials Tab")
             
             st.markdown("---")
             
@@ -402,7 +400,18 @@ with st.expander("Configuration & Setup", expanded=True):
         with c_fin_3:
             nuc_price = st.number_input("Nuclear PPA Price", min_value=0.0, value=112.0, step=1.0, key='nuc_price_input', help="Q4 2024 Market: ~$112. Based on recent Vistra data center deal. Firm clean power premium.")
         
-        st.markdown("#### Battery Contract Terms")
+        st.markdown("#### Battery Configuration")
+        
+        # Sizing Section
+        c_bat_size_1, c_bat_size_2, c_bat_size_3 = st.columns(3)
+        with c_bat_size_1:
+             enable_battery = st.checkbox("Enable Battery Storage", value=True)
+        with c_bat_size_2:
+             batt_capacity = st.number_input("Battery Power (MW)", min_value=0.0, step=1.0, key='batt_input', disabled=not enable_battery)
+        with c_bat_size_3:
+             batt_duration = st.number_input("Battery Duration (Hours)", min_value=0.5, value=2.0, step=0.5, key='batt_duration_input', disabled=not enable_battery)
+
+        st.markdown("**Contract Terms**")
         c_bat_1, c_bat_2 = st.columns(2)
         with c_bat_1:
             batt_base_rate = st.number_input("Base Capacity Rate ($/MW-mo)", value=8000.0, step=500.0, help="~8/kW-mo. 2025 estimates range $6k-10k depending on duration and location.")
@@ -699,7 +708,7 @@ else:
         c_buy_1, c_buy_2, c_buy_3 = st.columns(3)
         
         with c_buy_1:
-            toll_rate = st.number_input("Fixed Toll Rate ($/MW-mo)", value=10000.0, step=1000.0, help="Monthly rent paid to owner.")
+            toll_rate = st.number_input("Fixed Toll Rate ($/MW-mo)", value=7500.0, step=500.0, help="Monthly rent paid to owner.")
             
         with c_buy_2:
             ancillary_est = st.number_input("Est. Ancillary Revenue ($/MW-mo)", value=3000.0, step=500.0, help="Revenue from ECRS/Reg-Up etc.")
