@@ -899,12 +899,18 @@ else:
     fig.add_trace(go.Scatter(x=x_axis, y=total_gen_with_battery[start_hour:end_hour],
                              mode='lines', name='Total Supply (Gen+Batt)', line=dict(color='#2ca02c', width=2)))
     # Stacked generation profiles
-    fig.add_trace(go.Scatter(x=x_axis, y=solar_profile[start_hour:end_hour], name='Solar Gen', stackgroup='one', line=dict(color='gold'), fill='tonexty'))
-    fig.add_trace(go.Scatter(x=x_axis, y=wind_profile[start_hour:end_hour], name='Wind Gen', stackgroup='one', line=dict(color='lightblue'), fill='tonexty'))
-    fig.add_trace(go.Scatter(x=x_axis, y=ccs_profile[start_hour:end_hour], name='CCS Gas Gen', stackgroup='one', line=dict(color='brown'), fill='tonexty'))
-    fig.add_trace(go.Scatter(x=x_axis, y=geo_profile[start_hour:end_hour], name='Geothermal Gen', stackgroup='one', line=dict(color='red'), fill='tonexty'))
+    # Stacked generation profiles - Logic: Baseload first, then Battery, then VRE
+    # This stacking order helps visualize how load is met
     fig.add_trace(go.Scatter(x=x_axis, y=nuc_profile[start_hour:end_hour], name='Nuclear Gen', stackgroup='one', line=dict(color='purple'), fill='tonexty'))
+    fig.add_trace(go.Scatter(x=x_axis, y=geo_profile[start_hour:end_hour], name='Geothermal Gen', stackgroup='one', line=dict(color='red'), fill='tonexty'))
+    fig.add_trace(go.Scatter(x=x_axis, y=ccs_profile[start_hour:end_hour], name='CCS Gas Gen', stackgroup='one', line=dict(color='brown'), fill='tonexty'))
+    
+    # Put Battery in the middle (filling gaps)
     fig.add_trace(go.Scatter(x=x_axis, y=batt_discharge[start_hour:end_hour], name='Battery Discharge', stackgroup='one', line=dict(color='#1f77b4'), fill='tonexty'))
+    
+    # VRE Top
+    fig.add_trace(go.Scatter(x=x_axis, y=wind_profile[start_hour:end_hour], name='Wind Gen', stackgroup='one', line=dict(color='lightblue'), fill='tonexty'))
+    fig.add_trace(go.Scatter(x=x_axis, y=solar_profile[start_hour:end_hour], name='Solar Gen', stackgroup='one', line=dict(color='gold'), fill='tonexty'))
 
     fig.update_layout(
         title=f"Load vs. Matched Generation {title_suffix}", 
