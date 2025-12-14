@@ -534,7 +534,7 @@ with st.expander("Configuration & Setup", expanded=True):
                 rec_avgs = rec_df.groupby(rec_df['Date'].dt.year)['Price_USD_MWh'].mean()
                 
                 c_mkt_4.markdown("---")
-                c_mkt_4.caption("**Hist. Avg ($/MWh)**")
+                c_mkt_4.caption("**Hist. Avg ($/MWh)**", help="⚠️ Data Source: Representative estimates based on public market trends (e.g. NREL/market reports). This is NOT official exchange data.")
                 for yr, pr in rec_avgs.items():
                     c_mkt_4.caption(f"{yr}: **${pr:.2f}**")
         except Exception:
