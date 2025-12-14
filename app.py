@@ -146,7 +146,7 @@ with st.sidebar:
 
 # --- Configuration Section (Top) ---
 with st.expander("Configuration & Setup", expanded=True):
-    tab_load, tab_gen, tab_offtake, tab_fin = st.tabs(["1. Load Setup", "2. Generation Portfolio", "3. Offtake Structuring", "4. Financials"])
+    tab_load, tab_gen, tab_fin, tab_offtake = st.tabs(["1. Load Setup", "2. Generation Portfolio", "3. Financial Analysis", "4. Offtake Structuring"])
     
     # --- Tab 1: Load Setup ---
     with tab_load:
@@ -547,8 +547,10 @@ with st.expander("Configuration & Setup", expanded=True):
             
             st.markdown("---")
             st.markdown("##### 3. Market Data")
-            # Year Selection for Default Data
-            cvta_year = st.selectbox("Select Market Year (Default Data)", [2024, 2023], key='cvta_year_select')
+            st.markdown("##### 3. Market Data")
+            # Linked to Financial Analysis Market Year
+            cvta_year = market_year
+            st.info(f"Using Market Year: **{cvta_year}** (See '3. Financial Analysis')")
             
             uploaded_lmp = st.file_uploader("Upload Hourly LMP CSV (Columns: Datetime, Price)", type=['csv'])
             
