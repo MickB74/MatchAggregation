@@ -840,12 +840,16 @@ else:
 
     if total_discharge_mwh > 0:
         # Calculate Battery Financials Detailed
+        if 'cvta_fixed_price' not in locals(): cvta_fixed_price = 12000.0
+        if 'cvta_rte' not in locals(): cvta_rte = 85.0
+        if 'cvta_vom' not in locals(): cvta_vom = 2.0
+            
         batt_contract_params = {
             'capacity_mw': batt_capacity,
-            'base_rate_monthly': batt_base_rate,
-            'guaranteed_availability': batt_guar_avail,
-            'guaranteed_rte': batt_guar_rte,
-            'vom_rate': batt_vom
+            'base_rate_monthly': cvta_fixed_price,
+            'guaranteed_availability': 0.98, # Default (removed from UI, assumed standard)
+            'guaranteed_rte': cvta_rte / 100.0, # CVTA input is %, need 0-1
+            'vom_rate': cvta_vom
         }
         
         batt_financials = calculate_battery_financials(batt_contract_params, batt_ops_data)
