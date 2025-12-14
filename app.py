@@ -1140,14 +1140,14 @@ else:
         st.info("Add generation capacity to see PPA vs Capture Value comparison")
 
     # --- Settlement by Technology ---
-    if 'tech_details' in financials:
+    if 'tech_details' in fin_metrics:
         st.markdown("---")
         st.subheader("Settlement by Technology")
         st.markdown("Detailed breakdown of costs and market value by generation source.")
         
         # Convert to DataFrame
         settlement_data = []
-        for tech, details in financials['tech_details'].items():
+        for tech, details in fin_metrics['tech_details'].items():
             if details['Matched_MWh'] > 0:
                 settlement_data.append({
                     'Technology': tech,
