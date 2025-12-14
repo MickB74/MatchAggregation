@@ -683,8 +683,8 @@ with st.expander("Configuration & Setup", expanded=True):
                     m1, m2, m3 = st.columns(3)
                     m1.metric("Annual Fixed Pmt", f"${total_fixed/1e6:.2f}M")
                     m2.metric("Annual Market Rev", f"${total_floating/1e6:.2f}M")
-                    m3.metric("Net Cost to Corp", f"${net_outcome/1e6:.2f}M", 
-                              delta=f"{-net_outcome/1e6:.2f}M", delta_color="inverse") # Inverse: Negative Cost (Profit) is Green
+                    m3.metric("Net Cash Flow", f"${-net_outcome/1e6:.2f}M", 
+                              delta=f"{-net_outcome/1e6:.2f}M", delta_color="normal") # Normal: Positive (Green) is Good, Negative (Red) is Cost
                 else:
                     st.warning("No valid daily dispatch results. Check data or params.")
             else:
