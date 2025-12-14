@@ -426,15 +426,21 @@ with st.expander("Configuration & Setup", expanded=True):
         st.markdown("#### Market Assumptions")
         c_mkt_1, c_mkt_2, c_mkt_3, c_mkt_4 = st.columns(4)
         
+        # Market Price Year Selection
+        market_year = c_mkt_1.selectbox("Market Year", [2024, 2023], help="Select historical price year")
+        
         # Get base average from actual data
-        _, base_market_avg = generate_dummy_price_profile(32.0, return_base_avg=True)
+        _, base_market_avg = generate_dummy_price_profile(32.0, return_base_avg=True, year=market_year)
         market_price = base_market_avg  # Use the actual base average
         
         # Display base average (read-only)
+        # Using a new column/metric spot or reusing c_mkt_1 but we used it for selectbox.
+        # Let's shift metric to row below or just allow sharing? 
+        # c_mkt_1 has the selectbox now. Let's put the metric BELOW the selectbox or use a container.
         c_mkt_1.metric(
-            "Base Avg (2024)", 
+            f"Base Avg ({market_year})", 
             f"${base_market_avg:.2f}",
-            help="Average from 2024 ERCOT HB_NORTH data"
+            help=f"Average from {market_year} ERCOT HB_NORTH data"
         )
         
         price_scaler = c_mkt_2.number_input(
@@ -609,7 +615,7 @@ else:
     total_discharge_mwh = batt_discharge.sum()
     
     # Helper to generate market price series for the financial calc
-    market_price_profile_series = generate_dummy_price_profile(market_price) * price_scaler
+    market_price_profile_series = generate_dummy_price_profile(market_price, year=market_year) * price_scaler
     
     batt_ops_data = {
         'available_mw_profile': availability_profile,
@@ -649,7 +655,7 @@ else:
         'Battery': effective_batt_price_mwh # Use calculated effective price
     }
     
-    fin_metrics = calculate_financials(matched_profile, deficit, tech_profiles, tech_prices, market_price, rec_price, price_scaler)
+    fin_metrics = calculate_financials(matched_profile, deficit, tech_profiles, tech_prices, market_price, rec_price, price_scaler, year=market_year)
     
     # --- Dashboard ---
     
@@ -1008,7 +1014,7 @@ else:
     st.markdown("PPA prices vs market capture values for each technology")
     
     # Calculate capture value for each technology
-    market_price_profile = generate_dummy_price_profile(market_price) * price_scaler
+    market_price_profile = generate_dummy_price_profile(market_price, year=market_year) * price_scaler
     
     tech_data = []
     tech_capacities = {
@@ -1058,7 +1064,7 @@ else:
         ))
         
         fig_ppa.add_trace(go.Bar(
-            name='Capture Value (2024 Base)',
+            name=f'Capture Value ({market_year} Base)',
             x=tech_df['Technology'],
             y=tech_df['Capture Value'],
             marker_color='#f39c12',  # Orange instead of green
@@ -1192,7 +1198,7 @@ else:
 
     # --- Financial Columns for CSV ---
     # 1. Market Price (Hourly)
-    market_price_profile = generate_dummy_price_profile(market_price)
+    market_price_profile = generate_dummy_price_profile(market_price, year=market_year)
     results_df['Market_Capture_Price_$/MWh'] = market_price_profile
     
     # 2. Technology PPA Prices (Constant)

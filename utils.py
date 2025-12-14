@@ -689,15 +689,16 @@ def recommend_portfolio(load_profile, target_cfe=0.95, excluded_techs=None, exis
             
     return recommendation
 
-def generate_dummy_price_profile(avg_price, return_base_avg=False):
+def generate_dummy_price_profile(avg_price, return_base_avg=False, year=2024):
     """
     Generates an hourly market price profile (8760 hours).
-    Attempts to load real ERCOT 2024 Data (HB_NORTH) from 'ercot_rtm_2024.parquet'.
+    Attempts to load real ERCOT Data (HB_NORTH) from 'ercot_rtm_{year}.parquet'.
     Falls back to synthetic duck curve if file missing.
     
     Args:
         avg_price: Average price (used only for synthetic fallback)
         return_base_avg: If True, returns (profile, base_average) tuple
+        year: Year for historical data (2023 or 2024)
         
     Returns:
         pd.Series or tuple: Price profile, or (profile, base_avg) if return_base_avg=True
@@ -707,7 +708,7 @@ def generate_dummy_price_profile(avg_price, return_base_avg=False):
     base_average = avg_price  # Default for synthetic
     
     # 1. Try Loading Real Data
-    parquet_file = 'ercot_rtm_2024.parquet'
+    parquet_file = f'ercot_rtm_{year}.parquet'
     if os.path.exists(parquet_file):
         try:
             # Read Parquet
@@ -817,12 +818,12 @@ def generate_dummy_price_profile(avg_price, return_base_avg=False):
         return pd.Series(profile, name='Market Price ($/MWh)'), base_average
     return pd.Series(profile, name='Market Price ($/MWh)')
 
-def calculate_financials(matched_profile, deficit_profile, tech_profiles, tech_prices, market_price_avg, rec_price, price_scaler=1.0):
+def calculate_financials(matched_profile, deficit_profile, tech_profiles, tech_prices, market_price_avg, rec_price, price_scaler=1.0, year=2024):
     """
     Calculates financial metrics for the portfolio using per-technology pricing and HOURLY market prices.
     """
     # Generate Hourly Market Prices and apply scaler
-    market_price_profile = generate_dummy_price_profile(market_price_avg) * price_scaler
+    market_price_profile = generate_dummy_price_profile(market_price_avg, year=year) * price_scaler
     
     # 1. Calculate PPA Cost of Matched Energy (Weighted Attribution)
     # We assume 'matched_profile' is composed of the various techs in proportion to their generation.
