@@ -1416,10 +1416,10 @@ else:
             "ccs_price": ccs_price,
             "geo_price": geo_price,
             "nuc_price": nuc_price,
-            "batt_base_rate": batt_base_rate,
-            "batt_guar_avail": batt_guar_avail,
-            "batt_guar_rte": batt_guar_rte,
-            "batt_vom": batt_vom,
+            "batt_base_rate": cvta_fixed_price if 'cvta_fixed_price' in locals() else 12000.0,
+            "batt_guar_avail": 0.98, # Hardcoded default
+            "batt_guar_rte": cvta_rte if 'cvta_rte' in locals() else 85.0,
+            "batt_vom": cvta_vom if 'cvta_vom' in locals() else 2.0,
             "market_price": market_price,
             "rec_price": rec_price,
             # Extract participants from session state
