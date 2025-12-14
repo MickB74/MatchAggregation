@@ -833,7 +833,8 @@ else:
             yaxis_title='Profit / Loss ($)',
             template='plotly_dark',
             paper_bgcolor='rgba(0,0,0,0)',
-            plot_bgcolor='rgba(0,0,0,0)'
+            plot_bgcolor='rgba(0,0,0,0)',
+            hoverlabel=dict(bgcolor="#333333", font_size=12, font_family="Arial", font=dict(color="white"))
         )
         
         st.plotly_chart(fig_buyer, use_container_width=True)
@@ -922,7 +923,8 @@ else:
         font=dict(color=chart_font_color),
         xaxis=dict(
             tickformat="%b %d<br>%H:%M" if view_mode == "Select Week" else "%b"
-        )
+        ),
+        hoverlabel=dict(bgcolor="#333333", font_size=12, font_family="Arial", font=dict(color="white"))
     )
     st.plotly_chart(fig, use_container_width=True)
     
@@ -992,7 +994,8 @@ else:
         paper_bgcolor=chart_bg,
         plot_bgcolor=chart_bg,
         font=dict(color=chart_font_color),
-        legend=dict(traceorder='reversed')
+        legend=dict(traceorder='reversed'),
+        hoverlabel=dict(bgcolor="#333333", font_size=12, font_family="Arial", font=dict(color="white"))
     )
     st.plotly_chart(fig_bar, use_container_width=True)
 
@@ -1045,7 +1048,8 @@ else:
         template=chart_template,
         paper_bgcolor=chart_bg,
         plot_bgcolor=chart_bg,
-        font=dict(color=chart_font_color)
+        font=dict(color=chart_font_color),
+        hoverlabel=dict(bgcolor="#333333", font_size=12, font_family="Arial", font=dict(color="white"))
     )
     st.plotly_chart(fig_heat, use_container_width=True)
     
@@ -1126,7 +1130,8 @@ else:
             paper_bgcolor=chart_bg,
             plot_bgcolor=chart_bg,
             font=dict(color=chart_font_color),
-            margin=dict(t=50, b=50, l=50, r=50)  # Add margins for labels
+            margin=dict(t=50, b=50, l=50, r=50),  # Add margins for labels
+            hoverlabel=dict(bgcolor="#333333", font_size=12, font_family="Arial", font=dict(color="white"))
         )
         
         st.plotly_chart(fig_ppa, use_container_width=True)
@@ -1202,7 +1207,8 @@ else:
                 height=400,
                  paper_bgcolor=chart_bg,
                 plot_bgcolor=chart_bg,
-                font=dict(color=chart_font_color)
+                font=dict(color=chart_font_color),
+                hoverlabel=dict(bgcolor="#333333", font_size=12, font_family="Arial", font=dict(color="white"))
             )
             
             st.plotly_chart(fig_set, use_container_width=True)
@@ -1233,11 +1239,13 @@ else:
         fig_batt.update_layout(
                 title = "Battery Settlement Waterfall",
                 showlegend = False,
+                waterfallgap = 0.3,
                 template=chart_template,
                 paper_bgcolor=chart_bg,
                 plot_bgcolor=chart_bg,
                 font=dict(color=chart_font_color),
                 height=500, # Consistent height
+                hoverlabel=dict(bgcolor="#333333", font_size=12, font_family="Arial", font=dict(color="white"))
         )
 
         st.plotly_chart(fig_batt, use_container_width=True)
