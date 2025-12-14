@@ -128,7 +128,7 @@ with st.sidebar:
 
 # --- Configuration Section (Top) ---
 with st.expander("Configuration & Setup", expanded=True):
-    tab_load, tab_gen, tab_batt_fin, tab_fin = st.tabs(["1. Load Setup", "2. Generation Portfolio", "3. Battery Financials", "4. Financials"])
+    tab_load, tab_gen, tab_batt_fin, tab_fin, tab_offtake = st.tabs(["1. Load Setup", "2. Generation Portfolio", "3. Battery Financials", "4. Financials", "5. Offtake Structuring"])
     
     # --- Tab 1: Load Setup ---
     with tab_load:
@@ -530,6 +530,117 @@ with st.expander("Configuration & Setup", expanded=True):
                     c_mkt_4.caption(f"{yr}: **${pr:.2f}**")
         except Exception:
             pass
+
+
+    # --- Tab 5: Offtake Structuring ---
+    with tab_offtake:
+        st.markdown("#### Battery Offtake & Tolling Structures")
+        st.markdown("Model the financial split between Asset Owner and Offtaker.")
+        
+        c_off_1, c_off_2 = st.columns([1, 1])
+        
+        with c_off_1:
+            st.markdown("##### 1. Tolling Agreement")
+            tolling_rate = st.number_input("Tolling: Fixed Rate ($/kW-mo)", value=8000.0, step=500.0, key='offtake_tolling_rate', help="Offtaker pays fixed fee for full capacity rights.")
+            
+            st.markdown("##### 2. Floor + Revenue Share")
+            floor_rate = st.number_input("Floor: Min. Payment ($/kW-mo)", value=4000.0, step=500.0, key='offtake_floor_rate', help="Guaranteed minimum payment to Owner.")
+            floor_share_pct = st.number_input("Floor: Owner Share of Upside (%)", value=50.0, min_value=0.0, max_value=100.0, step=5.0, key='offtake_floor_share', help="% of revenue above floor that Owner keeps.") / 100.0
+            
+        with c_off_2:
+            st.markdown("##### 3. Pure Revenue Share")
+            rev_share_pct = st.number_input("Rev Share: Owner Share (%)", value=80.0, min_value=0.0, max_value=100.0, step=5.0, key='offtake_rev_share', help="% of ALL revenue that Owner keeps (remainder to Optimizer/Offtaker).")
+            
+            st.markdown("##### 4. Merchant")
+            st.caption("Owner takes 100% of risk and reward (100% Share).")
+            
+        st.markdown("---")
+        
+        # Calculate Scenarios (if Battery active)
+        if enable_battery and 'batt_financials' in locals() and batt_capacity > 0:
+            # Get Estimated Annual Gross Revenue (Market Value)
+            # We use the 'batt_financials' calculated earlier or re-estimate?
+            # Ideally we need the Gross Market Revenue (Arbitrage + Est. Ancillary)
+            # Let's derive it from the 'batt_financials' net invoice if possible, or re-calc.
+            # actually batt_financials['net_invoice'] is the cost to the BUYER (Invoice Amount).
+            # The Invoice Amount is typically Capacity Payment + VOM - Credits.
+            # This is specifically for the TOLLING view.
+            
+            # We need the "Market Value" of the battery dispatch to model the Revenue Share.
+            # Value = Discharge * Market Price - Charge * Market Price
+            if 'batt_ops_data' in locals():
+                d_prof = batt_ops_data['discharge_mwh_profile']
+                c_prof = batt_ops_data['charge_mwh_profile']
+                m_prof = batt_ops_data['market_price_profile']
+                
+                # Energy Arbitrage Revenue
+                market_revenue = (d_prof * m_prof).sum()
+                charging_cost = (c_prof * m_prof).sum()
+                gross_energy_margin = market_revenue - charging_cost
+                
+                # Ancillary Services Uplift (Estimate)
+                # Assume AS adds ~20-30% to energy value for BESS in ERCOT
+                as_uplift_pct = 0.25 
+                gross_revenue_total = gross_energy_margin * (1 + as_uplift_pct)
+                
+                st.info(f"**Est. Gross Market Revenue** (Energy + AS): **${gross_revenue_total:,.0f}** / year (Based on current dispatch)")
+                
+                # --- Scenario Calculations ---
+                
+                # 1. Tolling
+                # Owner Revenue = Capacity Payment
+                # Offtaker Net = Gross Revenue - Capacity Payment
+                tolling_payment = tolling_rate * 12 * batt_capacity * 1000 # $/kW-mo * 12 * MW * 1000
+                scen_1_owner = tolling_payment
+                scen_1_offtaker = gross_revenue_total - tolling_payment
+                
+                # 2. Floor + Share
+                # Floor Payment
+                floor_payment = floor_rate * 12 * batt_capacity * 1000
+                # Upside
+                upside = max(0, gross_revenue_total - floor_payment)
+                scen_2_owner = floor_payment + (upside * floor_share_pct)
+                scen_2_offtaker = gross_revenue_total - scen_2_owner
+                
+                # 3. Pure Rev Share
+                scen_3_owner = gross_revenue_total * rev_share_pct
+                scen_3_offtaker = gross_revenue_total - scen_3_owner
+                
+                # 4. Merchant
+                scen_4_owner = gross_revenue_total
+                scen_4_offtaker = 0.0 # No offtaker
+                
+                # Visualization
+                scenarios = ['Tolling', 'Floor + Share', 'Rev Share', 'Merchant']
+                owner_revs = [scen_1_owner, scen_2_owner, scen_3_owner, scen_4_owner]
+                offtaker_revs = [scen_1_offtaker, scen_2_offtaker, scen_3_offtaker, scen_4_offtaker]
+                
+                fig_struct = go.Figure()
+                fig_struct.add_trace(go.Bar(name='Owner Revenue', x=scenarios, y=owner_revs, marker_color='#2ca02c'))
+                fig_struct.add_trace(go.Bar(name='Offtaker Net', x=scenarios, y=offtaker_revs, marker_color='#1f77b4'))
+                
+                fig_struct.update_layout(
+                    barmode='group',
+                    title='Annual Financial Outcome by Agreement Structure',
+                    yaxis_title='Annual Value ($)',
+                    legend_title='Perspective',
+                    template=chart_template
+                )
+                
+                st.plotly_chart(fig_struct, use_container_width=True)
+                
+                # Metrics Table
+                st.markdown("###### Detailed Split ($ Millions)")
+                metrics_data = {
+                    "Structure": scenarios,
+                    "Owner Rev ($M)": [f"${x/1e6:.2f}M" for x in owner_revs],
+                    "Offtaker Net ($M)": [f"${x/1e6:.2f}M" for x in offtaker_revs],
+                    "Owner Share (%)": [f"{x/gross_revenue_total*100:.1f}%" if gross_revenue_total > 0 else "0%" for x in owner_revs]
+                }
+                st.dataframe(pd.DataFrame(metrics_data), hide_index=True)
+                
+        else:
+            st.warning("Enable Battery and Configure Capacity to see analysis.")
 
 
 # --- Global Settings (Sidebar) ---
