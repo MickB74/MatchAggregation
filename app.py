@@ -573,12 +573,18 @@ with st.expander("Configuration & Setup", expanded=True):
             if df_prices is None:
                 # Default to Auto-Load ERCOT Data (Year Based)
                 try:
-                    price_series = get_market_price_profile(30.0, year=cvta_year)
+                    # Apply Global Scaler if available
+                    scaler = st.session_state.get('price_scaler_input', 1.0)
+                    
+                    price_series = get_market_price_profile(30.0, year=cvta_year) * scaler
                     # Create date range for the specific year
                     dates = pd.date_range(start=f'{cvta_year}-01-01', periods=len(price_series), freq='h')
                     df_prices = pd.DataFrame({'Price': price_series.values}, index=dates)
                     
-                    st.success(f"✅ Using Default Data: **ERCOT HB_NORTH {cvta_year}**")
+                    if scaler != 1.0:
+                        st.success(f"✅ Using Default Data: **ERCOT HB_NORTH {cvta_year}** (Scaled x{scaler})")
+                    else:
+                        st.success(f"✅ Using Default Data: **ERCOT HB_NORTH {cvta_year}**")
                     with st.expander("View Data Preview"):
                          st.dataframe(df_prices.head(24), use_container_width=True)
                          
