@@ -635,20 +635,20 @@ with st.expander("Configuration & Setup", expanded=True):
                     st.plotly_chart(fig_settlement, use_container_width=True)
                     
                     # --- VIZ 2: Cumulative Cash Flow ---
-                    monthly_results['Cumulative_Net_Cost'] = monthly_results['Net_Settlement'].cumsum()
+                    monthly_results['Cumulative_Cash_Flow'] = -monthly_results['Net_Settlement'].cumsum()
                     
                     fig_cum = go.Figure()
                     fig_cum.add_trace(go.Scatter(
                         x=monthly_results['Month'], 
-                        y=monthly_results['Cumulative_Net_Cost'],
+                        y=monthly_results['Cumulative_Cash_Flow'],
                         mode='lines+markers',
-                        name='Cumulative Net Cost',
+                        name='Cumulative Cash Flow',
                         line=dict(width=3, color='#F63366'),
                         fill='tozeroy'
                     ))
                     fig_cum.update_layout(
-                        title='Cumulative Net Cost to Corporate Offtaker',
-                        yaxis_title='Cumulative $ (Positive = Cost, Negative = Gain)',
+                        title='Cumulative Net Cash Flow (Offtaker Perspective)',
+                        yaxis_title='Cumulative $ (Negative = Cost)',
                         template=chart_template
                     )
                     st.plotly_chart(fig_cum, use_container_width=True)
