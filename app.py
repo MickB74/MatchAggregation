@@ -868,9 +868,13 @@ else:
     fig.add_trace(go.Scatter(x=x_axis, y=total_load_profile[start_hour:end_hour],
                              mode='lines', name='Aggregated Load', line=dict(color='red', width=2)))
     
-    # Total Generation Line
-    fig.add_trace(go.Scatter(x=x_axis, y=total_gen_profile[start_hour:end_hour],
-                             mode='lines', name='Total Clean Energy', line=dict(color='#2ca02c', width=2)))
+    # Total Supply Line (Gen + Battery)
+    # Use total_gen_with_battery calculated earlier
+    if 'total_gen_with_battery' not in locals():
+         total_gen_with_battery = total_gen_profile + batt_discharge
+         
+    fig.add_trace(go.Scatter(x=x_axis, y=total_gen_with_battery[start_hour:end_hour],
+                             mode='lines', name='Total Supply (Gen+Batt)', line=dict(color='#2ca02c', width=2)))
     # Stacked generation profiles
     fig.add_trace(go.Scatter(x=x_axis, y=solar_profile[start_hour:end_hour], name='Solar Gen', stackgroup='one', line=dict(color='gold'), fill='tonexty'))
     fig.add_trace(go.Scatter(x=x_axis, y=wind_profile[start_hour:end_hour], name='Wind Gen', stackgroup='one', line=dict(color='lightblue'), fill='tonexty'))
@@ -901,6 +905,7 @@ else:
         'Load': total_load_profile,
         'Generation': total_gen_profile,
         'Battery': batt_discharge,
+        'Total_Supply': total_gen_profile + batt_discharge,
         'Matched': matched_profile
     })
     
@@ -916,8 +921,8 @@ else:
     
     fig_bar = go.Figure()
     
-    # 1. Total Generation (Background)
-    fig_bar.add_trace(go.Bar(x=monthly_stats.index, y=monthly_stats['Generation'], name='Total Clean Energy', marker_color='#2ca02c', opacity=0.6)) # Standard Green
+    # 1. Total Supply (Gen + Battery) (Background)
+    fig_bar.add_trace(go.Bar(x=monthly_stats.index, y=monthly_stats['Total_Supply'], name='Total Supply (Gen+Batt)', marker_color='#2ca02c', opacity=0.6)) # Standard Green
     
     # 2. Matched Energy (Middle)
     fig_bar.add_trace(go.Bar(
