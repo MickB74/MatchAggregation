@@ -689,7 +689,7 @@ def recommend_portfolio(load_profile, target_cfe=0.95, excluded_techs=None, exis
             
     return recommendation
 
-def generate_dummy_price_profile(avg_price, return_base_avg=False, year=2024):
+def get_market_price_profile(avg_price, return_base_avg=False, year=2024):
     """
     Generates an hourly market price profile (8760 hours).
     Attempts to load real ERCOT Data (HB_NORTH) from 'ercot_rtm_{year}.parquet'.
@@ -823,7 +823,7 @@ def calculate_financials(matched_profile, deficit_profile, tech_profiles, tech_p
     Calculates financial metrics for the portfolio using per-technology pricing and HOURLY market prices.
     """
     # Generate Hourly Market Prices and apply scaler
-    market_price_profile = generate_dummy_price_profile(market_price_avg, year=year) * price_scaler
+    market_price_profile = get_market_price_profile(market_price_avg, year=year) * price_scaler
     
     # 1. Calculate PPA Cost of Matched Energy (Weighted Attribution)
     # We assume 'matched_profile' is composed of the various techs in proportion to their generation.

@@ -17,7 +17,7 @@ from utils import (
     calculate_portfolio_metrics, 
     calculate_financials, 
     process_uploaded_profile,
-    generate_dummy_price_profile,
+    get_market_price_profile,
     calculate_battery_financials,
     calculate_buyer_pl
 )
@@ -429,8 +429,15 @@ with st.expander("Configuration & Setup", expanded=True):
         # Market Price Year Selection
         market_year = c_mkt_1.selectbox("Market Year", [2024, 2023], help="Select historical price year")
         
+        # UI Check for data availability
+        import os
+        if os.path.exists(f'ercot_rtm_{market_year}.parquet'):
+             c_mkt_1.success(f"Loaded {market_year} Data ✅")
+        else:
+             c_mkt_1.warning(f"Missing Data (Using Synthetic)")
+        
         # Get base average from actual data
-        _, base_market_avg = generate_dummy_price_profile(32.0, return_base_avg=True, year=market_year)
+        _, base_market_avg = get_market_price_profile(32.0, return_base_avg=True, year=market_year)
         market_price = base_market_avg  # Use the actual base average
         
         # Display base average (read-only)
@@ -615,7 +622,7 @@ else:
     total_discharge_mwh = batt_discharge.sum()
     
     # Helper to generate market price series for the financial calc
-    market_price_profile_series = generate_dummy_price_profile(market_price, year=market_year) * price_scaler
+    market_price_profile_series = get_market_price_profile(market_price, year=market_year) * price_scaler
     
     batt_ops_data = {
         'available_mw_profile': availability_profile,
@@ -1014,7 +1021,7 @@ else:
     st.markdown("PPA prices vs market capture values for each technology")
     
     # Calculate capture value for each technology
-    market_price_profile = generate_dummy_price_profile(market_price, year=market_year) * price_scaler
+    market_price_profile = get_market_price_profile(market_price, year=market_year) * price_scaler
     
     tech_data = []
     tech_capacities = {
@@ -1198,7 +1205,7 @@ else:
 
     # --- Financial Columns for CSV ---
     # 1. Market Price (Hourly)
-    market_price_profile = generate_dummy_price_profile(market_price, year=market_year)
+    market_price_profile = get_market_price_profile(market_price, year=market_year)
     results_df['Market_Capture_Price_$/MWh'] = market_price_profile
     
     # 2. Technology PPA Prices (Constant)
