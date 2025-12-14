@@ -24,7 +24,12 @@ from utils import (
 )
 import project_matcher
 
+
 st.set_page_config(page_title="ERCOT North Aggregation", layout="wide")
+
+# Global Chart Settings
+chart_template = 'plotly_white'
+
 
 st.title("ERCOT North Renewable Energy Aggregation")
 st.markdown("Aggregate load participants and optimize for 24/7 clean energy matching.")
