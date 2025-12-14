@@ -1,4 +1,4 @@
-import streamlit as st
+eimport streamlit as st
 import ast  # For handling single-quoted JSON-like strings
 import re
 import pandas as pd
@@ -230,25 +230,63 @@ with st.expander("Configuration & Setup", expanded=True):
 
     # --- Tab 2: Generation Portfolio ---
     with tab_gen:
+        # Define callback for recommendation
+        def apply_recommendation():
+            # Calculate total load from participants
+            temp_load = pd.Series(0.0, index=range(8760))
+            if st.session_state.participants:
+                for p in st.session_state.participants:
+                    temp_load += generate_dummy_load_profile(p['load'], p['type'])
+                
+                if temp_load.sum() > 0:
+                    # Check whether to use existing capacities or reset
+                    force_reset = st.session_state.get('force_reset_rec', False)
+                    
+                    if force_reset:
+                        existing_capacities = {} # Ignore current values
+                    else:
+                        # Use existing values to build around them
+                        existing_capacities = {
+                            'Solar': st.session_state.get('solar_input', 0.0),
+                            'Wind': st.session_state.get('wind_input', 0.0),
+                            'CCS Gas': st.session_state.get('ccs_input', 0.0),
+                            'Geothermal': st.session_state.get('geo_input', 0.0),
+                            'Nuclear': st.session_state.get('nuc_input', 0.0),
+                            'Battery_MW': st.session_state.get('batt_input', 0.0)
+                        }
+                    
+                    # Pass excluded techs from session state (widget key='excluded_techs_input')
+                    rec = recommend_portfolio(
+                        temp_load, 
+                        target_cfe=1.0, 
+                        excluded_techs=st.session_state.get('excluded_techs_input', []),
+                        existing_capacities=existing_capacities
+                    )
+                    st.session_state.solar_input = rec['Solar']
+                    st.session_state.wind_input = rec['Wind']
+                    st.session_state.ccs_input = rec['CCS Gas']
+                    st.session_state.geo_input = rec['Geothermal']
+                    st.session_state.nuc_input = rec['Nuclear']
+                    st.session_state.batt_input = rec['Battery_MW']
+                    st.session_state.batt_duration_input = rec['Battery_Hours']
+                    
+                    # Match projects from ERCOT queue
+                    matched_projects = project_matcher.match_projects_to_recommendation(rec, max_projects_per_tech=5)
+                    st.session_state.matched_projects = matched_projects
+                    
+                    st.session_state.portfolio_recommended = True
+                else:
+                    st.session_state.portfolio_error = "Participant load is zero."
+            else:
+                st.session_state.portfolio_error = "Add participants first."
+
         col_gen_1, col_gen_2 = st.columns([1, 1])
         
         with col_gen_1:
             st.markdown("#### Capacities")
             
-            # Clear Portfolio Button for manual reset
-            if st.button("🗑️ Clear Portfolio (Reset to 0)"):
-                st.session_state.solar_input = 0.0
-                st.session_state.wind_input = 0.0
-                st.session_state.ccs_input = 0.0
-                st.session_state.geo_input = 0.0
-                st.session_state.nuc_input = 0.0
-                st.session_state.batt_input = 0.0
-                st.session_state.batt_duration_input = 2.0
-                st.session_state.matched_projects = {}
-                st.session_state.portfolio_recommended = False
-                st.rerun()
 
-            use_synthetic_solar = st.checkbox("Use Synthetic Solar Profile (Ignore CSV)", value=False)
+            st.markdown("---")
             
             # Input Widgets (Keys mapped to session state)
             solar_capacity = st.number_input("Solar Capacity (MW)", min_value=0.0, step=1.0, key='solar_input')
@@ -284,8 +322,15 @@ with st.expander("Configuration & Setup", expanded=True):
             # Battery Sizing (Physical)
             # define enable_battery first so we can use it
             enable_battery = st.checkbox("Enable Battery Storage", value=True)
+            
+            # Initialize session state to avoid "created with default value" warning
+            if 'batt_input' not in st.session_state:
+                st.session_state.batt_input = 0.0
             batt_capacity = st.number_input("Battery Power (MW)", min_value=0.0, step=1.0, key='batt_input', disabled=not enable_battery)
-            batt_duration = st.number_input("Battery Duration (Hours)", min_value=0.5, value=2.0, step=0.5, key='batt_duration_input', disabled=not enable_battery)
+
+            if 'batt_duration_input' not in st.session_state:
+                st.session_state.batt_duration_input = 2.0
+            batt_duration = st.number_input("Battery Duration (Hours)", min_value=0.5, step=0.5, key='batt_duration_input', disabled=not enable_battery)
 
 
         with col_gen_2:
@@ -300,59 +345,9 @@ with st.expander("Configuration & Setup", expanded=True):
                 key='excluded_techs_input'
             )
 
-            # Define callback for recommendation
-            def apply_recommendation():
-                # Calculate total load from participants
-                temp_load = pd.Series(0.0, index=range(8760))
-                if st.session_state.participants:
-                    for p in st.session_state.participants:
-                        temp_load += generate_dummy_load_profile(p['load'], p['type'])
-                    
-                    if temp_load.sum() > 0:
-                        # Check whether to use existing capacities or reset
-                        force_reset = st.session_state.get('force_reset_rec', False)
-                        
-                        if force_reset:
-                            existing_capacities = {} # Ignore current values
-                        else:
-                            # Use existing values to build around them
-                            existing_capacities = {
-                                'Solar': st.session_state.get('solar_input', 0.0),
-                                'Wind': st.session_state.get('wind_input', 0.0),
-                                'CCS Gas': st.session_state.get('ccs_input', 0.0),
-                                'Geothermal': st.session_state.get('geo_input', 0.0),
-                                'Nuclear': st.session_state.get('nuc_input', 0.0),
-                                'Battery_MW': st.session_state.get('batt_input', 0.0)
-                            }
-                        
-                        # Pass excluded techs from session state (widget key='excluded_techs_input')
-                        rec = recommend_portfolio(
-                            temp_load, 
-                            target_cfe=1.0, 
-                            excluded_techs=st.session_state.excluded_techs_input,
-                            existing_capacities=existing_capacities
-                        )
-                        st.session_state.solar_input = rec['Solar']
-                        st.session_state.wind_input = rec['Wind']
-                        st.session_state.ccs_input = rec['CCS Gas']
-                        st.session_state.geo_input = rec['Geothermal']
-                        st.session_state.nuc_input = rec['Nuclear']
-                        st.session_state.batt_input = rec['Battery_MW']
-                        st.session_state.batt_duration_input = rec['Battery_Hours']
-                        
-                        # Match projects from ERCOT queue
-                        matched_projects = project_matcher.match_projects_to_recommendation(rec, max_projects_per_tech=5)
-                        st.session_state.matched_projects = matched_projects
-                        
-                        st.session_state.portfolio_recommended = True
-                    else:
-                        st.session_state.portfolio_error = "Participant load is zero."
-                else:
-                    st.session_state.portfolio_error = "Add participants first."
-
             col_btn, col_chk = st.columns([1, 1])
             col_btn.button("✨ Recommend Portfolio", on_click=apply_recommendation)
-            col_chk.checkbox("Force Reset (Ignore current values)", value=False, key='force_reset_rec', help="Check this to discard current slider values and generate a fresh recommendation from scratch.")
+            col_chk.checkbox("Force Reset", value=False, key='force_reset_rec', help="Check this to discard current slider values and generate a fresh recommendation from scratch.")
             
             # Show success/error messages after rerun
             if st.session_state.get('portfolio_recommended', False):
@@ -361,6 +356,19 @@ with st.expander("Configuration & Setup", expanded=True):
             if st.session_state.get('portfolio_error', None):
                 st.warning(st.session_state.portfolio_error)
                 st.session_state.portfolio_error = None # Reset error
+
+            # Clear Portfolio Button (Moved from Left)
+            if st.button("🗑️ Clear Portfolio (Reset to 0)"):
+                st.session_state.solar_input = 0.0
+                st.session_state.wind_input = 0.0
+                st.session_state.ccs_input = 0.0
+                st.session_state.geo_input = 0.0
+                st.session_state.nuc_input = 0.0
+                st.session_state.batt_input = 0.0
+                st.session_state.batt_duration_input = 2.0
+                st.session_state.matched_projects = {}
+                st.session_state.portfolio_recommended = False
+                st.rerun()
             
             # Display matched projects if available
             if st.session_state.get('matched_projects'):
@@ -401,12 +409,12 @@ with st.expander("Configuration & Setup", expanded=True):
         c_bat_conf_1, c_bat_conf_2 = st.columns(2)
         
         with c_bat_conf_1:
-             # Physical Sizing (READ ONLY HERE)
              st.markdown("**Physical Configuration** (Edit in Tab 2)")
              if enable_battery:
-                 st.info(f"**active:** {batt_capacity} MW / {batt_duration} Hrs ({batt_capacity * batt_duration} MWh)")
+                 # Clean, non-blue-box display
+                 st.markdown(f"**Active Config:** `{batt_capacity:,.2f} MW` / `{batt_duration:.1f} Hrs` (`{batt_capacity * batt_duration:,.2f} MWh`)")
              else:
-                 st.warning("Battery Storage is DISABLED in Generation Tab.")
+                 st.markdown("⚠️ *Battery Storage is currently **DISABLED** in the Generation Tab.*")
 
         with c_bat_conf_2:
              # Contract Terms
@@ -436,7 +444,7 @@ with st.expander("Configuration & Setup", expanded=True):
         # WAIT. The tabs are containers. We can write to `with tab_batt:` LATER in the script!
         # Yes, we can reopen the tab context later.
         
-        st.info("configure your battery above. Detailed financial performance will be analyzed below.")
+
 
 
     # --- Tab 4: Financials ---
@@ -584,7 +592,7 @@ else:
              st.error("Error parsing Solar file.")
              st.stop()
     else:
-        solar_profile = generate_dummy_generation_profile(solar_capacity, 'Solar', use_synthetic=use_synthetic_solar)
+        solar_profile = generate_dummy_generation_profile(solar_capacity, 'Solar', use_synthetic=False)
 
     # Wind
     if uploaded_wind_file:
@@ -647,8 +655,7 @@ else:
     }
     
     # --- Financial Analysis ---
-    st.markdown("---")
-    st.markdown("#### Economic Analysis")
+
     
     # Calculate Effective Battery Price ($/MWh) from Capacity Payment ($/kW-mo)
     # Input: batt_price ($/kW-mo)
@@ -701,449 +708,414 @@ else:
     
     fin_metrics = calculate_financials(matched_profile, deficit, tech_profiles, tech_prices, market_price, rec_price, price_scaler, year=market_year)
     
-    # --- Dashboard ---
+    # --- Dashboard moved to Tabs ---
     
-    # Metrics - Row 1
-    col1, col2, col3, col4 = st.columns(4)
-    col1.metric("Total Electricity Usage", f"{total_annual_load:,.0f} MWh")
-    col2.metric("Clean Energy Generation", f"{total_gen_profile.sum():,.0f} MWh", help="Total renewable generation + nuclear")
-    col3.metric("CFE Score (24/7)", f"{metrics['cfe_score']:.1%}", help="Percentage of total load met by Carbon Free Energy generation in the same hour")
-    col4.metric("Battery Discharge", f"{batt_discharge.sum():,.0f} MWh")
-    
-    # Metrics - Row 2
-    col5, col6, col7, col8 = st.columns(4)
-    col5.metric("MW Match Productivity", f"{metrics['productivity']:,.0f} MWh/MW", help="MWh of Clean Energy Matched per MW of Installed Capacity")
-    col6.metric("Loss of Green Hours", f"{metrics['logh']:.1%}", help="% of hours where load is not fully matched by clean energy")
-    col7.metric("Grid Consumption", f"{metrics['grid_consumption']:,.0f} MWh", help="Total energy drawn from grid (deficit)")
-    col8.metric("Excess Generation", f"{surplus.sum():,.0f} MWh", help="Gross overgeneration before battery charging")
-    
-    # Metrics - Row 3 (Financials)
-    st.subheader("Financial Overview")
-    col9, col10, col11, col12 = st.columns(4)
-    col9.metric("Annual PPA Settlement Value", f"${fin_metrics['settlement_value']:,.0f}", help="Annual Revenue (or Cost) from PPA Settlement: (Market - Strike) * Matched Vol")
-    col10.metric("Weighted Avg PPA Price", f"${fin_metrics['weighted_ppa_price']:.2f}/MWh", help="Average cost of matched energy based on technology mix")
-    col11.metric("Capture Value (2024 Base)", f"${fin_metrics['weighted_market_price']:.2f}/MWh", help="Average market value of matched energy (2024 ERCOT prices × scaler)")
-    col12.metric("REC Value", f"${fin_metrics['rec_cost']:,.0f}", help="Value of RECs")
-
-    # Battery Financials Detailed Section
-
-    # Charts
-    st.markdown("---")
-    st.subheader("Hourly Energy Balance")
-    
-    # Use columns to make the slider more compact
-    # Create Datetime Index for charting (2024 for leap year support logic if needed, but using 8760 standard)
-    # matching the 8760 length
-    datetime_index = pd.date_range(start='2024-01-01', periods=8760, freq='h')
-
-    # View Controls
-    col_view_type, col_date_picker = st.columns([1, 2])
-    
-    with col_view_type:
-        view_mode = st.radio("View Period", ["Full Year", "Select Week"], horizontal=True)
+    # --- Tab 2: Generation Portfolio (Results) ---
+    with tab_gen:
+        st.markdown("---")
+        st.markdown("#### Operational Analysis")
         
-    start_hour = 0
-    end_hour = 8760
-    title_suffix = "(Full Year)"
-    
-    if view_mode == "Select Week":
-        with col_date_picker:
-            # Default to a summer week (July 1)
-            default_date = datetime.date(2024, 7, 1)
-            selected_date = st.date_input("Select Week Start", value=default_date, 
-                                          min_value=datetime.date(2024, 1, 1), 
-                                          max_value=datetime.date(2024, 12, 24))
+        # Metrics - Row 1
+        col1, col2, col3, col4 = st.columns(4)
+        col1.metric("Total Electricity Usage", f"{total_annual_load:,.0f} MWh")
+        col2.metric("Clean Energy Generation", f"{total_gen_profile.sum():,.0f} MWh", help="Total renewable generation + nuclear")
+        col3.metric("CFE Score (24/7)", f"{metrics['cfe_score']:.1%}", help="Percentage of total load met by Carbon Free Energy generation in the same hour")
+        col4.metric("Battery Discharge", f"{batt_discharge.sum():,.0f} MWh")
+        
+        # Metrics - Row 2
+        col5, col6, col7, col8 = st.columns(4)
+        col5.metric("MW Match Productivity", f"{metrics['productivity']:,.0f} MWh/MW", help="MWh of Clean Energy Matched per MW of Installed Capacity")
+        col6.metric("Loss of Green Hours", f"{metrics['logh']:.1%}", help="% of hours where load is not fully matched by clean energy")
+        col7.metric("Grid Consumption", f"{metrics['grid_consumption']:,.0f} MWh", help="Total energy drawn from grid (deficit)")
+        col8.metric("Excess Generation", f"{surplus.sum():,.0f} MWh", help="Gross overgeneration before battery charging")
+
+        # Charts
+        st.markdown("---")
+        st.markdown("#### Hourly Energy Balance (Sample Week)")
+        
+        # Use columns to make the slider more compact
+        # Create Datetime Index for charting (2024 for leap year support logic if needed, but using 8760 standard)
+        # matching the 8760 length
+        datetime_index = pd.date_range(start='2024-01-01', periods=8760, freq='h')
+
+        # View Controls
+        col_view_type, col_date_picker = st.columns([1, 2])
+        
+        with col_view_type:
+            view_mode = st.radio("View Period", ["Full Year", "Select Week"], horizontal=True)
             
-            # Convert date to hour index
-            # day_of_year starts at 1
-            day_of_year = selected_date.timetuple().tm_yday
-            start_hour = (day_of_year - 1) * 24
-            end_hour = start_hour + 168 # 7 days * 24 hours
-            
-            # Safety clamp
-            if end_hour > 8760:
-                end_hour = 8760
+        start_hour = 0
+        end_hour = 8760
+        title_suffix = "(Full Year)"
+        
+        if view_mode == "Select Week":
+            with col_date_picker:
+                # Default to a summer week (July 1)
+                default_date = datetime.date(2024, 7, 1)
+                selected_date = st.date_input("Select Week Start", value=default_date, 
+                                              min_value=datetime.date(2024, 1, 1), 
+                                              max_value=datetime.date(2024, 12, 24))
                 
-            title_suffix = f"({selected_date.strftime('%b %d')} - {(selected_date + datetime.timedelta(days=7)).strftime('%b %d')})"
+                # Convert date to hour index
+                # day_of_year starts at 1
+                day_of_year = selected_date.timetuple().tm_yday
+                start_hour = (day_of_year - 1) * 24
+                end_hour = start_hour + 168 # 7 days * 24 hours
+                
+                # Safety clamp
+                if end_hour > 8760:
+                    end_hour = 8760
+                    
+                title_suffix = f"({selected_date.strftime('%b %d')} - {(selected_date + datetime.timedelta(days=7)).strftime('%b %d')})"
 
-    # Prepare Data Slices
-    # Use the datetime index for X-axis to show actual dates/times
-    x_axis = datetime_index[start_hour:end_hour]
-    
-    fig = go.Figure()
-    fig.add_trace(go.Scatter(x=x_axis, y=total_load_profile[start_hour:end_hour],
-                             mode='lines', name='Aggregated Load', line=dict(color='red', width=2)))
-    
-    # Total Supply Line (Gen + Battery)
-    # Use total_gen_with_battery calculated earlier
-    if 'total_gen_with_battery' not in locals():
-         total_gen_with_battery = total_gen_profile + batt_discharge
-         
-    fig.add_trace(go.Scatter(x=x_axis, y=total_gen_with_battery[start_hour:end_hour],
-                             mode='lines', name='Total Supply (Gen+Batt)', line=dict(color='#2ca02c', width=2)))
-    # Stacked generation profiles
-    # Stacked generation profiles - Logic: Baseload first, then Battery, then VRE
-    # This stacking order helps visualize how load is met
-    fig.add_trace(go.Scatter(x=x_axis, y=nuc_profile[start_hour:end_hour], name='Nuclear Gen', stackgroup='one', line=dict(color='purple'), fill='tonexty'))
-    fig.add_trace(go.Scatter(x=x_axis, y=geo_profile[start_hour:end_hour], name='Geothermal Gen', stackgroup='one', line=dict(color='red'), fill='tonexty'))
-    fig.add_trace(go.Scatter(x=x_axis, y=ccs_profile[start_hour:end_hour], name='CCS Gas Gen', stackgroup='one', line=dict(color='brown'), fill='tonexty'))
-    
-    # Put Battery in the middle (filling gaps)
-    fig.add_trace(go.Scatter(x=x_axis, y=batt_discharge[start_hour:end_hour], name='Battery Discharge', stackgroup='one', line=dict(color='#1f77b4'), fill='tonexty'))
-    
-    # VRE Top
-    fig.add_trace(go.Scatter(x=x_axis, y=wind_profile[start_hour:end_hour], name='Wind Gen', stackgroup='one', line=dict(color='lightblue'), fill='tonexty'))
-    fig.add_trace(go.Scatter(x=x_axis, y=solar_profile[start_hour:end_hour], name='Solar Gen', stackgroup='one', line=dict(color='gold'), fill='tonexty'))
-
-    fig.update_layout(
-        title=f"Load vs. Matched Generation {title_suffix}", 
-        xaxis_title="Date / Time", 
-        yaxis_title="Power (MW)", 
-        template=chart_template,
-        paper_bgcolor=chart_bg,
-        plot_bgcolor=chart_bg,
-        font=dict(color=chart_font_color),
-        xaxis=dict(
-            tickformat="%b %d<br>%H:%M" if view_mode == "Select Week" else "%b"
-        ),
-        hoverlabel=dict(bgcolor="#333333", font_size=12, font_family="Arial", font=dict(color="white"))
-    )
-    st.plotly_chart(fig, use_container_width=True)
-    
-    st.subheader("Monthly Analysis")
-    
-    # Group by month
-    # Create a simple dataframe for grouping
-    df_hourly = pd.DataFrame({
-        'Load': total_load_profile,
-        'Generation': total_gen_profile,
-        'Battery': batt_discharge,
-        'Total_Supply': total_gen_profile + batt_discharge,
-        'Matched': matched_profile
-    })
-    
-    df_hourly['Month'] = pd.date_range(start='2024-01-01', periods=8760, freq='h').month
-    monthly_stats = df_hourly.groupby('Month').sum()
-    
-    # Map month numbers to names
-    month_names = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
-    monthly_stats.index = month_names
-    
-    # Calculate percentages for labels
-    monthly_stats['Matched_Pct'] = (monthly_stats['Matched'] / monthly_stats['Load']).apply(lambda x: f"{x:.0%}")
-    
-    fig_bar = go.Figure()
-    
-    # 1. Total Supply (Gen + Battery) (Background)
-    fig_bar.add_trace(go.Bar(x=monthly_stats.index, y=monthly_stats['Total_Supply'], name='Total Supply (Gen+Batt)', marker_color='#2ca02c', opacity=0.6)) # Standard Green
-    
-    # 2. Matched Energy (Middle)
-    fig_bar.add_trace(go.Bar(
-        x=monthly_stats.index, 
-        y=monthly_stats['Matched'], 
-        name='Hourly Matched Clean Energy', 
-        marker_color='#FFA500'
-    )) # Orange without labels
-    
-    # 3. Battery (Foreground - On top of Matched)
-    fig_bar.add_trace(go.Bar(x=monthly_stats.index, y=monthly_stats['Battery'], name='Battery Discharge', marker_color='#1f77b4')) # Standard blue
-    
-    # 4. Load (Line - Top)
-    fig_bar.add_trace(go.Scatter(x=monthly_stats.index, y=monthly_stats['Load'], name='Load', mode='lines', line=dict(color='red', width=3)))
-
-    # 5. Percentage Labels (Absolute Top Layer)
-    fig_bar.add_trace(go.Scatter(
-        x=monthly_stats.index, 
-        y=monthly_stats['Matched'], 
-        mode='text',
-        name='Matched %',
-        text=monthly_stats['Matched_Pct'],
-        textposition='top center',
-        textfont=dict(
-            family="Arial Black",
-            size=14,
-            color="white"
-        ),
-        showlegend=False
-    ))
-    
-    fig_bar.update_layout(
-        title="Monthly Energy Totals", 
-        xaxis_title="Month", 
-        yaxis_title="Energy (MWh)", 
-        barmode='overlay', 
-        template=chart_template,
-        paper_bgcolor=chart_bg,
-        plot_bgcolor=chart_bg,
-        font=dict(color=chart_font_color),
-        legend=dict(traceorder='reversed'),
-        hoverlabel=dict(bgcolor="#333333", font_size=12, font_family="Arial", font=dict(color="white"))
-    )
-    st.plotly_chart(fig_bar, use_container_width=True)
-
-    # --- Heatmap Analysis ---
-    st.subheader("Heatmap Analysis")
-    # Prepare matrix (Hour of Day x Day of Year)
-    # 8760 hours -> 365 days x 24 hours
-    
-    days = 365
-    hours_per_day = 24
-    
-    # CFE Heatmap Logic
-    # 1 if Matched >= Load (Green), 0 if Deficit (Red) ?
-    # Let's show "Deficit Magnitude" or just "Matched %"
-    # Actually, binary "Green/Red" is often most useful for 24/7.
-    # Let's do: Matched Energy / Load (capped at 1.0)
-    
-    # Reshape array
-    # Data must be 24 rows (hours) x 365 cols (days) for typical heatmap
-    # Slice first 8760
-    
-    # Safety Check for array handling
-    clean_load = total_load_profile.values[:8760]
-    clean_matched = matched_profile.values[:8760]
-    
-    # Calculate % met
-    # Avoid div by zero
-    percent_met = np.divide(clean_matched, clean_load, out=np.zeros_like(clean_matched), where=clean_load!=0)
-    
-    z_data = percent_met.reshape((365, 24)).T # Transpose to get 24 rows, 365 cols
-    
-    # Generate labels
-    dates_x = pd.date_range(start='2024-01-01', periods=365, freq='D')
-    times_y = [datetime.time(h).strftime('%I %p') for h in range(24)] # "12 AM", "01 AM"...
-    # Cleanup time labels to remove leading zeros if preferred, e.g. "1 AM"
-    times_y = [t.lstrip('0') for t in times_y]
-
-    fig_heat = go.Figure(data=go.Heatmap(
-        z=z_data,
-        x=dates_x,
-        y=times_y,
-        colorscale='RdYlGn', # Red to Green
-        hovertemplate='Date: %{x|%b %d}<br>Time: %{y}<br>Matched: %{z:.1%}<extra></extra>'
-    ))
-    
-    fig_heat.update_layout(
-        title="24/7 Matching Heatmap", 
-        xaxis_title="Date", 
-        yaxis_title="Time of Day", 
-        template=chart_template,
-        paper_bgcolor=chart_bg,
-        plot_bgcolor=chart_bg,
-        font=dict(color=chart_font_color),
-        hoverlabel=dict(bgcolor="#333333", font_size=12, font_family="Arial", font=dict(color="white"))
-    )
-    st.plotly_chart(fig_heat, use_container_width=True)
-    
-    # --- PPA vs Capture Value Analysis (Last Chart) ---
-    st.markdown("---")
-    st.subheader("Economic Analysis")
-    st.markdown("PPA prices vs market capture values for each technology")
-    
-    # Calculate capture value for each technology
-    market_price_profile = get_market_price_profile(market_price, year=market_year) * price_scaler
-    
-    tech_data = []
-    tech_capacities = {
-        'Solar': solar_capacity,
-        'Wind': wind_capacity,
-        'CCS Gas': ccs_capacity,
-        'Geothermal': geo_capacity,
-        'Nuclear': nuc_capacity,
-        'Battery': batt_capacity
-    }
-    
-    for tech, capacity in tech_capacities.items():
-        if capacity > 0:
-            # Get generation profile for this tech
-            if tech in tech_profiles:
-                tech_gen = tech_profiles[tech]
-                # Calculate capture value (time-weighted average market price)
-                capture_value = (tech_gen * market_price_profile).sum() / tech_gen.sum() if tech_gen.sum() > 0 else 0
-            else:
-                capture_value = 0
-            
-            # Get PPA price
-            ppa_price = tech_prices.get(tech, 0)
-            
-            tech_data.append({
-                'Technology': tech,
-                'PPA Price': ppa_price,
-                'Capture Value': capture_value,
-                'Spread': capture_value - ppa_price
-            })
-    
-    if tech_data:
-        # Create grouped bar chart
-        tech_df = pd.DataFrame(tech_data)
+        # Prepare Data Slices
+        # Use the datetime index for X-axis to show actual dates/times
+        x_axis = datetime_index[start_hour:end_hour]
         
-        fig_ppa = go.Figure()
+        fig = go.Figure()
+        fig.add_trace(go.Scatter(x=x_axis, y=total_load_profile[start_hour:end_hour],
+                                 mode='lines', name='Aggregated Load', line=dict(color='red', width=2)))
         
-        fig_ppa.add_trace(go.Bar(
-            name='PPA Price',
-            x=tech_df['Technology'],
-            y=tech_df['PPA Price'],
-            marker_color='#3498db',  # Blue instead of red
-            text=tech_df['PPA Price'].round(2),
-            textposition='outside',
-            texttemplate='$%{text:.2f}',
-            textfont=dict(size=14, color='white')
-        ))
+        # Total Supply Line (Gen + Battery)
+        # Use total_gen_with_battery calculated earlier
+        if 'total_gen_with_battery' not in locals():
+             total_gen_with_battery = total_gen_profile + batt_discharge
+             
+        fig.add_trace(go.Scatter(x=x_axis, y=total_gen_with_battery[start_hour:end_hour],
+                                 mode='lines', name='Total Supply (Gen+Batt)', line=dict(color='#2ca02c', width=2)))
+        # Stacked generation profiles
+        # Stacked generation profiles - Logic: Baseload first, then Battery, then VRE
+        # This stacking order helps visualize how load is met
+        fig.add_trace(go.Scatter(x=x_axis, y=nuc_profile[start_hour:end_hour], name='Nuclear Gen', stackgroup='one', line=dict(color='purple'), fill='tonexty'))
+        fig.add_trace(go.Scatter(x=x_axis, y=geo_profile[start_hour:end_hour], name='Geothermal Gen', stackgroup='one', line=dict(color='red'), fill='tonexty'))
+        fig.add_trace(go.Scatter(x=x_axis, y=ccs_profile[start_hour:end_hour], name='CCS Gas Gen', stackgroup='one', line=dict(color='brown'), fill='tonexty'))
         
-        fig_ppa.add_trace(go.Bar(
-            name=f'Capture Value ({market_year} Base)',
-            x=tech_df['Technology'],
-            y=tech_df['Capture Value'],
-            marker_color='#f39c12',  # Orange instead of green
-            text=tech_df['Capture Value'].round(2),
-            textposition='outside',
-            texttemplate='$%{text:.2f}',
-            textfont=dict(size=14, color='white')
-        ))
+        # Put Battery in the middle (filling gaps)
+        fig.add_trace(go.Scatter(x=x_axis, y=batt_discharge[start_hour:end_hour], name='Battery Discharge', stackgroup='one', line=dict(color='#1f77b4'), fill='tonexty'))
         
-        fig_ppa.update_layout(
-            barmode='group',
-            xaxis_title='Technology',
-            yaxis_title='Price ($/MWh)',
-            legend=dict(x=0.01, y=0.99),
-            height=500,  # Increased from 400 for more space
-            hovermode='x unified',
+        # VRE Top
+        fig.add_trace(go.Scatter(x=x_axis, y=wind_profile[start_hour:end_hour], name='Wind Gen', stackgroup='one', line=dict(color='lightblue'), fill='tonexty'))
+        fig.add_trace(go.Scatter(x=x_axis, y=solar_profile[start_hour:end_hour], name='Solar Gen', stackgroup='one', line=dict(color='gold'), fill='tonexty'))
+
+        fig.update_layout(
+            title=f"Load vs. Matched Generation {title_suffix}", 
+            xaxis_title="Date / Time", 
+            yaxis_title="Power (MW)", 
             template=chart_template,
             paper_bgcolor=chart_bg,
             plot_bgcolor=chart_bg,
             font=dict(color=chart_font_color),
-            margin=dict(t=50, b=50, l=50, r=50),  # Add margins for labels
+            xaxis=dict(
+                tickformat="%b %d<br>%H:%M" if view_mode == "Select Week" else "%b"
+            ),
             hoverlabel=dict(bgcolor="#333333", font_size=12, font_family="Arial", font=dict(color="white"))
         )
+        st.plotly_chart(fig, use_container_width=True)
         
-        st.plotly_chart(fig_ppa, use_container_width=True)
+        st.subheader("Monthly Analysis")
         
-        # Show spread analysis
-        st.markdown("**Value Spread** (Capture Value - PPA Price)")
-        spread_cols = st.columns(len(tech_data))
-        for idx, row in enumerate(tech_data):
-            with spread_cols[idx]:
-                spread_val = row['Spread']
-                st.metric(
-                    row['Technology'],
-                    f"${spread_val:.2f}/MWh",
-                    delta=f"{'+' if spread_val >= 0 else ''}{spread_val:.2f}"
-                )
-    else:
-        st.info("Add generation capacity to see PPA vs Capture Value comparison")
+        # Group by month
+        # Create a simple dataframe for grouping
+        df_hourly = pd.DataFrame({
+            'Load': total_load_profile,
+            'Generation': total_gen_profile,
+            'Battery': batt_discharge,
+            'Total_Supply': total_gen_profile + batt_discharge,
+            'Matched': matched_profile
+        })
+        
+        df_hourly['Month'] = pd.date_range(start='2024-01-01', periods=8760, freq='h').month
+        monthly_stats = df_hourly.groupby('Month').sum()
+        
+        # Map month numbers to names
+        month_names = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+        monthly_stats.index = month_names
+        
+        # Calculate percentages for labels
+        monthly_stats['Matched_Pct'] = (monthly_stats['Matched'] / monthly_stats['Load']).apply(lambda x: f"{x:.0%}")
+        
+        fig_bar = go.Figure()
+        
+        # 1. Total Supply (Gen + Battery) (Background)
+        fig_bar.add_trace(go.Bar(x=monthly_stats.index, y=monthly_stats['Total_Supply'], name='Total Supply (Gen+Batt)', marker_color='#2ca02c', opacity=0.6)) # Standard Green
+        
+        # 2. Matched Energy (Middle)
+        fig_bar.add_trace(go.Bar(
+            x=monthly_stats.index, 
+            y=monthly_stats['Matched'], 
+            name='Hourly Matched Clean Energy', 
+            marker_color='#FFA500'
+        )) # Orange without labels
+        
+        # 3. Battery (Foreground - On top of Matched)
+        fig_bar.add_trace(go.Bar(x=monthly_stats.index, y=monthly_stats['Battery'], name='Battery Discharge', marker_color='#1f77b4')) # Standard blue
+        
+        # 4. Load (Line - Top)
+        fig_bar.add_trace(go.Scatter(x=monthly_stats.index, y=monthly_stats['Load'], name='Load', mode='lines', line=dict(color='red', width=3)))
 
-    # --- Settlement by Technology ---
-    if 'tech_details' in fin_metrics:
-        st.markdown("---")
-        st.subheader("Settlement by Technology")
-        st.markdown("Detailed breakdown of costs and market value by generation source.")
+        # 5. Percentage Labels (Absolute Top Layer)
+        fig_bar.add_trace(go.Scatter(
+            x=monthly_stats.index, 
+            y=monthly_stats['Matched'], 
+            mode='text',
+            name='Matched %',
+            text=monthly_stats['Matched_Pct'],
+            textposition='top center',
+            textfont=dict(
+                family="Arial Black",
+                size=14,
+                color="white"
+            ),
+            showlegend=False
+        ))
         
-        # Convert to DataFrame
-        settlement_data = []
-        for tech, details in fin_metrics['tech_details'].items():
-            if details['Matched_MWh'] > 0:
-                settlement_data.append({
+        fig_bar.update_layout(
+            title="Monthly Energy Totals", 
+            xaxis_title="Month", 
+            yaxis_title="Energy (MWh)", 
+            barmode='overlay', 
+            template=chart_template,
+            paper_bgcolor=chart_bg,
+            plot_bgcolor=chart_bg,
+            font=dict(color=chart_font_color),
+            legend=dict(traceorder='reversed'),
+            hoverlabel=dict(bgcolor="#333333", font_size=12, font_family="Arial", font=dict(color="white"))
+        )
+        st.plotly_chart(fig_bar, use_container_width=True)
+
+        # --- Heatmap Analysis ---
+        st.subheader("Heatmap Analysis")
+        # Prepare matrix (Hour of Day x Day of Year)
+        # 8760 hours -> 365 days x 24 hours
+        
+        days = 365
+        hours_per_day = 24
+        
+        # CFE Heatmap Logic
+        # 1 if Matched >= Load (Green), 0 if Deficit (Red) ?
+        # Let's show "Deficit Magnitude" or just "Matched %"
+        # Actually, binary "Green/Red" is often most useful for 24/7.
+        # Let's do: Matched Energy / Load (capped at 1.0)
+        
+        # Reshape array
+        # Data must be 24 rows (hours) x 365 cols (days) for typical heatmap
+        # Slice first 8760
+        
+        # Safety Check for array handling
+        clean_load = total_load_profile.values[:8760]
+        clean_matched = matched_profile.values[:8760]
+        
+        # Calculate % met
+        # Avoid div by zero
+        percent_met = np.divide(clean_matched, clean_load, out=np.zeros_like(clean_matched), where=clean_load!=0)
+        
+        z_data = percent_met.reshape((365, 24)).T # Transpose to get 24 rows, 365 cols
+        
+        # Generate labels
+        dates_x = pd.date_range(start='2024-01-01', periods=365, freq='D')
+        times_y = [datetime.time(h).strftime('%I %p') for h in range(24)] # "12 AM", "01 AM"...
+        # Cleanup time labels to remove leading zeros if preferred, e.g. "1 AM"
+        times_y = [t.lstrip('0') for t in times_y]
+
+        fig_heat = go.Figure(data=go.Heatmap(
+            z=z_data,
+            x=dates_x,
+            y=times_y,
+            colorscale='RdYlGn', # Red to Green
+            hovertemplate='Date: %{x|%b %d}<br>Time: %{y}<br>Matched: %{z:.1%}<extra></extra>'
+        ))
+        
+        fig_heat.update_layout(
+            title="24/7 Matching Heatmap", 
+            xaxis_title="Date", 
+            yaxis_title="Time of Day", 
+            template=chart_template,
+            paper_bgcolor=chart_bg,
+            plot_bgcolor=chart_bg,
+            font=dict(color=chart_font_color),
+            hoverlabel=dict(bgcolor="#333333", font_size=12, font_family="Arial", font=dict(color="white"))
+        )
+        st.plotly_chart(fig_heat, use_container_width=True)
+    
+    # --- PPA vs Capture Value Analysis (Last Chart) ---
+    with tab_fin:
+        st.markdown("---")
+        st.markdown("#### Financial Analysis Result")
+        
+        # Metrics - Row 3 (Financials)
+        st.subheader("Financial Overview")
+        col9, col10, col11, col12 = st.columns(4)
+        col9.metric("Annual PPA Settlement Value", f"${fin_metrics['settlement_value']:,.0f}", help="Annual Revenue (or Cost) from PPA Settlement: (Market - Strike) * Matched Vol")
+        col10.metric("Weighted Avg PPA Price", f"${fin_metrics['weighted_ppa_price']:.2f}/MWh", help="Average cost of matched energy based on technology mix")
+        col11.metric("Capture Value (2024 Base)", f"${fin_metrics['weighted_market_price']:.2f}/MWh", help="Average market value of matched energy (2024 ERCOT prices × scaler)")
+        col12.metric("REC Value", f"${fin_metrics['rec_cost']:,.0f}", help="Value of RECs")
+
+        st.markdown("---")
+        st.subheader("Economic Analysis")
+        st.markdown("PPA prices vs market capture values for each technology")
+        
+        # Calculate capture value for each technology
+        market_price_profile = get_market_price_profile(market_price, year=market_year) * price_scaler
+        
+        tech_data = []
+        tech_capacities = {
+            'Solar': solar_capacity,
+            'Wind': wind_capacity,
+            'CCS Gas': ccs_capacity,
+            'Geothermal': geo_capacity,
+            'Nuclear': nuc_capacity,
+            'Battery': batt_capacity
+        }
+        
+        for tech, capacity in tech_capacities.items():
+            if capacity > 0:
+                # Get generation profile for this tech
+                if tech in tech_profiles:
+                    tech_gen = tech_profiles[tech]
+                    # Calculate capture value (time-weighted average market price)
+                    capture_value = (tech_gen * market_price_profile).sum() / tech_gen.sum() if tech_gen.sum() > 0 else 0
+                else:
+                    capture_value = 0
+                
+                # Get PPA price
+                ppa_price = tech_prices.get(tech, 0)
+                
+                tech_data.append({
                     'Technology': tech,
-                    'Generation (MWh)': details['Matched_MWh'],
-                    'PPA Price ($/MWh)': details['PPA_Price'],
-                    'PPA Cost ($)': details['Total_Cost'],
-                    'Market Value ($)': details['Market_Value'],
-                    'Net Settlement ($)': details['Settlement'],
-                    'Value ($/MWh)': details['Market_Value'] / details['Matched_MWh'] if details['Matched_MWh'] > 0 else 0
+                    'PPA Price': ppa_price,
+                    'Capture Value': capture_value,
+                    'Spread': capture_value - ppa_price
                 })
         
-        if settlement_data:
-            df_settlement = pd.DataFrame(settlement_data)
+        if tech_data:
+            # Create grouped bar chart
+            tech_df = pd.DataFrame(tech_data)
             
-            # Format columns
-            st.dataframe(
-                df_settlement.style.format({
-                    'Generation (MWh)': '{:,.0f}',
-                    'PPA Price ($/MWh)': '${:,.2f}',
-                    'PPA Cost ($)': '${:,.0f}',
-                    'Market Value ($)': '${:,.0f}',
-                    'Net Settlement ($)': '${:,.0f}',
-                    'Value ($/MWh)': '${:,.2f}'
-                }),
-                use_container_width=True
-            )
+            fig_ppa = go.Figure()
             
-            # Simple Bar Chart for Settlement
-            fig_set = go.Figure()
-            
-            colors = ['#2ca02c' if x >= 0 else '#d62728' for x in df_settlement['Net Settlement ($)']]
-            
-            fig_set.add_trace(go.Bar(
-                x=df_settlement['Technology'],
-                y=df_settlement['Net Settlement ($)'],
-                marker_color=colors,
-                text=df_settlement['Net Settlement ($)'],
-                texttemplate='$%{text:,.0f}',
-                textposition='auto'
+            fig_ppa.add_trace(go.Bar(
+                name='PPA Price',
+                x=tech_df['Technology'],
+                y=tech_df['PPA Price'],
+                marker_color='#3498db',  # Blue instead of red
+                text=tech_df['PPA Price'].round(2),
+                textposition='outside',
+                texttemplate='$%{text:.2f}',
+                textfont=dict(size=14, color='white')
             ))
             
-            fig_set.update_layout(
-                title="Net Financial Settlement by Tech (Value - Cost)",
-                yaxis_title="Net Value ($)",
+            fig_ppa.add_trace(go.Bar(
+                name=f'Capture Value ({market_year} Base)',
+                x=tech_df['Technology'],
+                y=tech_df['Capture Value'],
+                marker_color='#f39c12',  # Orange instead of green
+                text=tech_df['Capture Value'].round(2),
+                textposition='outside',
+                texttemplate='$%{text:.2f}',
+                textfont=dict(size=14, color='white')
+            ))
+            
+            fig_ppa.update_layout(
+                barmode='group',
+                xaxis_title='Technology',
+                yaxis_title='Exchanged Price ($/MWh)',
+                legend=dict(x=0.01, y=0.99),
+                height=500,  # Increased from 400 for more space
+                hovermode='x unified',
                 template=chart_template,
-                height=400,
-                 paper_bgcolor=chart_bg,
+                paper_bgcolor=chart_bg,
                 plot_bgcolor=chart_bg,
                 font=dict(color=chart_font_color),
+                margin=dict(t=50, b=50, l=50, r=50),  # Add margins for labels
+                yaxis=dict(tickprefix="$"),
                 hoverlabel=dict(bgcolor="#333333", font_size=12, font_family="Arial", font=dict(color="white"))
             )
             
-            st.plotly_chart(fig_set, use_container_width=True)
+            st.plotly_chart(fig_ppa, use_container_width=True)
+            
+            # Show spread analysis
+            st.markdown("**Value Spread** (Capture Value - PPA Price)")
+            spread_cols = st.columns(len(tech_data))
+            for idx, row in enumerate(tech_data):
+                with spread_cols[idx]:
+                    spread_val = row['Spread']
+                    st.metric(
+                        row['Technology'],
+                        f"${spread_val:.2f}/MWh",
+                        delta=f"{'+' if spread_val >= 0 else ''}{spread_val:.2f}"
+                    )
+        else:
+            st.info("Add generation capacity to see PPA vs Capture Value comparison")
+
+        # --- Settlement by Technology ---
+        if 'tech_details' in fin_metrics:
+            st.markdown("---")
+            st.subheader("Settlement by Technology")
+            st.markdown("Detailed breakdown of costs and market value by generation source.")
+            
+            # Convert to DataFrame
+            settlement_data = []
+            for tech, details in fin_metrics['tech_details'].items():
+                if details['Matched_MWh'] > 0:
+                    settlement_data.append({
+                        'Technology': tech,
+                        'Generation (MWh)': details['Matched_MWh'],
+                        'PPA Price ($/MWh)': details['PPA_Price'],
+                        'PPA Cost ($)': details['Total_Cost'],
+                        'Market Value ($)': details['Market_Value'],
+                        'Net Settlement ($)': details['Settlement'],
+                        'Value ($/MWh)': details['Market_Value'] / details['Matched_MWh'] if details['Matched_MWh'] > 0 else 0
+                    })
+            
+            if settlement_data:
+                df_settlement = pd.DataFrame(settlement_data)
+                
+                # Format columns
+                st.dataframe(
+                    df_settlement.style.format({
+                        'Generation (MWh)': '{:,.0f}',
+                        'PPA Price ($/MWh)': '${:,.2f}',
+                        'PPA Cost ($)': '${:,.0f}',
+                        'Market Value ($)': '${:,.0f}',
+                        'Net Settlement ($)': '${:,.0f}',
+                        'Value ($/MWh)': '${:,.2f}'
+                    }),
+                    use_container_width=True
+                )
+                
+                # Simple Bar Chart for Settlement
+                fig_set = go.Figure()
+                
+                colors = ['#2ca02c' if x >= 0 else '#d62728' for x in df_settlement['Net Settlement ($)']]
+                
+                fig_set.add_trace(go.Bar(
+                    x=df_settlement['Technology'],
+                    y=df_settlement['Net Settlement ($)'],
+                    marker_color=colors,
+                    text=df_settlement['Net Settlement ($)'],
+                    texttemplate='$%{text:,.0f}',
+                    textposition='auto'
+                ))
+                
+                fig_set.update_layout(
+                    title="Net Financial Settlement by Tech (Value - Cost)",
+                    yaxis_title="Net Value ($)",
+                    template=chart_template,
+                    height=400,
+                     paper_bgcolor=chart_bg,
+                    plot_bgcolor=chart_bg,
+                    font=dict(color=chart_font_color),
+                    hoverlabel=dict(bgcolor="#333333", font_size=12, font_family="Arial", font=dict(color="white"))
+                )
+                
+                st.plotly_chart(fig_set, use_container_width=True)
+
 
     # --- Battery Analysis (In Dedicated Tab) ---
     if enable_battery and batt_capacity > 0:
         with tab_batt_fin:
             st.markdown("---")
-            st.subheader("Financial Analysis Results")
-            
-            # 1. Owner's View (Waterfall)
-            st.markdown("##### 🏗️ Owner's Settlement View")
-            
-            b_col1, b_col2, b_col3, b_col4 = st.columns(4)
-            b_col1.metric("Net Annual Invoice", f"${batt_financials['net_invoice']:,.0f}", 
-                          delta=f"-${batt_financials['rte_penalty']:,.0f} Penalty" if batt_financials['rte_penalty'] > 0 else None)
-            b_col2.metric("Capacity Payment", f"${batt_financials['capacity_payment']:,.0f}")
-            b_col3.metric("VOM Payment", f"${batt_financials['vom_payment']:,.0f}")
-            b_col4.metric("Realized RTE", f"{batt_financials['actual_rte']:.1%}", delta=f"{batt_financials['actual_rte'] - batt_guar_rte:.1%}")
-
-            # Waterfall Chart
-            fig_batt = go.Figure(go.Waterfall(
-                name = "Settlement", orientation = "v",
-                measure = ["relative", "relative", "relative", "total"],
-                x = ["Capacity Payment", "VOM Payment", "RTE Penalty", "Net Invoice"],
-                textposition = "outside",
-                text = [f"${batt_financials['capacity_payment']/1000:.0f}k", 
-                        f"${batt_financials['vom_payment']/1000:.0f}k", 
-                        f"-${batt_financials['rte_penalty']/1000:.0f}k", 
-                        f"${batt_financials['net_invoice']/1000:.0f}k"],
-                y = [batt_financials['capacity_payment'], 
-                     batt_financials['vom_payment'], 
-                     -batt_financials['rte_penalty'], 
-                     0],
-                connector = {"line":{"color":"rgb(63, 63, 63)"}},
-            ))
-
-            fig_batt.update_layout(
-                    title = "Battery Settlement Waterfall",
-                    showlegend = False,
-                    waterfallgap = 0.3,
-                    template=chart_template,
-                    paper_bgcolor=chart_bg,
-                    plot_bgcolor=chart_bg,
-                    font=dict(color=chart_font_color),
-                    height=500,
-                    hoverlabel=dict(bgcolor="#333333", font_size=12, font_family="Arial", font=dict(color="white"))
-            )
-
-            st.plotly_chart(fig_batt, use_container_width=True)
-            
-            # 2. Buyer's View (Tolling Model)
-            st.markdown("---")
+            # 1. Buyer's View (Tolling Model) - MOVED TO TOP
             st.markdown("##### 💼 Buyer's P&L (Tolling Model)")
             st.markdown("Perspective: Renting the battery to capture market value.")
             
@@ -1222,9 +1194,56 @@ else:
             
             st.plotly_chart(fig_buyer, use_container_width=True)
 
+            st.subheader("Financial Analysis Results")
+
+
+            # 2. Owner's View (Waterfall)
+            st.markdown("---")
+            st.markdown("##### 🏗️ Owner's Settlement View")
+            
+            b_col1, b_col2, b_col3, b_col4 = st.columns(4)
+            b_col1.metric("Net Annual Invoice", f"${batt_financials['net_invoice']:,.0f}", 
+                          delta=f"-${batt_financials['rte_penalty']:,.0f} Penalty" if batt_financials['rte_penalty'] > 0 else None)
+            b_col2.metric("Capacity Payment", f"${batt_financials['capacity_payment']:,.0f}")
+            b_col3.metric("VOM Payment", f"${batt_financials['vom_payment']:,.0f}")
+            b_col4.metric("Realized RTE", f"{batt_financials['actual_rte']:.1%}", delta=f"{batt_financials['actual_rte'] - batt_guar_rte:.1%}")
+
+            # Waterfall Chart
+            fig_batt = go.Figure(go.Waterfall(
+                name = "Settlement", orientation = "v",
+                measure = ["relative", "relative", "relative", "total"],
+                x = ["Capacity Payment", "VOM Payment", "RTE Penalty", "Net Invoice"],
+                textposition = "outside",
+                text = [f"${batt_financials['capacity_payment']/1000:.0f}k", 
+                        f"${batt_financials['vom_payment']/1000:.0f}k", 
+                        f"-${batt_financials['rte_penalty']/1000:.0f}k", 
+                        f"${batt_financials['net_invoice']/1000:.0f}k"],
+                y = [batt_financials['capacity_payment'], 
+                     batt_financials['vom_payment'], 
+                     -batt_financials['rte_penalty'], 
+                     0],
+                connector = {"line":{"color":"rgb(63, 63, 63)"}},
+            ))
+
+            fig_batt.update_layout(
+                    title = "Battery Settlement Waterfall",
+                    showlegend = False,
+                    waterfallgap = 0.3,
+                    template=chart_template,
+                    paper_bgcolor=chart_bg,
+                    plot_bgcolor=chart_bg,
+                    font=dict(color=chart_font_color),
+                    height=500,
+                    hoverlabel=dict(bgcolor="#333333", font_size=12, font_family="Arial", font=dict(color="white"))
+            )
+
+            st.plotly_chart(fig_batt, use_container_width=True)
+            
+
+
 
     # --- Data Export ---
-    st.subheader("Export Results")
+
     
     # Create Datetime Index for 2024 (Leap year handling if needed, but standard 8760 usually implies non-leap or truncated)
     # Using 2024 implies leap year (8784 hours), but our arrays are 8760. 
@@ -1327,13 +1346,15 @@ else:
         json_str = json.dumps(scenario_config, indent=4)
         zf.writestr("scenario_config.json", json_str)
         
-    st.download_button(
-        label="Download Results & Scenario (ZIP)",
-        data=zip_buffer.getvalue(),
-        file_name="simulation_results.zip",
-        mime="application/zip"
-    )
-    
-    with st.expander("Preview Data"):
-        st.dataframe(results_df, use_container_width=True)
+    with tab_fin:
+        st.markdown("---")
+        st.subheader("Export Results")
+        st.download_button(
+            label="Download Results & Scenario (ZIP)",
+            data=zip_buffer.getvalue(),
+            file_name="simulation_results.zip",
+            mime="application/zip"
+        )
+        
+
     
