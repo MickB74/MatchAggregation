@@ -134,7 +134,7 @@ with st.sidebar:
 
 # --- Configuration Section (Top) ---
 with st.expander("Configuration & Setup", expanded=True):
-    tab_load, tab_gen, tab_batt_fin, tab_fin, tab_offtake = st.tabs(["1. Load Setup", "2. Generation Portfolio", "3. Battery Financials", "4. Financials", "5. Offtake Structuring"])
+    tab_load, tab_gen, tab_offtake, tab_fin = st.tabs(["1. Load Setup", "2. Generation Portfolio", "3. Offtake Structuring", "4. Financials"])
     
     # --- Tab 1: Load Setup ---
     with tab_load:
@@ -409,46 +409,7 @@ with st.expander("Configuration & Setup", expanded=True):
         uploaded_wind_file = c_prof_2.file_uploader("Upload Wind Profile (CSV)", type=['csv', 'txt'])
 
 
-    # --- Tab 3: Battery Financials ---
-    with tab_batt_fin:
-        st.markdown("#### Battery Financial Configuration")
-        c_bat_conf_1, c_bat_conf_2 = st.columns(2)
-        
-        with c_bat_conf_1:
-             st.markdown("**Physical Configuration** (Edit in Tab 2)")
-             if enable_battery:
-                 # Clean, non-blue-box display
-                 st.markdown(f"**Active Config:** `{batt_capacity:,.2f} MW` / `{batt_duration:.1f} Hrs` (`{batt_capacity * batt_duration:,.2f} MWh`)")
-             else:
-                 st.markdown("⚠️ *Battery Storage is currently **DISABLED** in the Generation Tab.*")
 
-        with c_bat_conf_2:
-             # Contract Terms
-             st.markdown("**Contract Terms**")
-             col_term_1, col_term_2 = st.columns(2)
-             with col_term_1:
-                 batt_base_rate = st.number_input("Base Capacity Rate ($/MW-mo)", value=8000.0, step=500.0, help="~8/kW-mo. 2025 estimates range $6k-10k depending on duration and location.")
-                 batt_guar_avail = st.number_input("Guaranteed Availability (%)", value=0.98, step=0.01, min_value=0.0, max_value=1.0, help="Owner guarantees this uptime.")
-             with col_term_2:
-                 batt_guar_rte = st.number_input("Guaranteed RTE (%)", value=0.85, step=0.01, min_value=0.0, max_value=1.0, help="Round Trip Efficiency guarantee.")
-                 batt_vom = st.number_input("Variable O&M ($/MWh)", value=2.0, step=0.1, help="Wear and tear charge per MWh discharged.")
-             
-             simulate_outages = st.checkbox("Simulate Random Battery Outages (~2%)", value=False, help="Randomly drop availability to test performance penalties.")
-
-        st.markdown("---")
-        
-        # NOTE: Charts for Battery will be rendered HERE if the user wants "Setup" view, 
-        # BUT the logic to calculate them happens later in the script (after profile calc).
-        # So we can't display results here yet. 
-        # Strategy: Just keep inputs here. 
-        # Move the Result Visualize section (Waterfall etc) to a container that we write to later? 
-        # OR just define the layout structure here and fill it later using st.empty()?
-        # Actually, Streamlit runs script top-to-bottom. We can't display results dependent on calculation 
-        # that happens at line 600+ here at line 400.
-        #
-        # SOLUTION: We will render the results using a placeholder or just render them at the new location logically?
-        # WAIT. The tabs are containers. We can write to `with tab_batt:` LATER in the script!
-        # Yes, we can reopen the tab context later.
         
 
 
@@ -538,7 +499,7 @@ with st.expander("Configuration & Setup", expanded=True):
             pass
 
 
-    # --- Tab 5: Offtake Structuring (CVTA) ---
+    # --- Tab 3: Offtake Structuring (CVTA) ---
     with tab_offtake:
         st.markdown("#### 🔋 Corporate Virtual Tolling Agreement (CVTA)")
         st.caption("Financial Battery PPA | Proxy Battery Model")
@@ -546,9 +507,25 @@ with st.expander("Configuration & Setup", expanded=True):
         col_cvta_inputs, col_cvta_charts = st.columns([1, 2])
         
         with col_cvta_inputs:
-            st.markdown("##### 1. Battery Specs")
-            cvta_cap = st.number_input("Power Capacity (MW)", value=100.0, step=10.0, key='cvta_cap')
-            cvta_dur = st.number_input("Duration (Hours)", value=2.0, step=0.5, key='cvta_dur')
+            st.markdown("##### 1. Linked Battery Specs")
+            
+            # Link to Generation Portfolio Inputs
+            # Get values from session state or variables (batt_capacity is available in scope)
+            # Fallback to session state if standard run
+            
+            # Using st.session_state is safest if variable scope is tricky, but batt_capacity is in scope.
+            # Let's use the variable 'batt_capacity' and 'batt_duration' defined in Tab 2.
+            
+            cvta_cap = batt_capacity if 'batt_capacity' in locals() else 0.0
+            cvta_dur = batt_duration if 'batt_duration' in locals() else 0.0
+            
+            if cvta_cap > 0:
+                st.info(f"**Linked Portfolio Battery:**\n\n⚡ **{cvta_cap:,.0f} MW**\n\n⏳ **{cvta_dur:.1f} Hours**")
+                if not enable_battery:
+                     st.warning("⚠️ Battery is disabled in Gen Portfolio.")
+            else:
+                st.warning("⚠️ **No Battery Configured**\n\nGo to '2. Generation Portfolio' to size the battery.")
+
             cvta_rte = st.number_input("Round Trip Efficiency (%)", value=85.0, step=1.0, key='cvta_rte')
             cvta_vom = st.number_input("Variable O&M ($/MWh)", value=2.0, step=0.1, key='cvta_vom')
             
