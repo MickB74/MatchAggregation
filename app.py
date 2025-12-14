@@ -805,8 +805,10 @@ else:
         ))
         
         # Net Profit Line
+        # Net Profit Line
         fig_buyer.add_trace(go.Scatter(
-            y=buyer_pl_df['Net_Profit'],
+            x=batt_pl_df['Month'],
+            y=batt_pl_df['Net_Profit'],
             name='Net Profit',
             line=dict(color='white', width=3, dash='dot'),
             mode='lines+markers'
