@@ -554,7 +554,7 @@ with st.expander("Configuration & Setup", expanded=True):
             
             st.markdown("---")
             st.markdown("##### 2. Contract Terms")
-            cvta_fixed_price = st.number_input("Fixed Capacity Price ($/kW-mo)", value=12000.0, step=250.0, help="Monthly fixed payment from Corporate to Developer per kW.", key='cvta_fixed')
+            cvta_fixed_price = st.number_input("Fixed Capacity Price ($/MW-mo)", value=12000.0, step=250.0, help="Monthly fixed payment from Corporate to Developer per MW.", key='cvta_fixed')
             
             st.markdown("---")
             st.markdown("##### 3. Market Data")
@@ -600,8 +600,9 @@ with st.expander("Configuration & Setup", expanded=True):
             if df_prices is not None:
                 # --- RUN MODEL ---
                 # 1. Fixed Leg (Debit)
-                # Cap MW * 1000 kW/MW * Price/kW-mo * 12 months (Annualized for comparison, but we do monthly)
-                monthly_fixed_cost = cvta_cap * 1000 * cvta_fixed_price
+                # Cap MW * Price/MW-mo * 12 months (Annualized for comparison, but we do monthly)
+                # Updated: Removed * 1000 factor as input is now $/MW-mo
+                monthly_fixed_cost = cvta_cap * cvta_fixed_price
                 
                 # 2. Floating Leg (Credit) - Proxy Dispatch
                 daily_results = calculate_proxy_battery_revenue(df_prices, cvta_cap, cvta_dur, cvta_rte, cvta_vom)
