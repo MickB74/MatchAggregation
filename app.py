@@ -841,11 +841,7 @@ else:
         
         st.plotly_chart(fig_buyer, use_container_width=True)
         
-        st.info(
-            "💡 **Why take this risk?** "
-            "Buyers (trading houses) assume this risk to capture 'Volatile' months (e.g., August Heatwaves) where arbitrage revenue can vastly exceed the fixed toll. "
-            "In 'Boring' months, they may lose money (Net Loss), but the annual potential offsets these losses."
-        )
+
 
     # Charts
     st.markdown("---")
