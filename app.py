@@ -856,15 +856,36 @@ else:
         if 'cvta_rte' not in locals(): cvta_rte = 85.0
         if 'cvta_vom' not in locals(): cvta_vom = 2.0
             
-        batt_contract_params = {
-            'capacity_mw': batt_capacity,
-            'base_rate_monthly': cvta_fixed_price,
-            'guaranteed_availability': 0.98, # Default (removed from UI, assumed standard)
-            'guaranteed_rte': cvta_rte / 100.0, # CVTA input is %, need 0-1
-            'vom_rate': cvta_vom
-        }
+        # CVTA Logic Alignment
+        # 1. Run Proxy Dispatch (Financial)
+        # Note: We need a DataFrame with Datetime index for calculate_proxy_battery_revenue
+        # We can construct one from the market_price_profile_series
+        dates = pd.date_range(start=f'{market_year}-01-01', periods=8760, freq='h')
+        df_proxy_input = pd.DataFrame({'Price': market_price_profile_series.values}, index=dates)
         
-        batt_financials = calculate_battery_financials(batt_contract_params, batt_ops_data)
+        cvta_daily_results = calculate_proxy_battery_revenue(df_proxy_input, batt_capacity, batt_duration, cvta_rte, cvta_vom)
+        
+        if cvta_daily_results is not None:
+            annual_market_revenue = cvta_daily_results['Net_Revenue'].sum()
+            annual_fixed_payment = batt_capacity * cvta_fixed_price * 12 # Monthly * 12
+            
+            # Net Invoice (Cost to Offtaker) = Fixed Payment - Market Revenue
+            net_invoice = annual_fixed_payment - annual_market_revenue
+            
+            batt_financials = {
+                'net_invoice': net_invoice,
+                'capacity_payment': annual_fixed_payment,
+                'vom_payment': 0.0, # Implicit in net revenue for proxy
+                'rte_penalty': 0.0, # Not explicit in this deal structure
+                'actual_availability': 1.0,
+                'actual_rte': cvta_rte / 100.0
+            }
+        else:
+            batt_financials = {
+                'net_invoice': 0.0, 'capacity_payment': 0.0, 
+                'vom_payment': 0.0, 'rte_penalty': 0.0,
+                'actual_availability': 1.0, 'actual_rte': 0.0
+            }
         
         # Effective Price for Global Financials logic (Net Cost / MWh)
         effective_batt_price_mwh = batt_financials['net_invoice'] / total_discharge_mwh
