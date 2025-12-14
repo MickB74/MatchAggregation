@@ -135,31 +135,6 @@ with st.expander("Configuration & Setup", expanded=True):
         col_load_1, col_load_2 = st.columns([1, 2])
         
         with col_load_1:
-            st.markdown("#### Add Participant")
-            # Only show participant form if no file is uploaded (or allow both but prioritize file?)
-            # Logic: If 'uploaded_load_file' is present, we use it. But we can still build list.
-            
-            with st.form("add_participant"):
-                next_num = len(st.session_state.participants) + 1
-                p_name = st.text_input("Participant Name", f"Participant {next_num}")
-                p_type = st.selectbox("Building Type", ["Data Center", "Office", "Flat"])
-                p_load = st.number_input("Annual Consumption (MWh)", min_value=1000, value=50000, step=50000)
-                submitted = st.form_submit_button("Add Participant")
-                
-                if submitted:
-                    st.session_state.participants.append({
-                        "name": p_name,
-                        "type": p_type,
-                        "load": p_load
-                    })
-                    st.success(f"Added {p_name}")
-
-            if st.session_state.participants:
-                if st.button("Clear Participants"):
-                    st.session_state.participants = []
-                    st.rerun()
-            
-            st.markdown("---")
             if st.button("🎲 Random Scenario (>500 GWh)"):
                 # Clear existing
                 st.session_state.participants = []
@@ -212,6 +187,33 @@ with st.expander("Configuration & Setup", expanded=True):
                 
                 st.success(f"Generated {count-1} participants with {current_total_load:,.0f} MWh total load!")
                 st.rerun()
+
+            st.markdown("---")
+            st.markdown("#### Add Participant")
+            # Only show participant form if no file is uploaded (or allow both but prioritize file?)
+            # Logic: If 'uploaded_load_file' is present, we use it. But we can still build list.
+            
+            with st.form("add_participant"):
+                next_num = len(st.session_state.participants) + 1
+                p_name = st.text_input("Participant Name", f"Participant {next_num}")
+                p_type = st.selectbox("Building Type", ["Data Center", "Office", "Flat"])
+                p_load = st.number_input("Annual Consumption (MWh)", min_value=1000, value=50000, step=50000)
+                submitted = st.form_submit_button("Add Participant")
+                
+                if submitted:
+                    st.session_state.participants.append({
+                        "name": p_name,
+                        "type": p_type,
+                        "load": p_load
+                    })
+                    st.success(f"Added {p_name}")
+
+            if st.session_state.participants:
+                if st.button("Clear Participants"):
+                    st.session_state.participants = []
+                    st.rerun()
+            
+
 
         with col_load_2:
             st.markdown("#### Current Participants")
