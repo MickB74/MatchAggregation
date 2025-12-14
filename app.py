@@ -128,7 +128,7 @@ with st.sidebar:
 
 # --- Configuration Section (Top) ---
 with st.expander("Configuration & Setup", expanded=True):
-    tab_load, tab_gen, tab_fin = st.tabs(["1. Load Setup", "2. Generation Portfolio", "3. Financials"])
+    tab_load, tab_gen, tab_batt, tab_fin = st.tabs(["1. Load Setup", "2. Generation Portfolio", "3. Battery Storage", "4. Financials"])
     
     # --- Tab 1: Load Setup ---
     with tab_load:
@@ -281,12 +281,6 @@ with st.expander("Configuration & Setup", expanded=True):
             
             st.markdown("---")
 
-            # Battery Sizing (Physical)
-            # define enable_battery first so we can use it
-            enable_battery = st.checkbox("Enable Battery Storage", value=True)
-            batt_capacity = st.number_input("Battery Power (MW)", min_value=0.0, step=1.0, key='batt_input', disabled=not enable_battery)
-            batt_duration = st.number_input("Battery Duration (Hours)", min_value=0.5, value=2.0, step=0.5, key='batt_duration_input', disabled=not enable_battery)
-
         with col_gen_2:
             st.markdown("#### Portfolio Recommendation")
             
@@ -295,7 +289,7 @@ with st.expander("Configuration & Setup", expanded=True):
             # Exclude Tech multiselect
             excluded_techs = st.multiselect(
                 "Exclude Technologies from Recommendation",
-                ['Solar', 'Wind', 'CCS Gas', 'Geothermal', 'Nuclear', 'Battery'],
+                ['Solar', 'Wind', 'CCS Gas', 'Geothermal', 'Nuclear'],
                 key='excluded_techs_input'
             )
 
@@ -394,7 +388,50 @@ with st.expander("Configuration & Setup", expanded=True):
         uploaded_wind_file = c_prof_2.file_uploader("Upload Wind Profile (CSV)", type=['csv', 'txt'])
 
 
-    # --- Tab 3: Financials ---
+    # --- Tab 3: Battery Storage ---
+    with tab_batt:
+        st.markdown("#### Battery Storage Configuration")
+        c_bat_conf_1, c_bat_conf_2 = st.columns(2)
+        
+        with c_bat_conf_1:
+             # Physical Sizing
+             st.markdown("**Physical Sizing**")
+             enable_battery = st.checkbox("Enable Battery Storage", value=True)
+             batt_capacity = st.number_input("Battery Power (MW)", min_value=0.0, step=1.0, key='batt_input', disabled=not enable_battery)
+             batt_duration = st.number_input("Battery Duration (Hours)", min_value=0.5, value=2.0, step=0.5, key='batt_duration_input', disabled=not enable_battery)
+
+        with c_bat_conf_2:
+             # Contract Terms
+             st.markdown("**Contract Terms**")
+             col_term_1, col_term_2 = st.columns(2)
+             with col_term_1:
+                 batt_base_rate = st.number_input("Base Capacity Rate ($/MW-mo)", value=8000.0, step=500.0, help="~8/kW-mo. 2025 estimates range $6k-10k depending on duration and location.")
+                 batt_guar_avail = st.number_input("Guaranteed Availability (%)", value=0.98, step=0.01, min_value=0.0, max_value=1.0, help="Owner guarantees this uptime.")
+             with col_term_2:
+                 batt_guar_rte = st.number_input("Guaranteed RTE (%)", value=0.85, step=0.01, min_value=0.0, max_value=1.0, help="Round Trip Efficiency guarantee.")
+                 batt_vom = st.number_input("Variable O&M ($/MWh)", value=2.0, step=0.1, help="Wear and tear charge per MWh discharged.")
+             
+             simulate_outages = st.checkbox("Simulate Random Battery Outages (~2%)", value=False, help="Randomly drop availability to test performance penalties.")
+
+        st.markdown("---")
+        
+        # NOTE: Charts for Battery will be rendered HERE if the user wants "Setup" view, 
+        # BUT the logic to calculate them happens later in the script (after profile calc).
+        # So we can't display results here yet. 
+        # Strategy: Just keep inputs here. 
+        # Move the Result Visualize section (Waterfall etc) to a container that we write to later? 
+        # OR just define the layout structure here and fill it later using st.empty()?
+        # Actually, Streamlit runs script top-to-bottom. We can't display results dependent on calculation 
+        # that happens at line 600+ here at line 400.
+        #
+        # SOLUTION: We will render the results using a placeholder or just render them at the new location logically?
+        # WAIT. The tabs are containers. We can write to `with tab_batt:` LATER in the script!
+        # Yes, we can reopen the tab context later.
+        
+        st.info("configure your battery above. Detailed financial performance will be analyzed below.")
+
+
+    # --- Tab 4: Financials ---
     with tab_fin:
         st.markdown("#### PPA Prices ($/MWh)")
         c_fin_1, c_fin_2, c_fin_3 = st.columns(3)
@@ -407,22 +444,9 @@ with st.expander("Configuration & Setup", expanded=True):
         with c_fin_3:
             nuc_price = st.number_input("Nuclear PPA Price", min_value=0.0, value=112.0, step=1.0, key='nuc_price_input', help="Q4 2024 Market: ~$112. Based on recent Vistra data center deal. Firm clean power premium.")
         
-        st.markdown("#### Battery Contract Terms")
-        
-        # Sizing inputs moved back to Generation Portfolio Tab
-        # Display current sizing as info
-        st.info(f"**Battery Config:** {batt_capacity} MW / {batt_duration} Hr ({'Enabled' if enable_battery else 'Disabled'})")
 
-        st.markdown("**Contract Terms**")
-        c_bat_1, c_bat_2 = st.columns(2)
-        with c_bat_1:
-            batt_base_rate = st.number_input("Base Capacity Rate ($/MW-mo)", value=8000.0, step=500.0, help="~8/kW-mo. 2025 estimates range $6k-10k depending on duration and location.")
-            batt_guar_avail = st.number_input("Guaranteed Availability (%)", value=0.98, step=0.01, min_value=0.0, max_value=1.0, help="Owner guarantees this uptime.")
-        with c_bat_2:
-            batt_guar_rte = st.number_input("Guaranteed RTE (%)", value=0.85, step=0.01, min_value=0.0, max_value=1.0, help="Round Trip Efficiency guarantee.")
-            batt_vom = st.number_input("Variable O&M ($/MWh)", value=2.0, step=0.1, help="Wear and tear charge per MWh discharged.")
-            
-        simulate_outages = st.checkbox("Simulate Random Battery Outages (~2%)", value=False, help="Randomly drop availability to test performance penalties.")
+
+
 
         st.markdown("---")
         st.markdown("#### Market Assumptions")
@@ -694,154 +718,6 @@ else:
     col12.metric("REC Value", f"${fin_metrics['rec_cost']:,.0f}", help="Value of RECs")
 
     # Battery Financials Detailed Section
-    if enable_battery and batt_capacity > 0:
-        st.markdown("---")
-        st.subheader("🔋 Battery Settlement Detailed")
-        
-        b_col1, b_col2, b_col3, b_col4 = st.columns(4)
-        
-        b_col1.metric("Net Annual Invoice", f"${batt_financials['net_invoice']:,.0f}", 
-                      delta=f"-${batt_financials['rte_penalty']:,.0f} Penalty" if batt_financials['rte_penalty'] > 0 else None,
-                      help="Total Payment to Owner = Capacity + VOM - Penalties")
-        
-        b_col2.metric("Capacity Payment", f"${batt_financials['capacity_payment']:,.0f}",
-                      help=f"Base: ${batt_capacity * batt_base_rate * 12:,.0f} adjusted for Avail {batt_financials['actual_availability']:.1%}")
-                      
-        b_col3.metric("VOM Payment", f"${batt_financials['vom_payment']:,.0f}",
-                      help=f"Usage Fee based on {batt_financials['total_discharged']:,.0f} MWh discharged")
-                      
-        b_col4.metric("Realized RTE", f"{batt_financials['actual_rte']:.1%}",
-                      delta=f"{batt_financials['actual_rte'] - batt_guar_rte:.1%}",
-                      help=f"Target: {batt_guar_rte:.1%}")
-                      
-
-    
-    # --- Value Stack for Buyer (Tolling Model) ---
-    st.markdown("---")
-    with st.expander("💼 Buyer's P&L (Tolling Model)", expanded=True):
-        st.markdown("""
-        **Perspective**: The "Buyer" rents the battery for a fixed monthly toll and keeps the market revenue (Arbitrage + Ancillary).
-        """)
-        
-        c_buy_1, c_buy_2, c_buy_3 = st.columns(3)
-        
-        with c_buy_1:
-            toll_rate = st.number_input("Fixed Toll Rate ($/MW-mo)", value=7500.0, step=500.0, help="Monthly rent paid to owner.")
-            
-        with c_buy_2:
-            # Reordered: Selection BELOW the box
-            # 1. Get current mode from session state (default to Fixed)
-            m_key = "anc_mode_radio"
-            if m_key not in st.session_state:
-                st.session_state[m_key] = "Fixed ($/MW-mo)"
-            
-            curr_mode = st.session_state[m_key]
-            
-            # 2. Render the Input Box first
-            if curr_mode == "Fixed ($/MW-mo)":
-                ancillary_input = st.number_input("Est. Ancillary Revenue ($/MW-mo)", value=3000.0, step=500.0, help="Revenue from ECRS/Reg-Up etc.")
-                anc_mode = 'Fixed'
-            else:
-                ratio_pct = st.number_input("Ancillary Ratio (% of Energy Price)", value=15.0, step=1.0, help="AS Price ~ X% of Energy Price")
-                ancillary_input = ratio_pct / 100.0
-                anc_mode = 'Dynamic'
-                
-            # 3. Render Radio Selector at the bottom
-            st.radio("Ancillary Revenue Model", ["Fixed ($/MW-mo)", "Dynamic (% of Price)"], horizontal=True, key=m_key)
-        
-        with c_buy_3:
-            charge_source = st.selectbox("Charging Cost Source", ["Grid (LMP)", "Solar PPA", "Wind PPA"], help="Cost assumption for charging energy.")
-        
-        # Prepare Data for Calculation
-        cost_profile = None
-        if charge_source == "Solar PPA":
-            # Create a Series with the PPA price
-            cost_profile = pd.Series(solar_price, index=range(8760))
-        elif charge_source == "Wind PPA":
-            cost_profile = pd.Series(wind_price, index=range(8760))
-        
-        # Use calculate_buyer_pl
-        # Need to ensure inputs are float/series as expected
-        batt_pl_df = calculate_buyer_pl(
-            batt_ops_data, 
-            batt_capacity, 
-            toll_rate, 
-            ancillary_input, # Passed as either Rate or Ratio
-            ancillary_type=anc_mode,
-            charging_cost_profile=cost_profile
-        )
-        
-        # Summarize Results
-        total_profit = batt_pl_df['Net_Profit'].sum()
-        best_month = batt_pl_df.loc[batt_pl_df['Net_Profit'].idxmax()]
-        worst_month = batt_pl_df.loc[batt_pl_df['Net_Profit'].idxmin()]
-        
-        # Metrics
-        m_col1, m_col2, m_col3 = st.columns(3)
-        m_col1.metric("Total Annual Profit", f"${total_profit:,.0f}", delta_color="normal" if total_profit > 0 else "inverse")
-        m_col2.metric(f"Best Month ({best_month['Month']})", f"${best_month['Net_Profit']:,.0f}")
-        m_col3.metric(f"Worst Month ({worst_month['Month']})", f"${worst_month['Net_Profit']:,.0f}")
-        
-        st.markdown("#### Monthly Profit/Loss Breakdown")
-        
-        # Chart
-        import plotly.graph_objects as go
-        
-        fig_buyer = go.Figure()
-        
-        # Revenues (Positive)
-        fig_buyer.add_trace(go.Bar(
-            x=batt_pl_df['Month'], 
-            y=batt_pl_df['Revenue_Arb'],
-            name='Arbitrage Rev',
-            marker_color='#2ca02c'
-        ))
-        
-        fig_buyer.add_trace(go.Bar(
-            x=batt_pl_df['Month'], 
-            y=batt_pl_df['Ancillary_Rev'],
-            name='Ancillary Rev',
-            marker_color='#98df8a'
-        ))
-        
-        # Costs (Negative)
-        fig_buyer.add_trace(go.Bar(
-            x=batt_pl_df['Month'], 
-            y=-batt_pl_df['Toll_Cost'],
-            name='Fixed Toll',
-            marker_color='#d62728'
-        ))
-        
-        fig_buyer.add_trace(go.Bar(
-            x=batt_pl_df['Month'], 
-            y=-batt_pl_df['Cost_Charge'],
-            name='Charging Cost',
-            marker_color='#ff9896'
-        ))
-        
-        # Net Profit Line
-        # Net Profit Line
-        fig_buyer.add_trace(go.Scatter(
-            x=batt_pl_df['Month'],
-            y=batt_pl_df['Net_Profit'],
-            name='Net Profit',
-            line=dict(color='white', width=3, dash='dot'),
-            mode='lines+markers'
-        ))
-        
-        fig_buyer.update_layout(
-            barmode='relative', 
-            title='Monthly Buyer P&L (Waterfall)',
-            yaxis_title='Profit / Loss ($)',
-            template='plotly_dark',
-            paper_bgcolor='rgba(0,0,0,0)',
-            plot_bgcolor='rgba(0,0,0,0)',
-            hoverlabel=dict(bgcolor="#333333", font_size=12, font_family="Arial", font=dict(color="white"))
-        )
-        
-        st.plotly_chart(fig_buyer, use_container_width=True)
-        
-
 
     # Charts
     st.markdown("---")
@@ -1211,74 +1087,133 @@ else:
             
             st.plotly_chart(fig_set, use_container_width=True)
 
-    # --- Battery Waterfall (Moved to Bottom) ---
+    # --- Battery Analysis (In Dedicated Tab) ---
     if enable_battery and batt_capacity > 0:
-        st.markdown("---")
-        st.subheader("Battery Financial Settlement")
-        st.markdown("Breakdown of battery revenue components and penalties.")
-        
-        # Waterfall Chart
-        fig_batt = go.Figure(go.Waterfall(
-            name = "Settlement", orientation = "v",
-            measure = ["relative", "relative", "relative", "total"],
-            x = ["Capacity Payment", "VOM Payment", "RTE Penalty", "Net Invoice"],
-            textposition = "outside",
-            text = [f"${batt_financials['capacity_payment']/1000:.0f}k", 
-                    f"${batt_financials['vom_payment']/1000:.0f}k", 
-                    f"-${batt_financials['rte_penalty']/1000:.0f}k", 
-                    f"${batt_financials['net_invoice']/1000:.0f}k"],
-            y = [batt_financials['capacity_payment'], 
-                 batt_financials['vom_payment'], 
-                 -batt_financials['rte_penalty'], 
-                 0],
-            connector = {"line":{"color":"rgb(63, 63, 63)"}},
-        ))
+        with tab_batt:
+            st.markdown("---")
+            st.subheader("Financial Analysis Results")
+            
+            # 1. Owner's View (Waterfall)
+            st.markdown("##### 🏗️ Owner's Settlement View")
+            
+            b_col1, b_col2, b_col3, b_col4 = st.columns(4)
+            b_col1.metric("Net Annual Invoice", f"${batt_financials['net_invoice']:,.0f}", 
+                          delta=f"-${batt_financials['rte_penalty']:,.0f} Penalty" if batt_financials['rte_penalty'] > 0 else None)
+            b_col2.metric("Capacity Payment", f"${batt_financials['capacity_payment']:,.0f}")
+            b_col3.metric("VOM Payment", f"${batt_financials['vom_payment']:,.0f}")
+            b_col4.metric("Realized RTE", f"{batt_financials['actual_rte']:.1%}", delta=f"{batt_financials['actual_rte'] - batt_guar_rte:.1%}")
 
-        fig_batt.update_layout(
-                title = "Battery Settlement Waterfall",
-                showlegend = False,
-                waterfallgap = 0.3,
-                template=chart_template,
-                paper_bgcolor=chart_bg,
-                plot_bgcolor=chart_bg,
-                font=dict(color=chart_font_color),
-                height=500, # Consistent height
+            # Waterfall Chart
+            fig_batt = go.Figure(go.Waterfall(
+                name = "Settlement", orientation = "v",
+                measure = ["relative", "relative", "relative", "total"],
+                x = ["Capacity Payment", "VOM Payment", "RTE Penalty", "Net Invoice"],
+                textposition = "outside",
+                text = [f"${batt_financials['capacity_payment']/1000:.0f}k", 
+                        f"${batt_financials['vom_payment']/1000:.0f}k", 
+                        f"-${batt_financials['rte_penalty']/1000:.0f}k", 
+                        f"${batt_financials['net_invoice']/1000:.0f}k"],
+                y = [batt_financials['capacity_payment'], 
+                     batt_financials['vom_payment'], 
+                     -batt_financials['rte_penalty'], 
+                     0],
+                connector = {"line":{"color":"rgb(63, 63, 63)"}},
+            ))
+
+            fig_batt.update_layout(
+                    title = "Battery Settlement Waterfall",
+                    showlegend = False,
+                    waterfallgap = 0.3,
+                    template=chart_template,
+                    paper_bgcolor=chart_bg,
+                    plot_bgcolor=chart_bg,
+                    font=dict(color=chart_font_color),
+                    height=500,
+                    hoverlabel=dict(bgcolor="#333333", font_size=12, font_family="Arial", font=dict(color="white"))
+            )
+
+            st.plotly_chart(fig_batt, use_container_width=True)
+            
+            # 2. Buyer's View (Tolling Model)
+            st.markdown("---")
+            st.markdown("##### 💼 Buyer's P&L (Tolling Model)")
+            st.markdown("Perspective: Renting the battery to capture market value.")
+            
+            c_buy_1, c_buy_2, c_buy_3 = st.columns(3)
+            
+            with c_buy_1:
+                toll_rate = st.number_input("Fixed Toll Rate ($/MW-mo)", value=7500.0, step=500.0, help="Monthly rent paid to owner.")
+                
+            with c_buy_2:
+                # Reordered selection
+                m_key = "anc_mode_radio"
+                if m_key not in st.session_state: st.session_state[m_key] = "Fixed ($/MW-mo)"
+                curr_mode = st.session_state[m_key]
+                
+                if curr_mode == "Fixed ($/MW-mo)":
+                    ancillary_input = st.number_input("Est. Ancillary Revenue ($/MW-mo)", value=3000.0, step=500.0, help="Revenue from ECRS/Reg-Up etc.")
+                    anc_mode = 'Fixed'
+                else:
+                    ratio_pct = st.number_input("Ancillary Ratio (% of Energy Price)", value=15.0, step=1.0, help="AS Price ~ X% of Energy Price")
+                    ancillary_input = ratio_pct / 100.0
+                    anc_mode = 'Dynamic'
+                    
+                st.radio("Ancillary Revenue Model", ["Fixed ($/MW-mo)", "Dynamic (% of Price)"], horizontal=True, key=m_key)
+            
+            with c_buy_3:
+                charge_source = st.selectbox("Charging Cost Source", ["Grid (LMP)", "Solar PPA", "Wind PPA"], help="Cost assumption for charging energy.")
+            
+            # Prepare Data for Calculation
+            cost_profile = None
+            if charge_source == "Solar PPA":
+                cost_profile = pd.Series(solar_price, index=range(8760))
+            elif charge_source == "Wind PPA":
+                cost_profile = pd.Series(wind_price, index=range(8760))
+            
+            # Calculate Buyer PL
+            batt_pl_df = calculate_buyer_pl(
+                batt_ops_data, 
+                batt_capacity, 
+                toll_rate, 
+                ancillary_input, 
+                ancillary_type=anc_mode,
+                charging_cost_profile=cost_profile
+            )
+            
+            # Summarize Results
+            total_profit = batt_pl_df['Net_Profit'].sum()
+            best_month = batt_pl_df.loc[batt_pl_df['Net_Profit'].idxmax()]
+            worst_month = batt_pl_df.loc[batt_pl_df['Net_Profit'].idxmin()]
+            
+            # Metrics
+            m_col1, m_col2, m_col3 = st.columns(3)
+            m_col1.metric("Total Annual Profit", f"${total_profit:,.0f}", delta_color="normal" if total_profit > 0 else "inverse")
+            m_col2.metric(f"Best Month ({best_month['Month']})", f"${best_month['Net_Profit']:,.0f}")
+            m_col3.metric(f"Worst Month ({worst_month['Month']})", f"${worst_month['Net_Profit']:,.0f}")
+            
+            # Chart
+            fig_buyer = go.Figure()
+            # Revenues
+            fig_buyer.add_trace(go.Bar(x=batt_pl_df['Month'], y=batt_pl_df['Revenue_Arb'], name='Arbitrage Rev', marker_color='#2ca02c'))
+            fig_buyer.add_trace(go.Bar(x=batt_pl_df['Month'], y=batt_pl_df['Ancillary_Rev'], name='Ancillary Rev', marker_color='#98df8a'))
+            # Costs
+            fig_buyer.add_trace(go.Bar(x=batt_pl_df['Month'], y=-batt_pl_df['Toll_Cost'], name='Fixed Toll', marker_color='#d62728'))
+            fig_buyer.add_trace(go.Bar(x=batt_pl_df['Month'], y=-batt_pl_df['Cost_Charge'], name='Charging Cost', marker_color='#ff9896'))
+            # Net Profit
+            fig_buyer.add_trace(go.Scatter(x=batt_pl_df['Month'], y=batt_pl_df['Net_Profit'], mode='lines+markers', name='Net Profit', line=dict(color='white', width=2), marker=dict(size=8, color='white')))
+            
+            fig_buyer.update_layout(
+                barmode='relative', 
+                title='Monthly Buyer P&L (Waterfall)',
+                yaxis_title='Profit / Loss ($)',
+                template='plotly_dark',
+                paper_bgcolor='rgba(0,0,0,0)',
+                plot_bgcolor='rgba(0,0,0,0)',
                 hoverlabel=dict(bgcolor="#333333", font_size=12, font_family="Arial", font=dict(color="white"))
-        )
+            )
+            
+            st.plotly_chart(fig_buyer, use_container_width=True)
 
-        st.plotly_chart(fig_batt, use_container_width=True)
-
-        # --- Pro Forma Table ---
-        st.markdown("#### 📊 Battery Pro Forma")
-        
-        # Calculate Market Value items
-        # Charging Cost = Sum(Charge_MW * Price)
-        total_charge_cost = (batt_charge * market_price_profile_series).sum()
-        
-        # Revenue (Discharge Value) = Sum(Discharge_MW * Price)
-        total_discharge_value = (batt_discharge * market_price_profile_series).sum()
-        
-        # Net Benefit
-        total_expense = batt_financials['capacity_payment'] + batt_financials['vom_payment'] + total_charge_cost - batt_financials['rte_penalty']
-        net_benefit = total_discharge_value - total_expense
-        
-        pro_forma_data = [
-            {"Category": "Revenue", "Item": "Energy Arbitrage (Market Value)", "Amount": total_discharge_value, "Notes": "Value of energy sent to grid"},
-            {"Category": "Expense", "Item": "Capacity Payment (Lease)", "Amount": -batt_financials['capacity_payment'], "Notes": "Fixed cost for capacity"},
-            {"Category": "Expense", "Item": "Charging Cost", "Amount": -total_charge_cost, "Notes": "Cost of energy from grid/gen"},
-            {"Category": "Expense", "Item": "VOM Charges", "Amount": -batt_financials['vom_payment'], "Notes": "Variable usage fee"},
-            {"Category": "Contra-Expense", "Item": "Performance Penalties", "Amount": batt_financials['rte_penalty'], "Notes": "Credit for underperformance"},
-            {"Category": "Net", "Item": "NET BENEFIT (Profit/Loss)", "Amount": net_benefit, "Notes": "Total Economic Value"}
-        ]
-        
-        pf_df = pd.DataFrame(pro_forma_data)
-        
-        # Formatting
-        st.dataframe(
-            pf_df.style.format({"Amount": "${:,.0f}"}), 
-            hide_index=True, 
-            use_container_width=True
-        )
 
     # --- Data Export ---
     st.subheader("Export Results")
