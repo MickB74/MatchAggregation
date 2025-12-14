@@ -1295,50 +1295,6 @@ else:
             st.subheader("Financial Analysis Results")
 
 
-            # 2. Owner's View (Waterfall)
-            st.markdown("---")
-            st.markdown("##### 🏗️ Owner's Settlement View")
-            
-            b_col1, b_col2, b_col3, b_col4 = st.columns(4)
-            b_col1.metric("Net Annual Invoice", f"${batt_financials['net_invoice']:,.0f}", 
-                          delta=f"-${batt_financials['rte_penalty']:,.0f} Penalty" if batt_financials['rte_penalty'] > 0 else None)
-            b_col2.metric("Capacity Payment", f"${batt_financials['capacity_payment']:,.0f}")
-            b_col3.metric("VOM Payment", f"${batt_financials['vom_payment']:,.0f}")
-            b_col4.metric("Realized RTE", f"{batt_financials['actual_rte']:.1%}", delta=f"{batt_financials['actual_rte'] - (cvta_rte/100.0):.1%}")
-
-            # Waterfall Chart
-            fig_batt = go.Figure(go.Waterfall(
-                name = "Settlement", orientation = "v",
-                measure = ["relative", "relative", "relative", "total"],
-                x = ["Capacity Payment", "VOM Payment", "RTE Penalty", "Net Invoice"],
-                textposition = "outside",
-                text = [f"${batt_financials['capacity_payment']/1000:.0f}k", 
-                        f"${batt_financials['vom_payment']/1000:.0f}k", 
-                        f"-${batt_financials['rte_penalty']/1000:.0f}k", 
-                        f"${batt_financials['net_invoice']/1000:.0f}k"],
-                y = [batt_financials['capacity_payment'], 
-                     batt_financials['vom_payment'], 
-                     -batt_financials['rte_penalty'], 
-                     0],
-                connector = {"line":{"color":"rgb(63, 63, 63)"}},
-            ))
-
-            fig_batt.update_layout(
-                    title = "Battery Settlement Waterfall",
-                    showlegend = False,
-                    waterfallgap = 0.3,
-                    template=chart_template,
-                    paper_bgcolor=chart_bg,
-                    plot_bgcolor=chart_bg,
-                    font=dict(color=chart_font_color),
-                    height=500,
-                    hoverlabel=dict(bgcolor="#333333", font_size=12, font_family="Arial", font=dict(color="white"))
-            )
-
-            st.plotly_chart(fig_batt, use_container_width=True)
-            
-
-
 
     # --- Data Export ---
 
