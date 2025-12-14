@@ -1139,6 +1139,68 @@ else:
     else:
         st.info("Add generation capacity to see PPA vs Capture Value comparison")
 
+    # --- Settlement by Technology ---
+    if 'tech_details' in financials:
+        st.markdown("---")
+        st.subheader("Settlement by Technology")
+        st.markdown("Detailed breakdown of costs and market value by generation source.")
+        
+        # Convert to DataFrame
+        settlement_data = []
+        for tech, details in financials['tech_details'].items():
+            if details['Matched_MWh'] > 0:
+                settlement_data.append({
+                    'Technology': tech,
+                    'Generation (MWh)': details['Matched_MWh'],
+                    'PPA Price ($/MWh)': details['PPA_Price'],
+                    'PPA Cost ($)': details['Total_Cost'],
+                    'Market Value ($)': details['Market_Value'],
+                    'Net Settlement ($)': details['Settlement'],
+                    'Value ($/MWh)': details['Market_Value'] / details['Matched_MWh'] if details['Matched_MWh'] > 0 else 0
+                })
+        
+        if settlement_data:
+            df_settlement = pd.DataFrame(settlement_data)
+            
+            # Format columns
+            st.dataframe(
+                df_settlement.style.format({
+                    'Generation (MWh)': '{:,.0f}',
+                    'PPA Price ($/MWh)': '${:,.2f}',
+                    'PPA Cost ($)': '${:,.0f}',
+                    'Market Value ($)': '${:,.0f}',
+                    'Net Settlement ($)': '${:,.0f}',
+                    'Value ($/MWh)': '${:,.2f}'
+                }),
+                use_container_width=True
+            )
+            
+            # Simple Bar Chart for Settlement
+            fig_set = go.Figure()
+            
+            colors = ['#2ca02c' if x >= 0 else '#d62728' for x in df_settlement['Net Settlement ($)']]
+            
+            fig_set.add_trace(go.Bar(
+                x=df_settlement['Technology'],
+                y=df_settlement['Net Settlement ($)'],
+                marker_color=colors,
+                text=df_settlement['Net Settlement ($)'],
+                texttemplate='$%{text:,.0f}',
+                textposition='auto'
+            ))
+            
+            fig_set.update_layout(
+                title="Net Financial Settlement by Tech (Value - Cost)",
+                yaxis_title="Net Value ($)",
+                template=chart_template,
+                height=400,
+                 paper_bgcolor=chart_bg,
+                plot_bgcolor=chart_bg,
+                font=dict(color=chart_font_color)
+            )
+            
+            st.plotly_chart(fig_set, use_container_width=True)
+
     # --- Battery Waterfall (Moved to Bottom) ---
     if enable_battery and batt_capacity > 0:
         st.markdown("---")

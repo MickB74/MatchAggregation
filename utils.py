@@ -851,13 +851,28 @@ def calculate_financials(matched_profile, deficit_profile, tech_profiles, tech_p
         attribution_factors = attribution_factors.fillna(0.0) # 0/0 -> 0
     
     total_ppa_cost = 0.0
+    tech_details = {}
     
     for tech, profile in tech_profiles.items():
         price = tech_prices.get(tech, 0.0)
-        # Matched MWh from this tech
+        # Matched MWh from this tech (Attributed)
         matched_mwh_tech = profile * attribution_factors
-        tech_cost = matched_mwh_tech.sum() * price
+        
+        # Calculate Metrics
+        total_gen_mwh = matched_mwh_tech.sum()
+        tech_cost = total_gen_mwh * price
+        tech_market_value = (matched_mwh_tech * market_price_profile).sum()
+        tech_settlement = tech_market_value - tech_cost
+        
         total_ppa_cost += tech_cost
+        
+        tech_details[tech] = {
+            'Matched_MWh': total_gen_mwh,
+            'PPA_Price': price,
+            'Total_Cost': tech_cost,
+            'Market_Value': tech_market_value,
+            'Settlement': tech_settlement
+        }
         
     # 2. Market Value of Matched Energy (HOURLY)
     # Value = Sum(Matched[h] * MarketPrice[h])
@@ -897,7 +912,10 @@ def calculate_financials(matched_profile, deficit_profile, tech_profiles, tech_p
         'net_cost': net_cost,
         'avg_cost_per_mwh': avg_cost_per_mwh,
         'weighted_ppa_price': weighted_ppa_price,
-        'weighted_market_price': weighted_market_price
+        'avg_cost_per_mwh': avg_cost_per_mwh,
+        'weighted_ppa_price': weighted_ppa_price,
+        'weighted_market_price': weighted_market_price,
+        'tech_details': tech_details
     }
 
 
