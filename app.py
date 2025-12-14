@@ -554,7 +554,7 @@ with st.expander("Configuration & Setup", expanded=True):
             
             st.markdown("---")
             st.markdown("##### 2. Contract Terms")
-            cvta_fixed_price = st.number_input("Fixed Capacity Price ($/kW-mo)", value=8000.0, step=250.0, help="Monthly fixed payment from Corporate to Developer per kW.", key='cvta_fixed')
+            cvta_fixed_price = st.number_input("Fixed Capacity Price ($/kW-mo)", value=12000.0, step=250.0, help="Monthly fixed payment from Corporate to Developer per kW.", key='cvta_fixed')
             
             st.markdown("---")
             st.markdown("##### 3. Market Data")
