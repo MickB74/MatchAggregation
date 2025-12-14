@@ -431,7 +431,10 @@ with st.expander("Configuration & Setup", expanded=True):
         
         # UI Check for data availability
         import os
-        if os.path.exists(f'ercot_rtm_{market_year}.parquet'):
+        current_dir = os.path.dirname(__file__)
+        file_path = os.path.join(current_dir, f'ercot_rtm_{market_year}.parquet')
+        
+        if os.path.exists(file_path):
              c_mkt_1.success(f"Loaded {market_year} Data ✅")
         else:
              c_mkt_1.warning(f"Missing Data (Using Synthetic)")

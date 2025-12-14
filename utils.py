@@ -721,7 +721,9 @@ def get_market_price_profile(avg_price, return_base_avg=False, year=2024):
     base_average = avg_price  # Default for synthetic
     
     # 1. Try Loading Real Data
-    parquet_file = f'ercot_rtm_{year}.parquet'
+    current_dir = os.path.dirname(__file__)
+    parquet_file = os.path.join(current_dir, f'ercot_rtm_{year}.parquet')
+    
     if os.path.exists(parquet_file):
         try:
             # Read Parquet
