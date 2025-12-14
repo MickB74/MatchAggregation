@@ -469,6 +469,80 @@ def calculate_battery_financials(contract_params, ops_data):
         'total_charged': total_charged
     }
 
+def calculate_buyer_pl(ops_data, capacity_mw, toll_rate_mw_mo, ancillary_rev_mw_mo, charging_cost_profile=None):
+    """
+    Calculates the Buyer's P&L (Tolling Model).
+    
+    Buyer pays fixed Toll + Charging Costs.
+    Buyer earns Arbitrage Revenue + Ancillary Revenue.
+    
+    Args:
+        ops_data (dict): Battery operations data (discharge, charge, price).
+        capacity_mw (float): The battery's power capacity in MW.
+        toll_rate_mw_mo (float): Fixed monthly rental per MW.
+        ancillary_rev_mw_mo (float): Estimated Ancillary Service revenue per MW-month.
+        charging_cost_profile (pd.Series, optional): Hourly cost ($/MWh) to charge. 
+                                                     If None, uses market price (Grid charging).
+    
+    Returns:
+        pd.DataFrame: Monthly P&L breakdown.
+    """
+    discharge_mwh = ops_data['discharge_mwh_profile']
+    charge_mwh = ops_data['charge_mwh_profile']
+    market_price = ops_data['market_price_profile']
+    
+    # 1. Calculate Arbitrage Revenue (Hourly)
+    hourly_revenue = discharge_mwh * market_price
+    
+    # 2. Calculate Charging Cost (Hourly)
+    if charging_cost_profile is None:
+        # Default to Grid Charging at Market Price
+         hourly_cost = charge_mwh * market_price
+    else:
+        # Constrained Charging (e.g. at Solar PPA Price)
+        hourly_cost = charge_mwh * charging_cost_profile
+        
+    # 3. Create DataFrame
+    # Create a proper DatetimeIndex for 2024 to group by month
+    dt_index = pd.date_range(start='2024-01-01', periods=len(discharge_mwh), freq='h')
+    
+    df = pd.DataFrame({
+        'Revenue_Arb': hourly_revenue.values,
+        'Cost_Charge': hourly_cost.values,
+        'Ancillary_Rev': 0.0, # Placeholder
+        'Toll_Cost': 0.0      # Placeholder
+    }, index=dt_index)
+    
+    # Group by Month
+    monthly_pl = df.resample('ME').sum() # 'ME' is month end in newer pandas, 'M' in older. using 'M' for safety or 'ME' if pandas > 2.0?
+    # Let's use 'M' to be safe with older pandas versions, or checks. Streamlit cloud usually recent.
+    # 'M' is deprecated in pandas 2.2+. Let's use 'ME'.
+    monthly_pl = df.resample('ME').sum()
+    
+    # Add Monthly Fixed Items
+    # Toll = Rate * Capacity
+    monthly_toll = toll_rate_mw_mo * capacity_mw
+    
+    # Ancillary = Rate * Capacity
+    monthly_ancillary = ancillary_rev_mw_mo * capacity_mw
+    
+    monthly_pl['Toll_Cost'] = monthly_toll
+    monthly_pl['Ancillary_Rev'] = monthly_ancillary
+    
+    # Net Profit
+    # Revenue + Ancillary - ChargeCost - Toll
+    monthly_pl['Net_Profit'] = (
+        monthly_pl['Revenue_Arb'] + 
+        monthly_pl['Ancillary_Rev'] - 
+        monthly_pl['Cost_Charge'] - 
+        monthly_pl['Toll_Cost']
+    )
+    
+    # Add Month names for display
+    monthly_pl['Month'] = monthly_pl.index.strftime('%b')
+    
+    return monthly_pl
+
 def recommend_portfolio(load_profile, target_cfe=0.95, excluded_techs=None, existing_capacities=None):
     """
     Heuristic recommendation for initial portfolio based on load.

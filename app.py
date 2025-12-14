@@ -18,7 +18,8 @@ from utils import (
     calculate_financials, 
     process_uploaded_profile,
     generate_dummy_price_profile,
-    calculate_battery_financials
+    calculate_battery_financials,
+    calculate_buyer_pl
 )
 import project_matcher
 
@@ -688,6 +689,116 @@ else:
                       
 
     
+    # --- Value Stack for Buyer (Tolling Model) ---
+    st.markdown("---")
+    with st.expander("💼 Buyer's P&L (Tolling Model)", expanded=True):
+        st.markdown("""
+        **Perspective**: The "Buyer" rents the battery for a fixed monthly toll and keeps the market revenue (Arbitrage + Ancillary).
+        """)
+        
+        c_buy_1, c_buy_2, c_buy_3 = st.columns(3)
+        
+        with c_buy_1:
+            toll_rate = st.number_input("Fixed Toll Rate ($/MW-mo)", value=10000.0, step=1000.0, help="Monthly rent paid to owner.")
+            
+        with c_buy_2:
+            ancillary_est = st.number_input("Est. Ancillary Revenue ($/MW-mo)", value=3000.0, step=500.0, help="Revenue from ECRS/Reg-Up etc.")
+        
+        with c_buy_3:
+            charge_source = st.selectbox("Charging Cost Source", ["Grid (LMP)", "Solar PPA", "Wind PPA"], help="Cost assumption for charging energy.")
+        
+        # Prepare Data for Calculation
+        cost_profile = None
+        if charge_source == "Solar PPA":
+            # Create a Series with the PPA price
+            cost_profile = pd.Series(solar_price, index=range(8760))
+        elif charge_source == "Wind PPA":
+            cost_profile = pd.Series(wind_price, index=range(8760))
+        
+        # Use calculate_buyer_pl
+        # Need to ensure inputs are float/series as expected
+        buyer_pl_df = calculate_buyer_pl(
+            batt_ops_data, 
+            batt_capacity, 
+            toll_rate, 
+            ancillary_est, 
+            cost_profile
+        )
+        
+        # Summarize Results
+        total_profit = buyer_pl_df['Net_Profit'].sum()
+        best_month = buyer_pl_df.loc[buyer_pl_df['Net_Profit'].idxmax()]
+        worst_month = buyer_pl_df.loc[buyer_pl_df['Net_Profit'].idxmin()]
+        
+        # Metrics
+        m_col1, m_col2, m_col3 = st.columns(3)
+        m_col1.metric("Total Annual Profit", f"${total_profit:,.0f}", delta_color="normal" if total_profit > 0 else "inverse")
+        m_col2.metric(f"Best Month ({best_month['Month']})", f"${best_month['Net_Profit']:,.0f}")
+        m_col3.metric(f"Worst Month ({worst_month['Month']})", f"${worst_month['Net_Profit']:,.0f}")
+        
+        st.markdown("#### Monthly Profit/Loss Breakdown")
+        
+        # Chart
+        import plotly.graph_objects as go
+        
+        fig_buyer = go.Figure()
+        
+        # Revenues (Positive)
+        fig_buyer.add_trace(go.Bar(
+            x=buyer_pl_df['Month'], 
+            y=buyer_pl_df['Revenue_Arb'],
+            name='Arbitrage Rev',
+            marker_color='#2ca02c'
+        ))
+        
+        fig_buyer.add_trace(go.Bar(
+            x=buyer_pl_df['Month'], 
+            y=buyer_pl_df['Ancillary_Rev'],
+            name='Ancillary Rev',
+            marker_color='#98df8a'
+        ))
+        
+        # Costs (Negative)
+        fig_buyer.add_trace(go.Bar(
+            x=buyer_pl_df['Month'], 
+            y=-buyer_pl_df['Toll_Cost'],
+            name='Fixed Toll',
+            marker_color='#d62728'
+        ))
+        
+        fig_buyer.add_trace(go.Bar(
+            x=buyer_pl_df['Month'], 
+            y=-buyer_pl_df['Cost_Charge'],
+            name='Charging Cost',
+            marker_color='#ff9896'
+        ))
+        
+        # Net Profit Line
+        fig_buyer.add_trace(go.Scatter(
+            x=buyer_pl_df['Month'],
+            y=buyer_pl_df['Net_Profit'],
+            name='Net Profit',
+            line=dict(color='white', width=3, dash='dot'),
+            mode='lines+markers'
+        ))
+        
+        fig_buyer.update_layout(
+            barmode='relative', 
+            title='Monthly Buyer P&L (Waterfall)',
+            yaxis_title='Profit / Loss ($)',
+            template='plotly_dark',
+            paper_bgcolor='rgba(0,0,0,0)',
+            plot_bgcolor='rgba(0,0,0,0)'
+        )
+        
+        st.plotly_chart(fig_buyer, use_container_width=True)
+        
+        st.info(
+            "💡 **Why take this risk?** "
+            "Buyers (trading houses) assume this risk to capture 'Volatile' months (e.g., August Heatwaves) where arbitrage revenue can vastly exceed the fixed toll. "
+            "In 'Boring' months, they may lose money (Net Loss), but the annual potential offsets these losses."
+        )
+
     # Charts
     st.markdown("---")
     st.subheader("Hourly Energy Balance")
