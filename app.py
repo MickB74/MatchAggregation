@@ -724,15 +724,25 @@ else:
             toll_rate = st.number_input("Fixed Toll Rate ($/MW-mo)", value=7500.0, step=500.0, help="Monthly rent paid to owner.")
             
         with c_buy_2:
-            ancillary_type = st.radio("Ancillary Revenue Model", ["Fixed ($/MW-mo)", "Dynamic (% of Price)"], horizontal=True)
+            # Reordered: Selection BELOW the box
+            # 1. Get current mode from session state (default to Fixed)
+            m_key = "anc_mode_radio"
+            if m_key not in st.session_state:
+                st.session_state[m_key] = "Fixed ($/MW-mo)"
             
-            if ancillary_type == "Fixed ($/MW-mo)":
+            curr_mode = st.session_state[m_key]
+            
+            # 2. Render the Input Box first
+            if curr_mode == "Fixed ($/MW-mo)":
                 ancillary_input = st.number_input("Est. Ancillary Revenue ($/MW-mo)", value=3000.0, step=500.0, help="Revenue from ECRS/Reg-Up etc.")
                 anc_mode = 'Fixed'
             else:
                 ratio_pct = st.number_input("Ancillary Ratio (% of Energy Price)", value=15.0, step=1.0, help="AS Price ~ X% of Energy Price")
                 ancillary_input = ratio_pct / 100.0
                 anc_mode = 'Dynamic'
+                
+            # 3. Render Radio Selector at the bottom
+            st.radio("Ancillary Revenue Model", ["Fixed ($/MW-mo)", "Dynamic (% of Price)"], horizontal=True, key=m_key)
         
         with c_buy_3:
             charge_source = st.selectbox("Charging Cost Source", ["Grid (LMP)", "Solar PPA", "Wind PPA"], help="Cost assumption for charging energy.")
