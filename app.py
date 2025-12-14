@@ -558,6 +558,9 @@ with st.expander("Configuration & Setup", expanded=True):
             
             st.markdown("---")
             st.markdown("##### 3. Market Data")
+            # Year Selection for Default Data
+            cvta_year = st.selectbox("Select Market Year (Default Data)", [2024, 2023], key='cvta_year_select')
+            
             uploaded_lmp = st.file_uploader("Upload Hourly LMP CSV (Columns: Datetime, Price)", type=['csv'])
             
             # Data Loading
@@ -579,15 +582,14 @@ with st.expander("Configuration & Setup", expanded=True):
                     st.error(f"Error parsing file: {e}")
             
             if df_prices is None:
-                # Default to Auto-Load ERCOT 2024 Data
-                # Use existing util to get 2024 profile
-                # We reuse the logic from get_market_price_profile which handles parquet loading
+                # Default to Auto-Load ERCOT Data (Year Based)
                 try:
-                    price_series = get_market_price_profile(30.0, year=2024)
-                    dates = pd.date_range(start='2024-01-01', periods=len(price_series), freq='h')
+                    price_series = get_market_price_profile(30.0, year=cvta_year)
+                    # Create date range for the specific year
+                    dates = pd.date_range(start=f'{cvta_year}-01-01', periods=len(price_series), freq='h')
                     df_prices = pd.DataFrame({'Price': price_series.values}, index=dates)
                     
-                    st.success("✅ Using Default Data: **ERCOT HB_NORTH 2024**")
+                    st.success(f"✅ Using Default Data: **ERCOT HB_NORTH {cvta_year}**")
                     with st.expander("View Data Preview"):
                          st.dataframe(df_prices.head(24), use_container_width=True)
                          
