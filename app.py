@@ -128,7 +128,7 @@ with st.sidebar:
 
 # --- Configuration Section (Top) ---
 with st.expander("Configuration & Setup", expanded=True):
-    tab_load, tab_gen, tab_batt, tab_fin = st.tabs(["1. Load Setup", "2. Generation Portfolio", "3. Battery Storage", "4. Financials"])
+    tab_load, tab_gen, tab_batt_fin, tab_fin = st.tabs(["1. Load Setup", "2. Generation Portfolio", "3. Battery Financials", "4. Financials"])
     
     # --- Tab 1: Load Setup ---
     with tab_load:
@@ -281,6 +281,13 @@ with st.expander("Configuration & Setup", expanded=True):
             
             st.markdown("---")
 
+            # Battery Sizing (Physical)
+            # define enable_battery first so we can use it
+            enable_battery = st.checkbox("Enable Battery Storage", value=True)
+            batt_capacity = st.number_input("Battery Power (MW)", min_value=0.0, step=1.0, key='batt_input', disabled=not enable_battery)
+            batt_duration = st.number_input("Battery Duration (Hours)", min_value=0.5, value=2.0, step=0.5, key='batt_duration_input', disabled=not enable_battery)
+
+
         with col_gen_2:
             st.markdown("#### Portfolio Recommendation")
             
@@ -388,17 +395,18 @@ with st.expander("Configuration & Setup", expanded=True):
         uploaded_wind_file = c_prof_2.file_uploader("Upload Wind Profile (CSV)", type=['csv', 'txt'])
 
 
-    # --- Tab 3: Battery Storage ---
-    with tab_batt:
-        st.markdown("#### Battery Storage Configuration")
+    # --- Tab 3: Battery Financials ---
+    with tab_batt_fin:
+        st.markdown("#### Battery Financial Configuration")
         c_bat_conf_1, c_bat_conf_2 = st.columns(2)
         
         with c_bat_conf_1:
-             # Physical Sizing
-             st.markdown("**Physical Sizing**")
-             enable_battery = st.checkbox("Enable Battery Storage", value=True)
-             batt_capacity = st.number_input("Battery Power (MW)", min_value=0.0, step=1.0, key='batt_input', disabled=not enable_battery)
-             batt_duration = st.number_input("Battery Duration (Hours)", min_value=0.5, value=2.0, step=0.5, key='batt_duration_input', disabled=not enable_battery)
+             # Physical Sizing (READ ONLY HERE)
+             st.markdown("**Physical Configuration** (Edit in Tab 2)")
+             if enable_battery:
+                 st.info(f"**active:** {batt_capacity} MW / {batt_duration} Hrs ({batt_capacity * batt_duration} MWh)")
+             else:
+                 st.warning("Battery Storage is DISABLED in Generation Tab.")
 
         with c_bat_conf_2:
              # Contract Terms
@@ -1089,7 +1097,7 @@ else:
 
     # --- Battery Analysis (In Dedicated Tab) ---
     if enable_battery and batt_capacity > 0:
-        with tab_batt:
+        with tab_batt_fin:
             st.markdown("---")
             st.subheader("Financial Analysis Results")
             
