@@ -584,6 +584,10 @@ with st.expander("Configuration & Setup", expanded=True):
                          
                 except Exception as e:
                     st.error(f"Failed to load default data: {e}")
+            
+            # STORE DATA FOR GLOBAL USE
+            if df_prices is not None:
+                st.session_state['shared_market_prices'] = df_prices
         
         with col_cvta_charts:
             if df_prices is not None:
@@ -858,10 +862,14 @@ else:
             
         # CVTA Logic Alignment
         # 1. Run Proxy Dispatch (Financial)
-        # Note: We need a DataFrame with Datetime index for calculate_proxy_battery_revenue
-        # We can construct one from the market_price_profile_series
-        dates = pd.date_range(start=f'{market_year}-01-01', periods=8760, freq='h')
-        df_proxy_input = pd.DataFrame({'Price': market_price_profile_series.values}, index=dates)
+        
+        # Use SHARED Market Data from CVTA Tab if available to ensure match
+        if 'shared_market_prices' in st.session_state:
+            df_proxy_input = st.session_state['shared_market_prices']
+        else:
+            # Fallback (Should typically not happen if app renders top-down)
+            dates = pd.date_range(start=f'{market_year}-01-01', periods=8760, freq='h')
+            df_proxy_input = pd.DataFrame({'Price': market_price_profile_series.values}, index=dates)
         
         cvta_daily_results = calculate_proxy_battery_revenue(df_proxy_input, batt_capacity, batt_duration, cvta_rte, cvta_vom)
         
