@@ -469,7 +469,7 @@ def calculate_battery_financials(contract_params, ops_data):
         'total_charged': total_charged
     }
 
-def calculate_buyer_pl(ops_data, capacity_mw, toll_rate_mw_mo, ancillary_rev_mw_mo, charging_cost_profile=None):
+def calculate_buyer_pl(ops_data, capacity_mw, toll_rate_mw_mo, ancillary_input, ancillary_type='Fixed', charging_cost_profile=None):
     """
     Calculates the Buyer's P&L (Tolling Model).
     
@@ -480,16 +480,19 @@ def calculate_buyer_pl(ops_data, capacity_mw, toll_rate_mw_mo, ancillary_rev_mw_
         ops_data (dict): Battery operations data (discharge, charge, price).
         capacity_mw (float): The battery's power capacity in MW.
         toll_rate_mw_mo (float): Fixed monthly rental per MW.
-        ancillary_rev_mw_mo (float): Estimated Ancillary Service revenue per MW-month.
+        ancillary_input (float): 
+            - If type='Fixed': Revenue per MW-month ($).
+            - If type='Dynamic': Ratio of Market Price (e.g. 0.15 for 15%).
+        ancillary_type (str): 'Fixed' or 'Dynamic'.
         charging_cost_profile (pd.Series, optional): Hourly cost ($/MWh) to charge. 
                                                      If None, uses market price (Grid charging).
     
     Returns:
         pd.DataFrame: Monthly P&L breakdown.
     """
-    discharge_mwh = ops_data['discharge_mwh_profile']
-    charge_mwh = ops_data['charge_mwh_profile']
-    market_price = ops_data['market_price_profile']
+    discharge_mwh = ops_data['discharge_mwh_profile'] # Revenue source
+    charge_mwh = ops_data['charge_mwh_profile']       # Cost source
+    market_price = ops_data['market_price_profile']   # Sale price
     
     # 1. Calculate Arbitrage Revenue (Hourly)
     hourly_revenue = discharge_mwh * market_price
@@ -502,32 +505,42 @@ def calculate_buyer_pl(ops_data, capacity_mw, toll_rate_mw_mo, ancillary_rev_mw_
         # Constrained Charging (e.g. at Solar PPA Price)
         hourly_cost = charge_mwh * charging_cost_profile
         
-    # 3. Create DataFrame
+    # 3. Calculate Ancillary Revenue (Hourly or Monthly)
+    # If dynamic, we assume Ancillary Value roughly tracks Energy Price scarcity
+    hourly_ancillary = pd.Series(0.0, index=market_price.index)
+    monthly_ancillary_fixed_rate = 0.0
+    
+    if ancillary_type == 'Dynamic':
+        # ancillary_input is a Ratio (e.g. 0.15)
+        # Revenue = Ratio * MarketPrice * Capacity (MW)
+        # Concept: AS Price ($/MW-h) ~= Ratio * Energy Price ($/MWh)
+        hourly_ancillary = market_price * ancillary_input * capacity_mw
+    else:
+        # Fixed Monthly Rate
+        monthly_ancillary_fixed_rate = ancillary_input * capacity_mw
+
+    # 4. Create DataFrame
     # Create a proper DatetimeIndex for 2024 to group by month
     dt_index = pd.date_range(start='2024-01-01', periods=len(discharge_mwh), freq='h')
     
     df = pd.DataFrame({
         'Revenue_Arb': hourly_revenue.values,
         'Cost_Charge': hourly_cost.values,
-        'Ancillary_Rev': 0.0, # Placeholder
+        'Rev_Ancillary_Hourly': hourly_ancillary.values,
         'Toll_Cost': 0.0      # Placeholder
     }, index=dt_index)
     
     # Group by Month
-    monthly_pl = df.resample('ME').sum() # 'ME' is month end in newer pandas, 'M' in older. using 'M' for safety or 'ME' if pandas > 2.0?
-    # Let's use 'M' to be safe with older pandas versions, or checks. Streamlit cloud usually recent.
-    # 'M' is deprecated in pandas 2.2+. Let's use 'ME'.
-    monthly_pl = df.resample('ME').sum()
+    monthly_pl = df.resample('ME').sum() 
     
     # Add Monthly Fixed Items
     # Toll = Rate * Capacity
     monthly_toll = toll_rate_mw_mo * capacity_mw
     
-    # Ancillary = Rate * Capacity
-    monthly_ancillary = ancillary_rev_mw_mo * capacity_mw
+    # Add Fixed Ancillary (if applicable)
+    monthly_pl['Ancillary_Rev'] = monthly_pl['Rev_Ancillary_Hourly'] + monthly_ancillary_fixed_rate
     
     monthly_pl['Toll_Cost'] = monthly_toll
-    monthly_pl['Ancillary_Rev'] = monthly_ancillary
     
     # Net Profit
     # Revenue + Ancillary - ChargeCost - Toll

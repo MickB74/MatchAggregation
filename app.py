@@ -724,7 +724,15 @@ else:
             toll_rate = st.number_input("Fixed Toll Rate ($/MW-mo)", value=7500.0, step=500.0, help="Monthly rent paid to owner.")
             
         with c_buy_2:
-            ancillary_est = st.number_input("Est. Ancillary Revenue ($/MW-mo)", value=3000.0, step=500.0, help="Revenue from ECRS/Reg-Up etc.")
+            ancillary_type = st.radio("Ancillary Revenue Model", ["Fixed ($/MW-mo)", "Dynamic (% of Price)"], horizontal=True)
+            
+            if ancillary_type == "Fixed ($/MW-mo)":
+                ancillary_input = st.number_input("Est. Ancillary Revenue ($/MW-mo)", value=3000.0, step=500.0, help="Revenue from ECRS/Reg-Up etc.")
+                anc_mode = 'Fixed'
+            else:
+                ratio_pct = st.number_input("Ancillary Ratio (% of Energy Price)", value=15.0, step=1.0, help="AS Price ~ X% of Energy Price")
+                ancillary_input = ratio_pct / 100.0
+                anc_mode = 'Dynamic'
         
         with c_buy_3:
             charge_source = st.selectbox("Charging Cost Source", ["Grid (LMP)", "Solar PPA", "Wind PPA"], help="Cost assumption for charging energy.")
@@ -739,12 +747,13 @@ else:
         
         # Use calculate_buyer_pl
         # Need to ensure inputs are float/series as expected
-        buyer_pl_df = calculate_buyer_pl(
+        batt_pl_df = calculate_buyer_pl(
             batt_ops_data, 
             batt_capacity, 
             toll_rate, 
-            ancillary_est, 
-            cost_profile
+            ancillary_input, # Passed as either Rate or Ratio
+            ancillary_type=anc_mode,
+            charging_cost_profile=cost_profile
         )
         
         # Summarize Results
