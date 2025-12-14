@@ -1278,17 +1278,7 @@ else:
                 st.plotly_chart(fig_set, use_container_width=True)
 
 
-            fig_buyer.update_layout(
-                barmode='relative', 
-                title='Monthly Buyer P&L (Waterfall)',
-                yaxis_title='Profit / Loss ($)',
-                template='plotly_dark',
-                paper_bgcolor='rgba(0,0,0,0)',
-                plot_bgcolor='rgba(0,0,0,0)',
-                hoverlabel=dict(bgcolor="#333333", font_size=12, font_family="Arial", font=dict(color="white"))
-            )
-            
-            st.plotly_chart(fig_buyer, use_container_width=True)
+
 
             st.subheader("Financial Analysis Results")
 
