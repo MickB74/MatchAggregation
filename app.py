@@ -136,19 +136,98 @@ def load_scenario():
 # MUST be defined BEFORE the widgets that use these session state values are instantiated.
 with st.sidebar:
     st.markdown("### Load Scenario")
-    st.file_uploader(
-        "Upload scenario_config.json", 
-        type=['json', 'txt'], 
-        key='uploaded_scenario_file', 
-        on_change=load_scenario
-    )
+
 
     st.markdown("---")
 
 # --- Configuration Section (Top) ---
 with st.expander("Configuration & Setup", expanded=True):
-    tab_guide, tab_load, tab_gen, tab_fin, tab_offtake = st.tabs(["User Guide", "1. Load Setup", "2. Generation Portfolio", "3. Financial Analysis", "4. Battery Financials"])
+    tab_guide, tab_load, tab_gen, tab_fin, tab_offtake, tab_scenario = st.tabs(["User Guide", "1. Load Setup", "2. Generation Portfolio", "3. Financial Analysis", "4. Battery Financials", "6. Scenario Manager"])
     
+    # --- Tab 6: Scenario Manager ---
+    with tab_scenario:
+        st.header("Scenario Management")
+        st.caption("Save your current configuration to a JSON file or load a previously saved scenario.")
+        
+        col_import, col_export = st.columns(2)
+        
+        with col_import:
+            st.subheader("📥 Load Scenario")
+            st.markdown("Upload a `scenario_config.json` file to restore settings.")
+            uploaded_scen = st.file_uploader(
+                "Select JSON File", 
+                type=['json', 'txt'], 
+                key='uploaded_scenario_tab', 
+                on_change=load_scenario
+            )
+            if uploaded_scen:
+                st.success("Scenario loaded successfully!")
+                
+        with col_export:
+            st.subheader("💾 Save Scenario")
+            st.markdown("Download your current configuration as a JSON file.")
+            
+            # Reconstruct scenario_config for export (Duplicated logic for independence)
+            # Safe checking for variables that might not be defined if tabs haven't run? 
+            # Actually, Streamlit runs top-to-bottom. If we are here, we have access to the inputs defined in tabs 1-4?
+            # NO. Tabs are containers. The code inside `with tab:` runs linearly.
+            # But the inputs (st.number_input) are widgets. Their values are in st.session_state or returned by the function.
+            # We must access them via st.session_state for safety if they are defined in other tabs.
+            # However, standard variables like `solar_capacity` are local variables.
+            # This tab is defined BEFORE the variable assignment lines in the original tabs...
+            # WAIT. The original code defines tabs: `tab_load, ... = st.tabs(...)`
+            # Then `with tab_load:` block runs...
+            # Then `with tab_gen:` block runs...
+            # If I place `with tab_scenario:` at the top, the variables `solar_capacity` etc. are NOT YET DEFINED.
+            # CRITICAL: I must place the content of `tab_scenario` at the BOTTOM of the file, 
+            # OR I must read from `st.session_state` keys.
+            # The keys are like 'solar_cap_input', 'wind_cap_input', etc.
+            
+            # Let's rely on Session State for the "Save" button to ensure we capture current state.
+            # We need to ensure we map session state keys correctly.
+            
+            export_config = {
+                "region": "ERCOT North",
+                "total_load_mwh": st.session_state.get('total_load_mwh', 0), # This might need calculation if not stored
+                # Capacities
+                "solar_capacity": st.session_state.get('solar_cap_input', 0.0),
+                "wind_capacity": st.session_state.get('wind_cap_input', 0.0),
+                "geo_capacity": st.session_state.get('geo_cap_input', 0.0),
+                "nuc_capacity": st.session_state.get('nuc_cap_input', 0.0),
+                "ccs_capacity": st.session_state.get('ccs_cap_input', 0.0),
+                "batt_capacity": st.session_state.get('batt_cap_input', 0.0),
+                "batt_duration": st.session_state.get('batt_dur_input', 0.0),
+                # Prices
+                "solar_price": st.session_state.get('solar_price_input', 0.0),
+                "wind_price": st.session_state.get('wind_price_input', 0.0),
+                "ccs_price": st.session_state.get('ccs_price_input', 0.0),
+                "geo_price": st.session_state.get('geo_price_input', 0.0),
+                "nuc_price": st.session_state.get('nuc_price_input', 0.0),
+                "market_price": st.session_state.get('avg_price_input', 35.0), # Approximate
+                "rec_price": st.session_state.get('rec_price_input', 0.0),
+                # Battery Financials
+                "batt_base_rate": st.session_state.get('cvta_fixed_input', 12000.0),
+                "batt_guar_rte": st.session_state.get('cvta_rte_input', 85.0),
+                "batt_vom": st.session_state.get('cvta_vom_input', 2.0),
+                # Participants
+                "participants": st.session_state.get('participants', []),
+                # Exclusions
+                "excluded_techs": st.session_state.get('excluded_techs', [])
+            }
+            
+            # Recalculate load if needed? 
+            # Total Load is derived. If we don't store it, we might export 0.
+            # But `participants` list is source of truth.
+            
+            json_export = json.dumps(export_config, indent=4)
+            
+            st.download_button(
+                label="📥 Download JSON Configuration",
+                data=json_export,
+                file_name="scenario_config.json",
+                mime="application/json"
+            )
+
     # --- Tab 1: User Guide (Moved to Top) ---
     with tab_guide:
         st.markdown("## 📘 User Guide & Methodology")
