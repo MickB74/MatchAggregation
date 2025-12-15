@@ -273,7 +273,7 @@ with st.expander("Configuration & Setup", expanded=True):
                     temp_load += generate_dummy_load_profile(p['load'], p['type'])
                 
                 if temp_load.sum() > 0:
-                if temp_load.sum() > 0:
+
                     # Smart Fill: Always use existing values to build around them
                     existing_capacities = {
                         'Solar': st.session_state.get('solar_input', 0.0),
