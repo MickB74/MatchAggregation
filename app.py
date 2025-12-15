@@ -833,6 +833,8 @@ else:
     # Calculate detailed metrics
     total_gen_capacity = solar_capacity + wind_capacity + ccs_capacity + geo_capacity + nuc_capacity
     metrics = calculate_portfolio_metrics(total_load_profile, matched_profile, total_gen_capacity)
+    metrics['clean_gen_mwh'] = total_gen_profile.sum()
+    metrics['total_load_mwh'] = total_load_profile.sum() # Ensure this is also available in metrics if needed, or stick to scenario_config consistency
     
     # Financials
     # Financials
@@ -1427,6 +1429,7 @@ else:
         # Create Scenario Configuration
         scenario_config = {
             "region": "ERCOT North",
+            "total_load_mwh": total_annual_load, # Explicitly add Load for PDF
             "solar_capacity": solar_capacity,
             "wind_capacity": wind_capacity,
             "geo_capacity": geo_capacity,
