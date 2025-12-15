@@ -4,3 +4,4 @@ numpy
 plotly
 matplotlib
 fpdf2
+kaleido

@@ -1454,8 +1454,21 @@ else:
         json_str = json.dumps(scenario_config, indent=4)
         zf.writestr("scenario_config.json", json_str)
         
+        # Collect Figures for PDF
+        figures = {}
+        if 'fig' in locals():
+            figures["Hourly Energy Balance"] = fig
+        if 'fig_bar' in locals():
+            figures["Monthly Analysis"] = fig_bar
+        if 'fig_heat' in locals():
+            figures["24/7 Heatmap"] = fig_heat
+        if 'fig_ppa' in locals():
+            figures["PPA Price vs Capture Value"] = fig_ppa
+        if 'fig_set' in locals():
+            figures["Net Settlement by Tech"] = fig_set
+            
         # Generate PDF Report
-        pdf_bytes = generate_pdf_report(metrics, scenario_config, fin_metrics)
+        pdf_bytes = generate_pdf_report(metrics, scenario_config, fin_metrics, figures=figures)
         
     with tab_fin:
         st.markdown("---")

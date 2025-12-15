@@ -1124,7 +1124,7 @@ def process_uploaded_profile(uploaded_file, keywords=None):
 from fpdf import FPDF
 import datetime
 
-def generate_pdf_report(metrics, scenario_config, fin_metrics):
+def generate_pdf_report(metrics, scenario_config, fin_metrics, figures=None):
     """
     Generates a PDF summary report using fpdf2.
     """
@@ -1232,5 +1232,37 @@ def generate_pdf_report(metrics, scenario_config, fin_metrics):
             pdf.cell(col_width, row_height, row[0], border=1)
             pdf.cell(col_width, row_height, row[1], border=1, align='R')
             pdf.ln(row_height)
+            
+    # --- Charts ---
+    if figures:
+        pdf.add_page()
+        pdf.set_font("helvetica", 'B', 14)
+        pdf.cell(0, 10, "4. Key Visualizations", ln=True)
+        pdf.set_font("helvetica", size=12)
+        
+        import tempfile
+        import os
+
+        for title, fig in figures.items():
+            pdf.ln(5)
+            pdf.set_font("helvetica", 'B', 12)
+            pdf.cell(0, 10, title, ln=True)
+            
+            # Save chart as temporary image
+            try:
+                with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as tmp_file:
+                    fig.write_image(tmp_file.name, engine="kaleido", scale=1.5, width=800, height=400)
+                    tmp_filename = tmp_file.name
+                
+                # Add to PDF
+                # Width 190 (A4 is 210mm wide, minus margins)
+                pdf.image(tmp_filename, w=190)
+                
+                # Cleanup
+                os.unlink(tmp_filename)
+            except Exception as e:
+                pdf.set_font("helvetica", 'I', 10)
+                pdf.cell(0, 10, f"Error rendering chart: {str(e)}", ln=True)
+
     
     return bytes(pdf.output())
