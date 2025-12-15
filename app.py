@@ -146,7 +146,7 @@ with st.sidebar:
 
 # --- Configuration Section (Top) ---
 with st.expander("Configuration & Setup", expanded=True):
-    tab_load, tab_gen, tab_fin, tab_offtake = st.tabs(["1. Load Setup", "2. Generation Portfolio", "3. Financial Analysis", "4. Offtake Structuring"])
+    tab_load, tab_gen, tab_fin, tab_offtake = st.tabs(["1. Load Setup", "2. Generation Portfolio", "3. Financial Analysis", "4. Battery Financials"])
     
     # --- Tab 1: Load Setup ---
     with tab_load:
@@ -521,7 +521,7 @@ with st.expander("Configuration & Setup", expanded=True):
             pass
 
 
-    # --- Tab 3: Offtake Structuring (CVTA) ---
+    # --- Tab 4: Battery Financials (CVTA) ---
     with tab_offtake:
         st.markdown("#### 🔋 Corporate Virtual Tolling Agreement (CVTA)")
         st.caption("Financial Battery PPA | Proxy Battery Model")
