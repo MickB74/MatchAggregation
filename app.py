@@ -43,7 +43,7 @@ if 'participants' not in st.session_state:
 # --- Global Settings (Sidebar - Load Scenario) ---
 # Callback to handle loading
 def load_scenario():
-    uploaded_file = st.session_state.get('uploaded_scenario_file')
+    uploaded_file = st.session_state.get('uploaded_scenario_tab')
     if uploaded_file is not None:
         try:
             # Reset file pointer to beginning
