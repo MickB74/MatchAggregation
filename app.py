@@ -508,7 +508,7 @@ with st.expander("Configuration & Setup", expanded=True):
             ccs_price = st.number_input("CCS Gas PPA Price", min_value=0.0, value=65.0, step=1.0, key='ccs_price_input', help="Updated 2025 Market est: $55-75 (w/ 45Q)")
             geo_price = st.number_input("Geothermal PPA Price", min_value=0.0, value=77.5, step=1.0, key='geo_price_input', help="Updated 2025 Market est: $70-85")
         with c_fin_3:
-            nuc_price = st.number_input("Nuclear PPA Price", min_value=0.0, value=112.0, step=1.0, key='nuc_price_input', help="Q4 2024 Market: ~$112. Based on recent Vistra data center deal. Firm clean power premium.")
+            nuc_price = st.number_input("Nuclear PPA Price", min_value=0.0, value=90.0, step=1.0, key='nuc_price_input', help="Q4 2024 Market: ~$112 (Adjusted to $90). Based on recent Vistra data center deal. Firm clean power premium.")
         
 
 
