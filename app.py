@@ -147,7 +147,7 @@ with st.sidebar:
 
 # --- Configuration Section (Top) ---
 with st.expander("Configuration & Setup", expanded=True):
-    tab_load, tab_gen, tab_fin, tab_offtake = st.tabs(["1. Load Setup", "2. Generation Portfolio", "3. Financial Analysis", "4. Battery Financials"])
+    tab_load, tab_gen, tab_fin, tab_offtake, tab_guide = st.tabs(["1. Load Setup", "2. Generation Portfolio", "3. Financial Analysis", "4. Battery Financials", "5. User Guide"])
     
     # --- Tab 1: Load Setup ---
     with tab_load:
@@ -1496,6 +1496,67 @@ else:
                 file_name="Portfolio_Report.pdf",
                 mime="application/pdf"
             )
+        
+
+    # --- Tab 5: User Guide ---
+    with tab_guide:
+        st.markdown("## 📘 User Guide & Methodology")
+        
+        st.markdown("### 🚀 How to Use This Tool")
+        st.markdown("""
+        **Step 1: Define Load Profile (Tab 1)**
+        - **Upload Data**: Upload a CSV with hourly load data (8760 hours).
+        - **Add Participants**: If you don't have a file, use the "Add Participant" form to creating synthetic loads for Data Centers, Offices, etc.
+        
+        **Step 2: Design Generation Portfolio (Tab 2)**
+        - **Set Capacities**: Enter the MW capacity for Solar, Wind, Nuclear, Geothermal, and CCS Gas.
+        - **Battery Storage**: Define the battery power (MW) and duration (Hours).
+        - **Smart Fill**: Use the "✨ Smart Fill" button to automatically recommend a portfolio that meets the 95% CFE target. You can "Lock" certain technologies to keep them fixed while the solver adjusts the others.
+        
+        **Step 3: Analyze Financials (Tab 3)**
+        - **PPA Prices**: input the PPA price ($/MWh) for each technology.
+        - **Market Data**: Select a historical year (2023/2024) for market prices or upload your own pricing file.
+        - **Review Metrics**: Check the "Financial Overview" for PPA Costs, Market Value (Capture), and Net Settlement.
+        
+        **Step 4: Battery Financials (Tab 4)**
+        - **CVTA Model**: Configure the "Corporate Virtual Tolling Agreement" terms (Fixed Capacity Payment vs. Market Revenue).
+        - **Export**: Download the full results as a CSV/ZIP or generate a PDF report.
+        """)
+        
+        st.markdown("---")
+        st.markdown("### 🧮 Methodology & Math")
+        
+        st.markdown("#### 1. Carbon Free Energy (CFE) Score")
+        st.latex(r"CFE = \frac{\sum \text{Matched Generation (MWh)}}{\sum \text{Total Load (MWh)}}")
+        st.info("The CFE Score represents the percentage of your total annual load that is matched by clean energy generation in the exact same hour.")
+        
+        st.markdown("#### 2. Productivity")
+        st.latex(r"Productivity = \frac{\sum \text{Matched Generation (MWh)}}{\text{Total Installed Capacity (MW)}}")
+        st.caption("Measures the efficiency of your portfolio: How many useful MWh you get per MW of capacity.")
+
+        st.markdown("#### 3. Financial Settlement (Fixed-Volume PPA)")
+        st.markdown("""
+        For each technology, the Buyer pays the PPA Price and receives the Market (Capture) Value for the generated energy.
+        """)
+        st.latex(r"\text{Cost}_{PPA} = \sum (\text{Gen}_{t} \times \text{Price}_{PPA})")
+        st.latex(r"\text{Value}_{Market} = \sum (\text{Gen}_{t} \times \text{Price}_{Market, t})")
+        st.latex(r"\text{Net Settlement} = \text{Value}_{Market} - \text{Cost}_{PPA}")
+        st.caption("**Positive Settlement** = Profit for Buyer. **Negative Settlement** = Cost to Buyer.")
+        
+        st.markdown("#### 4. Battery Proxy Model (CVTA)")
+        st.markdown("""
+        The Corporate Virtual Tolling Agreement (CVTA) is a financial swap for battery storage.
+        
+        **Fixed Leg (Buyer Pays):**
+        """)
+        st.latex(r"\text{Fixed Cost} = \text{Capacity (MW)} \times \text{Fixed Rate (\$/MW-mo)} \times 12")
+        
+        st.markdown("""
+        **Floating Leg (Buyer Receives):**
+        The model simulates "perfect foresight" arbitrage to maximize revenue against historical prices.
+        """)
+        st.latex(r"\text{Revenue} = \sum (\text{Discharge}_t \times \text{Price}_t) - \sum (\text{Charge}_t \times \text{Price}_t)")
+        st.latex(r"\text{Net Cost} = \text{Fixed Cost} - \text{Revenue}")
         
 
     
