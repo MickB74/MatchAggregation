@@ -18,6 +18,7 @@ from utils import (
     calculate_financials, 
     process_uploaded_profile,
     get_market_price_profile,
+    generate_pdf_report,
     calculate_battery_financials,
     calculate_buyer_pl,
     calculate_proxy_battery_revenue
@@ -1453,15 +1454,28 @@ else:
         json_str = json.dumps(scenario_config, indent=4)
         zf.writestr("scenario_config.json", json_str)
         
+        # Generate PDF Report
+        pdf_bytes = generate_pdf_report(metrics, scenario_config, fin_metrics)
+        
     with tab_fin:
         st.markdown("---")
         st.subheader("Export Results")
-        st.download_button(
-            label="Download Results & Scenario (ZIP)",
-            data=zip_buffer.getvalue(),
-            file_name="simulation_results.zip",
-            mime="application/zip"
-        )
+        
+        col_dl1, col_dl2 = st.columns(2)
+        with col_dl1:
+            st.download_button(
+                label="Download Results & Scenario (ZIP)",
+                data=zip_buffer.getvalue(),
+                file_name="simulation_results.zip",
+                mime="application/zip"
+            )
+        with col_dl2:
+            st.download_button(
+                label="📄 Download PDF Report",
+                data=pdf_bytes,
+                file_name="Portfolio_Report.pdf",
+                mime="application/pdf"
+            )
         
 
     

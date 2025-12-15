@@ -1117,6 +1117,117 @@ def process_uploaded_profile(uploaded_file, keywords=None):
         st.error("Could not identify a valid data column in the CSV.")
         return None
         
-    except Exception as e:
-        st.error(f"Error processing file: {e}")
-        return None
+
+from fpdf import FPDF
+import datetime
+
+def generate_pdf_report(metrics, scenario_config, fin_metrics):
+    """
+    Generates a PDF summary report using fpdf2.
+    """
+    class PDF(FPDF):
+        def header(self):
+            self.set_font('helvetica', 'B', 16)
+            self.cell(0, 10, 'Energy Portfolio Simulation Report', border=False, align='C')
+            self.ln(10)
+            self.set_font('helvetica', 'I', 10)
+            self.cell(0, 10, f'Generated on: {datetime.datetime.now().strftime("%Y-%m-%d %H:%M")}', border=False, align='C')
+            self.ln(20)
+
+        def footer(self):
+            self.set_y(-15)
+            self.set_font('helvetica', 'I', 8)
+            self.cell(0, 10, f'Page {self.page_no()}/{{nb}}', align='C')
+
+    pdf = PDF()
+    pdf.add_page()
+    pdf.set_font("helvetica", size=12)
+    
+    # --- Operational Summary ---
+    pdf.set_font("helvetica", 'B', 14)
+    pdf.cell(0, 10, "1. Operational Analysis", ln=True)
+    pdf.set_font("helvetica", size=12)
+    
+    # Extract metrics
+    total_load = scenario_config.get('total_load_mwh', 0)
+    clean_gen = metrics.get('clean_gen_mwh', 0)
+    cfe_score = metrics.get('cfe_score', 0)
+    productivity = metrics.get('productivity', 0)
+    logh = metrics.get('logh', 0)
+    
+    # Calculate Ratio if not passed directly
+    annual_ratio = clean_gen / total_load if total_load > 0 else 0
+    
+    op_data = [
+        ["Total Annual Load", f"{total_load:,.0f} MWh"],
+        ["Clean Energy Generation", f"{clean_gen:,.0f} MWh"],
+        ["CFE Score (24/7)", f"{cfe_score:.1%}"],
+        ["Annual Clean Energy / Load", f"{annual_ratio:.1%}"],
+        ["MW Match Productivity", f"{productivity:,.0f} MWh/MW"],
+        ["Loss of Green Hours", f"{logh:.1%}"],
+    ]
+    
+    col_width = 90
+    row_height = 8
+    
+    for row in op_data:
+        pdf.cell(col_width, row_height, row[0], border=1)
+        pdf.cell(col_width, row_height, row[1], border=1, align='R')
+        pdf.ln(row_height)
+        
+    pdf.ln(10)
+    
+    # --- Financial Summary ---
+    pdf.set_font("helvetica", 'B', 14)
+    pdf.cell(0, 10, "2. Financial Analysis", ln=True)
+    pdf.set_font("helvetica", size=12)
+    
+    settlement = fin_metrics.get('settlement_value', 0)
+    ppa_price = fin_metrics.get('weighted_ppa_price', 0)
+    market_price = fin_metrics.get('weighted_market_price', 0)
+    rec_val = fin_metrics.get('rec_cost', 0)
+    excess_rec = fin_metrics.get('excess_rec_value', 0)
+    
+    fin_data = [
+        ["Annual PPA Settlement Value", f"${settlement:,.0f}"],
+        ["Weighted Avg PPA Price", f"${ppa_price:.2f}/MWh"],
+        ["Capture Value (Base)", f"${market_price:.2f}/MWh"],
+        ["Matched REC Value", f"${rec_val:,.0f}"],
+        ["Excess REC Value", f"${excess_rec:,.0f}"],
+    ]
+    
+    for row in fin_data:
+        pdf.cell(col_width, row_height, row[0], border=1)
+        pdf.cell(col_width, row_height, row[1], border=1, align='R')
+        pdf.ln(row_height)
+        
+    pdf.ln(10)
+    
+    # --- Portfolio Configuration ---
+    pdf.set_font("helvetica", 'B', 14)
+    pdf.cell(0, 10, "3. Portfolio Configuration", ln=True)
+    pdf.set_font("helvetica", size=12)
+    
+    config_data = [
+        ["Solar Capacity", f"{scenario_config.get('solar_capacity', 0):,.0f} MW"],
+        ["Wind Capacity", f"{scenario_config.get('wind_capacity', 0):,.0f} MW"],
+        ["CCS Gas Capacity", f"{scenario_config.get('ccs_capacity', 0):,.0f} MW"],
+        ["Geothermal Capacity", f"{scenario_config.get('geo_capacity', 0):,.0f} MW"],
+        ["Nuclear Capacity", f"{scenario_config.get('nuc_capacity', 0):,.0f} MW"],
+        ["Battery Power", f"{scenario_config.get('batt_capacity', 0):,.0f} MW"],
+        ["Battery Duration", f"{scenario_config.get('batt_duration', 0):.1f} Hours"],
+    ]
+    
+    pdf.set_font("helvetica", 'I', 12)
+    pdf.cell(0, 10, "Installed Capacities:", ln=True)
+    pdf.set_font("helvetica", size=12)
+
+    for row in config_data:
+        # Only show non-zero
+        val_str = row[1]
+        if " 0 " not in val_str and " 0.0 " not in val_str:
+            pdf.cell(col_width, row_height, row[0], border=1)
+            pdf.cell(col_width, row_height, row[1], border=1, align='R')
+            pdf.ln(row_height)
+    
+    return pdf.output(dest='S').encode('latin1')
