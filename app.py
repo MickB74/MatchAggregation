@@ -252,6 +252,18 @@ with st.expander("Configuration & Setup", expanded=True):
 
     # --- Tab 2: Generation Portfolio ---
     with tab_gen:
+        # Define callback for clearing portfolio
+        def clear_portfolio():
+            st.session_state.solar_input = 0.0
+            st.session_state.wind_input = 0.0
+            st.session_state.ccs_input = 0.0
+            st.session_state.geo_input = 0.0
+            st.session_state.nuc_input = 0.0
+            st.session_state.batt_input = 0.0
+            st.session_state.batt_duration_input = 2.0
+            st.session_state.matched_projects = {}
+            st.session_state.portfolio_recommended = False
+
         # Define callback for recommendation
         def apply_recommendation():
             # Calculate total load from participants
@@ -380,17 +392,7 @@ with st.expander("Configuration & Setup", expanded=True):
                 st.session_state.portfolio_error = None # Reset error
 
             # Clear Portfolio Button (Moved from Left)
-            if st.button("🗑️ Clear Portfolio (Reset to 0)"):
-                st.session_state.solar_input = 0.0
-                st.session_state.wind_input = 0.0
-                st.session_state.ccs_input = 0.0
-                st.session_state.geo_input = 0.0
-                st.session_state.nuc_input = 0.0
-                st.session_state.batt_input = 0.0
-                st.session_state.batt_duration_input = 2.0
-                st.session_state.matched_projects = {}
-                st.session_state.portfolio_recommended = False
-                st.rerun()
+            st.button("🗑️ Clear Portfolio (Reset to 0)", on_click=clear_portfolio)
             
             # Display matched projects if available
             if st.session_state.get('matched_projects'):
