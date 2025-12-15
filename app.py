@@ -968,7 +968,8 @@ else:
         # Metrics - Row 2
         col5, col6, col7, col8 = st.columns(4)
         col5.metric("MW Match Productivity", f"{metrics['productivity']:,.0f} MWh/MW", help="MWh of Clean Energy Matched per MW of Installed Capacity")
-        col6.metric("Loss of Green Hours", f"{metrics['logh']:.1%}", help="% of hours where load is not fully matched by clean energy")
+        annual_clean_ratio = (total_gen_profile.sum()) / total_annual_load if total_annual_load > 0 else 0
+        col6.metric("Annual Clean Energy / Annual Load", f"{annual_clean_ratio:.1%}", help="Ratio of Total Clean Generation to Total Load")
         col7.metric("Grid Consumption", f"{metrics['grid_consumption']:,.0f} MWh", help="Total energy drawn from grid (deficit)")
         col8.metric("Excess Generation", f"{surplus.sum():,.0f} MWh", help="Gross overgeneration before battery charging")
 
