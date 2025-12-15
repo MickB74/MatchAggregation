@@ -1191,11 +1191,15 @@ else:
         
         # Metrics - Row 3 (Financials)
         st.subheader("Financial Overview")
-        col9, col10, col11, col12 = st.columns(4)
+        col9, col10, col11, col12, col13 = st.columns(5)
         col9.metric("Annual PPA Settlement Value", f"${fin_metrics['settlement_value']:,.0f}", help="Annual Revenue (or Cost) from PPA Settlement: (Market - Strike) * Matched Vol")
         col10.metric("Weighted Avg PPA Price", f"${fin_metrics['weighted_ppa_price']:.2f}/MWh", help="Average cost of matched energy based on technology mix")
         col11.metric("Capture Value (2024 Base)", f"${fin_metrics['weighted_market_price']:.2f}/MWh", help="Average market value of matched energy (2024 ERCOT prices × scaler)")
-        col12.metric("REC Value", f"${fin_metrics['rec_cost']:,.0f}", help="Value of RECs")
+        col12.metric("REC Value", f"${fin_metrics['rec_cost']:,.0f}", help="Value of RECs (Matched)")
+        
+        # Calculate Value of Excess RECs
+        excess_rec_value = surplus.sum() * rec_price
+        col13.metric("Excess REC Value", f"${excess_rec_value:,.0f}", help="Potential value of RECs from excess generation")
 
         st.markdown("---")
         st.subheader("Economic Analysis")
