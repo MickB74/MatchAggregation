@@ -642,7 +642,7 @@ def calculate_buyer_pl(ops_data, capacity_mw, toll_rate_mw_mo, ancillary_input, 
     
     return monthly_pl
 
-def recommend_portfolio(load_profile, target_cfe=0.95, excluded_techs=None, existing_capacities=None):
+def recommend_portfolio(load_profile, target_cfe=0.95, excluded_techs=None, existing_capacities=None, fixed_techs=None):
     """
     Heuristic recommendation for initial portfolio based on load.
     If existing_capacities provided, builds around those values (keeps non-zero values, fills zeros).
@@ -656,8 +656,8 @@ def recommend_portfolio(load_profile, target_cfe=0.95, excluded_techs=None, exis
     Returns:
         dict: Recommended capacities
     """
-    if excluded_techs is None:
-        excluded_techs = []
+    if excluded_techs is None: excluded_techs = []
+    if fixed_techs is None: fixed_techs = []
     
     if existing_capacities is None:
         existing_capacities = {}
@@ -764,20 +764,36 @@ def recommend_portfolio(load_profile, target_cfe=0.95, excluded_techs=None, exis
         elif gap > 0.05: scaler = 1.12  # Increased from 1.08
         elif gap > 0.01: scaler = 1.08  # Increased from 1.05
         
-        # Scale up all technologies
-        if 'Solar' not in excluded_techs:
+        # Scale up all technologies (Skip fixed)
+        
+        # Check if we have any adjustable techs left
+        adjustable_techs = []
+        all_techs = ['Solar', 'Wind', 'Geothermal', 'Nuclear', 'CCS Gas', 'Battery'] # Check battery separately
+        
+        # Identify if we are completely locked
+        # Creating a set of techs that are effectively contributing
+        # Logic: If a tech is NOT excluded, it contributes. If it is NOT fixed, it scales.
+        
+        any_scalable = False
+        
+        if 'Solar' not in excluded_techs and 'Solar' not in fixed_techs:
             recommendation['Solar'] *= scaler
-        if 'Wind' not in excluded_techs:
-            recommendation['Wind'] *= scaler
+            any_scalable = True
             
+        if 'Wind' not in excluded_techs and 'Wind' not in fixed_techs:
+            recommendation['Wind'] *= scaler
+            any_scalable = True
+
         # Also scale Firm generation (critical for 100% CFE with limited battery)
         for t in ['Geothermal', 'Nuclear', 'CCS Gas']:
-            if t not in excluded_techs:
+            if t not in excluded_techs and t not in fixed_techs:
                 recommendation[t] *= scaler
+                any_scalable = True
         
         # Increase Battery Power (Duration capped at 2 hours)
-        if 'Battery' not in excluded_techs:
+        if 'Battery' not in excluded_techs and 'Battery' not in fixed_techs:
             recommendation['Battery_MW'] *= scaler
+            any_scalable = True
             # CAP: Limit battery power to 1.1x Peak Load to enforce realistic sizing
             # It's rarely economic to size battery significantly larger than peak load
             if recommendation['Battery_MW'] > peak_load * 1.1:
@@ -785,6 +801,10 @@ def recommend_portfolio(load_profile, target_cfe=0.95, excluded_techs=None, exis
                 
             # Keep battery duration capped at 2 hours for scenarios
             # Users can still manually set higher values if desired
+            
+        if not any_scalable:
+            # Prevent infinite loop if all active techs are fixed/locked
+            break
             
     return recommendation
 

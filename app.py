@@ -294,7 +294,8 @@ with st.expander("Configuration & Setup", expanded=True):
                         temp_load, 
                         target_cfe=1.0, 
                         excluded_techs=st.session_state.get('excluded_techs_input', []),
-                        existing_capacities=existing_capacities
+                        existing_capacities=existing_capacities,
+                        fixed_techs=st.session_state.get('fixed_techs_input', [])
                     )
                     st.session_state.solar_input = rec['Solar']
                     st.session_state.wind_input = rec['Wind']
@@ -378,9 +379,17 @@ with st.expander("Configuration & Setup", expanded=True):
                 ['Solar', 'Wind', 'CCS Gas', 'Geothermal', 'Nuclear'],
                 key='excluded_techs_input'
             )
+            
+            # Lock Tech multiselect (Smart Fill)
+            fixed_techs = st.multiselect(
+                "Lock Technologies (Support Smart Fill)",
+                ['Solar', 'Wind', 'CCS Gas', 'Geothermal', 'Nuclear', 'Battery'],
+                help="Select technologies to keep fixed at their current values. The solver will adjust the others.",
+                key='fixed_techs_input'
+            )
 
             col_btn, col_chk = st.columns([1, 1])
-            col_btn.button("✨ Recommend Portfolio", on_click=apply_recommendation)
+            col_btn.button("✨ Smart Fill / Recommend", on_click=apply_recommendation)
             col_chk.checkbox("Force Reset", value=False, key='force_reset_rec', help="Check this to discard current slider values and generate a fresh recommendation from scratch.")
             
             # Show success/error messages after rerun
