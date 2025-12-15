@@ -1233,4 +1233,4 @@ def generate_pdf_report(metrics, scenario_config, fin_metrics):
             pdf.cell(col_width, row_height, row[1], border=1, align='R')
             pdf.ln(row_height)
     
-    return pdf.output(dest='S').encode('latin1')
+    return pdf.output()
