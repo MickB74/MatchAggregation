@@ -1178,6 +1178,21 @@ def generate_pdf_report(metrics, scenario_config, fin_metrics, figures=None):
         pdf.cell(col_width, row_height, row[1], border=1, align='R')
         pdf.ln(row_height)
         
+    pdf.ln(5)
+    pdf.set_font("helvetica", 'B', 12)
+    pdf.cell(0, 10, "Participant Loads", ln=True)
+    pdf.set_font("helvetica", size=10)
+    
+    participants = scenario_config.get('participants', [])
+    if participants:
+        for p in participants:
+            p_name = p.get('name', 'Unknown')
+            p_load = p.get('load', 0)
+            p_type = p.get('type', 'Unknown')
+            pdf.cell(0, 8, f"- {p_name} ({p_type}): {p_load:,.0f} MWh", ln=True)
+    else:
+        pdf.cell(0, 8, "No participants defined.", ln=True)
+        
     pdf.ln(10)
     
     # --- Financial Summary ---
@@ -1204,6 +1219,36 @@ def generate_pdf_report(metrics, scenario_config, fin_metrics, figures=None):
         pdf.cell(col_width, row_height, row[1], border=1, align='R')
         pdf.ln(row_height)
         
+    pdf.ln(5)
+    pdf.set_font("helvetica", 'B', 12)
+    pdf.cell(0, 10, "Detailed Settlement by Technology", ln=True)
+    pdf.set_font("helvetica", size=10)
+    
+    # Header
+    cols = [35, 30, 30, 30, 30, 30]
+    headers = ["Tech", "Gen (MWh)", "PPA Price", "PPA Cost", "Mkt Value", "Settlement"]
+    
+    for i, h in enumerate(headers):
+        pdf.cell(cols[i], 8, h, border=1, align='C')
+    pdf.ln(8)
+    
+    pdf.set_font("helvetica", size=10)
+    
+    if 'tech_details' in fin_metrics:
+        for tech, details in fin_metrics['tech_details'].items():
+            if details['Matched_MWh'] > 0:
+                row = [
+                    tech,
+                    f"{details['Matched_MWh']:,.0f}",
+                    f"${details['PPA_Price']:.2f}",
+                    f"${details['Total_Cost']:,.0f}",
+                    f"${details['Market_Value']:,.0f}",
+                    f"${details['Settlement']:,.0f}"
+                ]
+                for i, r in enumerate(row):
+                    pdf.cell(cols[i], 8, r, border=1, align='R')
+                pdf.ln(8)
+                
     pdf.ln(10)
     
     # --- Portfolio Configuration ---
