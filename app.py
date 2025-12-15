@@ -1023,16 +1023,10 @@ else:
         x_axis = datetime_index[start_hour:end_hour]
         
         fig = go.Figure()
-        fig.add_trace(go.Scatter(x=x_axis, y=total_load_profile[start_hour:end_hour],
-                                 mode='lines', name='Aggregated Load', line=dict(color='red', width=2)))
         
-        # Total Supply Line (Gen + Battery)
-        # Use total_gen_with_battery calculated earlier
+        # Calculate Total Supply if not already (Gen + Battery)
         if 'total_gen_with_battery' not in locals():
              total_gen_with_battery = total_gen_profile + batt_discharge
-             
-        fig.add_trace(go.Scatter(x=x_axis, y=total_gen_with_battery[start_hour:end_hour],
-                                 mode='lines', name='Total Supply (Gen+Batt)', line=dict(color='#2ca02c', width=2)))
         # Stacked generation profiles
         # Stacked generation profiles - Logic: Baseload first, then Battery, then VRE
         # This stacking order helps visualize how load is met
@@ -1046,6 +1040,15 @@ else:
         # VRE Top
         fig.add_trace(go.Scatter(x=x_axis, y=wind_profile[start_hour:end_hour], name='Wind Gen', stackgroup='one', line=dict(color='lightblue'), fill='tonexty'))
         fig.add_trace(go.Scatter(x=x_axis, y=solar_profile[start_hour:end_hour], name='Solar Gen', stackgroup='one', line=dict(color='gold'), fill='tonexty'))
+
+        # Add Line Plots LAST (to stay on top)
+        # 1. Total Supply
+        fig.add_trace(go.Scatter(x=x_axis, y=total_gen_with_battery[start_hour:end_hour],
+                                 mode='lines', name='Total Supply (Gen+Batt)', line=dict(color='#2ca02c', width=2)))
+                                 
+        # 2. Aggregated Load (The most important line)
+        fig.add_trace(go.Scatter(x=x_axis, y=total_load_profile[start_hour:end_hour],
+                                 mode='lines', name='Aggregated Load', line=dict(color='red', width=2)))
 
         fig.update_layout(
             title=f"Load vs. Matched Generation {title_suffix}", 
