@@ -92,7 +92,7 @@ def load_scenario():
             if 'geo_capacity' in config: st.session_state.geo_input = float(config['geo_capacity'])
             if 'nuc_capacity' in config: st.session_state.nuc_input = float(config['nuc_capacity'])
             if 'batt_capacity' in config: st.session_state.batt_input = float(config['batt_capacity'])
-            if 'batt_duration' in config: st.session_state.batt_duration_input = float(config['batt_duration'])
+            if 'batt_duration' in config: st.session_state.batt_duration_input = max(0.5, float(config['batt_duration']))
             
             # 3. Financials
             # 3. Financials
@@ -519,6 +519,9 @@ with st.expander("Configuration & Setup", expanded=True):
 
             if 'batt_duration_input' not in st.session_state:
                 st.session_state.batt_duration_input = 2.0
+            elif st.session_state.batt_duration_input < 0.5:
+                st.session_state.batt_duration_input = 0.5
+                
             batt_duration = st.number_input("Battery Duration (Hours)", min_value=0.5, step=0.5, key='batt_duration_input')
 
 
