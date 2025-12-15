@@ -678,6 +678,13 @@ def recommend_portfolio(load_profile, target_cfe=0.95, excluded_techs=None, exis
         'Battery_Hours': 2
     }
     
+    # Force Zero for Excluded Techs (Override existing inputs)
+    for t in excluded_techs:
+        if t in recommendation:
+            recommendation[t] = 0.0
+        if t == 'Battery':
+            recommendation['Battery_MW'] = 0.0
+
     # Check if we have any existing non-zero capacities
     has_existing = any(v > 0 for v in existing_capacities.values() if v is not None)
     
