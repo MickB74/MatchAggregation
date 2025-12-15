@@ -128,6 +128,10 @@ def load_scenario():
             # 4. Exclusions
             if 'excluded_techs' in config: st.session_state.excluded_techs_input = config['excluded_techs']
             
+            # 5. Market Logic
+            if 'market_year' in config: st.session_state.market_year_input = int(config['market_year'])
+            if 'price_scaler' in config: st.session_state.price_scaler_input = float(config['price_scaler'])
+            
             st.toast("Scenario Loaded Successfully!")
             
         except Exception as e:
@@ -212,7 +216,10 @@ with st.expander("Configuration & Setup", expanded=True):
                 # Participants
                 "participants": st.session_state.get('participants', []),
                 # Exclusions
-                "excluded_techs": st.session_state.get('excluded_techs', [])
+                "excluded_techs": st.session_state.get('excluded_techs', []),
+                # Market Logic
+                "market_year": st.session_state.get('market_year_input', 2024),
+                "price_scaler": st.session_state.get('price_scaler_input', 1.0)
             }
             
             # Recalculate load if needed? 
@@ -620,7 +627,7 @@ with st.expander("Configuration & Setup", expanded=True):
         c_mkt_1, c_mkt_2, c_mkt_3, c_mkt_4 = st.columns(4)
         
         # Market Price Year Selection
-        market_year = c_mkt_1.selectbox("Market Year", [2024, 2023], help="Select historical price year")
+        market_year = c_mkt_1.selectbox("Market Year", [2024, 2023], help="Select historical price year", key='market_year_input')
         
         # UI Check for data availability
         import os
