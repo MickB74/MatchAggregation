@@ -222,13 +222,13 @@ with st.expander("Configuration & Setup", expanded=True):
                 "region": "ERCOT North",
                 "total_load_mwh": st.session_state.get('total_load_mwh', 0), # This might need calculation if not stored
                 # Capacities
-                "solar_capacity": st.session_state.get('solar_cap_input', 0.0),
-                "wind_capacity": st.session_state.get('wind_cap_input', 0.0),
-                "geo_capacity": st.session_state.get('geo_cap_input', 0.0),
-                "nuc_capacity": st.session_state.get('nuc_cap_input', 0.0),
-                "ccs_capacity": st.session_state.get('ccs_cap_input', 0.0),
-                "batt_capacity": st.session_state.get('batt_cap_input', 0.0),
-                "batt_duration": st.session_state.get('batt_dur_input', 0.0),
+                "solar_capacity": st.session_state.get('solar_input', 0.0),
+                "wind_capacity": st.session_state.get('wind_input', 0.0),
+                "geo_capacity": st.session_state.get('geo_input', 0.0),
+                "nuc_capacity": st.session_state.get('nuc_input', 0.0),
+                "ccs_capacity": st.session_state.get('ccs_input', 0.0),
+                "batt_capacity": st.session_state.get('batt_input', 0.0),
+                "batt_duration": st.session_state.get('batt_duration_input', 0.0),
                 # Prices
                 "solar_price": st.session_state.get('solar_price_input', 0.0),
                 "wind_price": st.session_state.get('wind_price_input', 0.0),
@@ -284,22 +284,64 @@ with st.expander("Configuration & Setup", expanded=True):
         st.markdown("### 🚀 How to Use This Tool")
         st.markdown("""
         **Step 1: Define Load Profile (Tab 1)**
-        - **Upload Data**: Upload a CSV with hourly load data (8760 hours).
-        - **Add Participants**: If you don't have a file, use the "Add Participant" form to creating synthetic loads for Data Centers, Offices, etc.
+
+        Choose how to build your hourly load (8760 hours):
         
+        *   **Add Participants (No File Required)**
+            *   Use the *Add Participant* form to generate synthetic load profiles.
+            *   **Supported participant types include:**
+                *   Data Centers
+                *   Offices
+                *   Manufacturing
+                *   Other commercial profiles
+        *   **Upload CSV**
+            *   Upload a file containing hourly electricity demand data (8760 rows).
+
+        **Output:** A consolidated hourly load profile used across all subsequent analyses.
+
         **Step 2: Design Generation Portfolio (Tab 2)**
-        - **Set Capacities**: Enter the MW capacity for Solar, Wind, Nuclear, Geothermal, and CCS Gas.
-        - **Battery Storage**: Define the battery power (MW) and duration (Hours).
-        - **Smart Fill**: Use the "✨ Smart Fill" button to automatically recommend a portfolio that meets the 95% CFE target. You can "Lock" certain technologies to keep them fixed while the solver adjusts the others.
-        
+
+        Configure clean energy supply:
+
+        *   **Set Capacities (MW) for:**
+            *   Solar
+            *   Wind
+            *   Nuclear
+            *   Geothermal
+            *   CCS Gas
+            *   Battery Storage: Power (MW) and Duration (hours)
+        *   **✨ Smart Fill (Optional)**
+            *   Automatically recommends a portfolio designed to achieve a 95% Carbon-Free Energy (CFE) target.
+            *   Lock technologies you want to keep fixed while the optimizer adjusts the remaining resources.
+
+        **Output:** Hourly clean generation and storage dispatch aligned to your load profile.
+
         **Step 3: Analyze Financials (Tab 3)**
-        - **PPA Prices**: input the PPA price ($/MWh) for each technology.
-        - **Market Data**: Select a historical year (2023/2024) for market prices or upload your own pricing file.
-        - **Review Metrics**: Check the "Financial Overview" for PPA Costs, Market Value (Capture), and Net Settlement.
-        - **Export Results**: Download the full simulation data (CSVs & JSON config) as a ZIP file, or generate a professional PDF report.
-        
+
+        **Inputs**
+        *   **PPA Prices:** Enter fixed contract prices ($/MWh) for each generation technology.
+        *   **Market Price Data:** Select a historical year (2023 or 2024), or Upload custom hourly market prices.
+
+        **Key Metrics**
+        *   PPA Costs
+        *   Market Value (Capture)
+        *   Net Settlement (PPA vs. Market)
+        *   Exports
+
+        **Download full simulation outputs:**
+        *   Hourly CSVs
+        *   JSON configuration files
+        *   Generate a professional PDF report for internal or external use.
+
         **Step 4: Battery Financials (Tab 4)**
-        - **CVTA Model**: Configure the "Corporate Virtual Tolling Agreement" terms (Fixed Capacity Payment vs. Market Revenue).
+
+        **CVTA Model (Corporate Virtual Tolling Agreement)**
+        
+        Configure battery monetization terms:
+        *   Fixed Capacity Payment
+        *   Market Revenue Sharing
+
+        **Outputs:** Battery-specific revenue, cost, and net value contributions.
         """)
         
         st.markdown("---")
