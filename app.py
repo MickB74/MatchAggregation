@@ -823,13 +823,7 @@ else:
         outage_mask = rng_outage.random(8760) < 0.02 # 2% probability
         availability_profile[outage_mask] = 0.0 # Full outage for that hour
     
-    if enable_battery:
-        batt_discharge, batt_soc, batt_charge = simulate_battery_storage(surplus, deficit, batt_capacity, batt_duration, availability_profile)
-    else:
-        batt_discharge = pd.Series(0.0, index=range(8760))
-        batt_charge = pd.Series(0.0, index=range(8760))
-        batt_soc = pd.Series(0.0, index=range(8760))
-        availability_profile = pd.Series(0.0, index=range(8760))
+    batt_discharge, batt_soc, batt_charge = simulate_battery_storage(surplus, deficit, batt_capacity, batt_duration, availability_profile)
     
     # 5. Final Matching
     total_gen_with_battery = total_gen_profile + batt_discharge
