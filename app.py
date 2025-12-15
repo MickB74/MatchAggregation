@@ -324,11 +324,11 @@ with st.expander("Configuration & Setup", expanded=True):
             st.markdown("---")
             
             # Input Widgets (Keys mapped to session state)
-            solar_capacity = st.number_input("Solar Capacity (MW)", min_value=0.0, step=1.0, key='solar_input')
-            wind_capacity = st.number_input("Wind Capacity (MW)", min_value=0.0, step=1.0, key='wind_input')
-            geo_capacity = st.number_input("Geothermal Capacity (MW)", min_value=0.0, step=1.0, key='geo_input')
-            nuc_capacity = st.number_input("Nuclear Capacity (MW)", min_value=0.0, step=1.0, key='nuc_input')
-            ccs_capacity = st.number_input("CCS Gas Capacity (MW)", min_value=0.0, step=1.0, key='ccs_input')
+            solar_capacity = st.number_input("Solar Capacity (MW)", min_value=0.0, step=50.0, key='solar_input')
+            wind_capacity = st.number_input("Wind Capacity (MW)", min_value=0.0, step=50.0, key='wind_input')
+            geo_capacity = st.number_input("Geothermal Capacity (MW)", min_value=0.0, step=50.0, key='geo_input')
+            nuc_capacity = st.number_input("Nuclear Capacity (MW)", min_value=0.0, step=50.0, key='nuc_input')
+            ccs_capacity = st.number_input("CCS Gas Capacity (MW)", min_value=0.0, step=50.0, key='ccs_input')
             
             # Automatically update project suggestions when capacities change
             # Build current recommendation from slider values
@@ -361,7 +361,7 @@ with st.expander("Configuration & Setup", expanded=True):
             # Initialize session state to avoid "created with default value" warning
             if 'batt_input' not in st.session_state:
                 st.session_state.batt_input = 0.0
-            batt_capacity = st.number_input("Battery Power (MW)", min_value=0.0, step=1.0, key='batt_input', disabled=not enable_battery)
+            batt_capacity = st.number_input("Battery Power (MW)", min_value=0.0, step=50.0, key='batt_input', disabled=not enable_battery)
 
             if 'batt_duration_input' not in st.session_state:
                 st.session_state.batt_duration_input = 2.0
