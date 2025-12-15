@@ -1213,34 +1213,15 @@ else:
         market_price_profile = get_market_price_profile(market_price, year=market_year) * price_scaler
         
         tech_data = []
-        tech_capacities = {
-            'Solar': solar_capacity,
-            'Wind': wind_capacity,
-            'CCS Gas': ccs_capacity,
-            'Geothermal': geo_capacity,
-            'Nuclear': nuc_capacity,
-            'Battery': batt_capacity
-        }
-        
-        for tech, capacity in tech_capacities.items():
-            if capacity > 0:
-                # Get generation profile for this tech
-                if tech in tech_profiles:
-                    tech_gen = tech_profiles[tech]
-                    # Calculate capture value (time-weighted average market price)
-                    capture_value = (tech_gen * market_price_profile).sum() / tech_gen.sum() if tech_gen.sum() > 0 else 0
-                else:
-                    capture_value = 0
-                
-                # Get PPA price
-                ppa_price = tech_prices.get(tech, 0)
-                
-                tech_data.append({
-                    'Technology': tech,
-                    'PPA Price': ppa_price,
-                    'Capture Value': capture_value,
-                    'Spread': capture_value - ppa_price
-                })
+        if 'tech_details' in fin_metrics:
+            for tech, details in fin_metrics['tech_details'].items():
+                if details['Matched_MWh'] > 0:
+                    tech_data.append({
+                        'Technology': tech,
+                        'PPA Price': details['PPA_Price'],
+                        'Capture Value': details['Market_Value'] / details['Matched_MWh'],
+                        'Spread': (details['Market_Value'] / details['Matched_MWh']) - details['PPA_Price']
+                    })
         
         if tech_data:
             # Create grouped bar chart
