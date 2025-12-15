@@ -1205,6 +1205,7 @@ else:
         
         # Calculate Value of Excess RECs
         excess_rec_value = surplus.sum() * rec_price
+        fin_metrics['excess_rec_value'] = excess_rec_value # Add to metrics for PDF
         col13.metric("Excess REC Value", f"${excess_rec_value:,.0f}", help="Potential value of RECs from excess generation")
 
         st.markdown("---")
