@@ -273,21 +273,16 @@ with st.expander("Configuration & Setup", expanded=True):
                     temp_load += generate_dummy_load_profile(p['load'], p['type'])
                 
                 if temp_load.sum() > 0:
-                    # Check whether to use existing capacities or reset
-                    force_reset = st.session_state.get('force_reset_rec', False)
-                    
-                    if force_reset:
-                        existing_capacities = {} # Ignore current values
-                    else:
-                        # Use existing values to build around them
-                        existing_capacities = {
-                            'Solar': st.session_state.get('solar_input', 0.0),
-                            'Wind': st.session_state.get('wind_input', 0.0),
-                            'CCS Gas': st.session_state.get('ccs_input', 0.0),
-                            'Geothermal': st.session_state.get('geo_input', 0.0),
-                            'Nuclear': st.session_state.get('nuc_input', 0.0),
-                            'Battery_MW': st.session_state.get('batt_input', 0.0)
-                        }
+                if temp_load.sum() > 0:
+                    # Smart Fill: Always use existing values to build around them
+                    existing_capacities = {
+                        'Solar': st.session_state.get('solar_input', 0.0),
+                        'Wind': st.session_state.get('wind_input', 0.0),
+                        'CCS Gas': st.session_state.get('ccs_input', 0.0),
+                        'Geothermal': st.session_state.get('geo_input', 0.0),
+                        'Nuclear': st.session_state.get('nuc_input', 0.0),
+                        'Battery_MW': st.session_state.get('batt_input', 0.0)
+                    }
                     
                     # Pass excluded techs from session state (widget key='excluded_techs_input')
                     rec = recommend_portfolio(
@@ -355,17 +350,17 @@ with st.expander("Configuration & Setup", expanded=True):
             st.markdown("---")
 
             # Battery Sizing (Physical)
-            # define enable_battery first so we can use it
-            enable_battery = st.checkbox("Enable Battery Storage", value=True)
+            # Battery Sizing (Physical)
+            st.markdown("**Battery Storage**")
             
             # Initialize session state to avoid "created with default value" warning
             if 'batt_input' not in st.session_state:
                 st.session_state.batt_input = 0.0
-            batt_capacity = st.number_input("Battery Power (MW)", min_value=0.0, step=50.0, key='batt_input', disabled=not enable_battery)
+            batt_capacity = st.number_input("Battery Power (MW)", min_value=0.0, step=50.0, key='batt_input')
 
             if 'batt_duration_input' not in st.session_state:
                 st.session_state.batt_duration_input = 2.0
-            batt_duration = st.number_input("Battery Duration (Hours)", min_value=0.5, step=0.5, key='batt_duration_input', disabled=not enable_battery)
+            batt_duration = st.number_input("Battery Duration (Hours)", min_value=0.5, step=0.5, key='batt_duration_input')
 
 
         with col_gen_2:
@@ -374,9 +369,10 @@ with st.expander("Configuration & Setup", expanded=True):
             st.markdown("---")
             
             # Exclude Tech multiselect
+            # Exclude Tech multiselect
             excluded_techs = st.multiselect(
                 "Exclude Technologies from Recommendation",
-                ['Solar', 'Wind', 'CCS Gas', 'Geothermal', 'Nuclear'],
+                ['Solar', 'Wind', 'CCS Gas', 'Geothermal', 'Nuclear', 'Battery'],
                 key='excluded_techs_input'
             )
             
@@ -390,7 +386,6 @@ with st.expander("Configuration & Setup", expanded=True):
 
             col_btn, col_chk = st.columns([1, 1])
             col_btn.button("✨ Smart Fill / Recommend", on_click=apply_recommendation)
-            col_chk.checkbox("Force Reset", value=False, key='force_reset_rec', help="Check this to discard current slider values and generate a fresh recommendation from scratch.")
             
             # Show success/error messages after rerun
             if st.session_state.get('portfolio_recommended', False):
