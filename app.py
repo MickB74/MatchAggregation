@@ -132,6 +132,34 @@ def load_scenario():
             if 'market_year' in config: st.session_state.market_year_input = int(config['market_year'])
             if 'price_scaler' in config: st.session_state.price_scaler_input = float(config['price_scaler'])
             
+            # 6. Custom Profiles (Large Arrays)
+            # Restore Solar
+            if 'custom_solar_profile' in config:
+                st.session_state['custom_solar_profile'] = pd.Series(config['custom_solar_profile'])
+            
+            # Restore Wind
+            if 'custom_wind_profile' in config:
+                st.session_state['custom_wind_profile'] = pd.Series(config['custom_wind_profile'])
+                
+            # Restore Battery Market Prices
+            if 'custom_battery_prices' in config:
+                # Expecting list of dicts or similar structure, convert back to DataFrame
+                # We saved it as: df.reset_index().to_dict('records')
+                # But 'records' loses index. We need to handle datetime index.
+                # Actually, simple list of prices + known start date?
+                # Let's check how we save it.
+                # If we assume standard year, we can just save the 'Price' column as list.
+                # But 'shared_market_prices' is a DataFrame with 'Price' and Datetime Index.
+                
+                price_data = config['custom_battery_prices']
+                # If it's a list (just prices), reconstruct index
+                if isinstance(price_data, list):
+                     # Reconstruct simple index for current year
+                     # We might need to know the year. Use market_year.
+                     year = st.session_state.get('market_year_input', 2024)
+                     dates = pd.date_range(start=f'{year}-01-01', periods=len(price_data), freq='h')
+                     st.session_state['shared_market_prices'] = pd.DataFrame({'Price': price_data}, index=dates)
+
             st.toast("Scenario Loaded Successfully!")
             
         except Exception as e:
@@ -221,6 +249,20 @@ with st.expander("Configuration & Setup", expanded=True):
                 "market_year": st.session_state.get('market_year_input', 2024),
                 "price_scaler": st.session_state.get('price_scaler_input', 1.0)
             }
+            
+            # Add Custom Profiles if Available
+            if 'custom_solar_profile' in st.session_state:
+                 # It's a Series, convert to list
+                 export_config['custom_solar_profile'] = st.session_state['custom_solar_profile'].tolist()
+            
+            if 'custom_wind_profile' in st.session_state:
+                 export_config['custom_wind_profile'] = st.session_state['custom_wind_profile'].tolist()
+                 
+            if 'shared_market_prices' in st.session_state:
+                 # It's a DataFrame, let's save the 'Price' column as list
+                 df_prices = st.session_state['shared_market_prices']
+                 if 'Price' in df_prices.columns:
+                     export_config['custom_battery_prices'] = df_prices['Price'].tolist()
             
             # Recalculate load if needed? 
             # Total Load is derived. If we don't store it, we might export 0.
@@ -750,6 +792,10 @@ with st.expander("Configuration & Setup", expanded=True):
                 except Exception as e:
                     st.error(f"Error parsing file: {e}")
             
+            if df_prices is None and 'shared_market_prices' in st.session_state:
+                # Use restored custom prices from session state
+                df_prices = st.session_state['shared_market_prices']
+            
             if df_prices is None:
                 # Default to Auto-Load ERCOT Data (Year Based)
                 try:
@@ -950,11 +996,15 @@ else:
     if uploaded_solar_file:
         solar_unit_profile = process_uploaded_profile(uploaded_solar_file, keywords=['solar', 'pv', 'generation', 'output'])
         if solar_unit_profile is not None:
+             st.session_state['custom_solar_profile'] = solar_unit_profile # Save for persistence
              # Scale by capacity input
              solar_profile = solar_unit_profile * solar_capacity
         else:
              st.error("Error parsing Solar file.")
              st.stop()
+    elif 'custom_solar_profile' in st.session_state:
+         # Use restored custom profile
+         solar_profile = st.session_state['custom_solar_profile'] * solar_capacity
     else:
         solar_profile = generate_dummy_generation_profile(solar_capacity, 'Solar', use_synthetic=False)
 
@@ -962,10 +1012,14 @@ else:
     if uploaded_wind_file:
         wind_unit_profile = process_uploaded_profile(uploaded_wind_file, keywords=['wind', 'turbine', 'generation', 'output'])
         if wind_unit_profile is not None:
+             st.session_state['custom_wind_profile'] = wind_unit_profile # Save for persistence
              wind_profile = wind_unit_profile * wind_capacity
         else:
              st.error("Error parsing Wind file.")
              st.stop()
+    elif 'custom_wind_profile' in st.session_state:
+         # Use restored custom profile
+         wind_profile = st.session_state['custom_wind_profile'] * wind_capacity
     else:
         wind_profile = generate_dummy_generation_profile(wind_capacity, 'Wind')
 
