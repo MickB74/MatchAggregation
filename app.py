@@ -237,7 +237,11 @@ with st.expander("Configuration & Setup", expanded=True):
             st.markdown("#### Current Participants")
             if st.session_state.participants:
                 p_df = pd.DataFrame(st.session_state.participants)
-                st.dataframe(p_df, hide_index=True, use_container_width=True)
+                st.dataframe(
+                    p_df.style.format({"load": "{:,.0f}"}), 
+                    hide_index=True, 
+                    use_container_width=True
+                )
             else:
                 st.info("No participants added yet.")
                 
