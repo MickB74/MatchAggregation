@@ -1117,6 +1117,9 @@ def process_uploaded_profile(uploaded_file, keywords=None):
         st.error("Could not identify a valid data column in the CSV.")
         return None
         
+    except Exception as e:
+        st.error(f"Error processing file: {e}")
+        return None
 
 from fpdf import FPDF
 import datetime
