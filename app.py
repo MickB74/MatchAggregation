@@ -168,6 +168,7 @@ with st.expander("Configuration & Setup", expanded=True):
         - **PPA Prices**: input the PPA price ($/MWh) for each technology.
         - **Market Data**: Select a historical year (2023/2024) for market prices or upload your own pricing file.
         - **Review Metrics**: Check the "Financial Overview" for PPA Costs, Market Value (Capture), and Net Settlement.
+        - **Export**: You can download the financial analysis data as a CSV.
         
         **Step 4: Battery Financials (Tab 4)**
         - **CVTA Model**: Configure the "Corporate Virtual Tolling Agreement" terms (Fixed Capacity Payment vs. Market Revenue).
