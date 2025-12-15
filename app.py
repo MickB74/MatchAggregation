@@ -543,8 +543,7 @@ with st.expander("Configuration & Setup", expanded=True):
             
             if cvta_cap > 0:
                 st.info(f"**Linked Portfolio Battery:**\n\n⚡ **{cvta_cap:,.0f} MW**\n\n⏳ **{cvta_dur:.1f} Hours**")
-                if not enable_battery:
-                     st.warning("⚠️ Battery is disabled in Gen Portfolio.")
+
             else:
                 st.warning("⚠️ **No Battery Configured**\n\nGo to '2. Generation Portfolio' to size the battery.")
 
