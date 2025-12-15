@@ -192,8 +192,13 @@ with st.expander("Configuration & Setup", expanded=True):
         st.latex(r"\text{Cost}_{PPA} = \sum (\text{Gen}_{t} \times \text{Price}_{PPA})")
         st.latex(r"\text{Value}_{Market} = \sum (\text{Gen}_{t} \times \text{Price}_{Market, t})")
         st.latex(r"\text{Net Settlement} = \text{Value}_{Market} - \text{Cost}_{PPA}")
-        st.caption("**Positive Settlement** = Profit for Buyer. **Negative Settlement** = Cost to Buyer.")
         
+        st.markdown("**Weighted Average PPA Price:**")
+        st.latex(r"\text{Avg Price}_{PPA} = \frac{\sum \text{Total PPA Cost}}{\sum \text{Total Matched Generation (MWh)}}")
+        
+        st.markdown("**Excess REC Value:**")
+        st.latex(r"\text{Excess Value} = \sum (\text{Surplus Generation}_t) \times \text{REC Price}")
+
         st.markdown("#### 4. Battery Proxy Model (CVTA)")
         st.markdown("""
         The Corporate Virtual Tolling Agreement (CVTA) is a financial swap for battery storage.
@@ -208,6 +213,20 @@ with st.expander("Configuration & Setup", expanded=True):
         """)
         st.latex(r"\text{Revenue} = \sum (\text{Discharge}_t \times \text{Price}_t) - \sum (\text{Charge}_t \times \text{Price}_t)")
         st.latex(r"\text{Net Cost} = \text{Fixed Cost} - \text{Revenue}")
+        
+        st.markdown("**Battery Efficiency (RTE):**")
+        st.markdown("Energy is lost during charging based on the Round Trip Efficiency (RTE).")
+        st.latex(r"\text{Energy Stored} = \text{Energy Charged} \times \text{RTE \%}")
+        
+        st.markdown("#### 5. Synthetic Market Price Model (Duck Curve)")
+        st.markdown("""
+        When historical market data is not available, the tool generates a synthetic "Duck Curve" price addapted to the average price input.
+        """)
+        st.latex(r"\text{Price}_t = \text{Base}_t \times \text{Seasonal Factor}_t + \text{Noise}")
+        st.markdown("""
+        - **Base Shape**: Sinusoidal with a trough at midday (solar cannibalization) and peak at evening (17:00-21:00).
+        - **Seasonal Factor**: Higher prices in Summer (`cos` function peaking around day 172).
+        """)
     
     # --- Tab 2: Load Setup ---
     with tab_load:
