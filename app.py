@@ -364,12 +364,9 @@ with st.expander("Configuration & Setup", expanded=True):
             batt_duration = st.number_input("Battery Duration (Hours)", min_value=0.5, step=0.5, key='batt_duration_input')
 
 
-        with col_gen_2:
-            st.markdown("#### Portfolio Recommendation")
-            
             st.markdown("---")
+            st.markdown("#### Smart Fill / Recommendation")
             
-            # Exclude Tech multiselect
             # Exclude Tech multiselect
             excluded_techs = st.multiselect(
                 "Exclude Technologies from Recommendation",
@@ -396,8 +393,12 @@ with st.expander("Configuration & Setup", expanded=True):
                 st.warning(st.session_state.portfolio_error)
                 st.session_state.portfolio_error = None # Reset error
 
-            # Clear Portfolio Button (Moved from Left)
+            # Clear Portfolio Button
             st.button("🗑️ Clear Portfolio (Reset to 0)", on_click=clear_portfolio)
+        with col_gen_2:
+            st.markdown("#### Matched Projects")
+            
+            st.markdown("---")
             
             # Display matched projects if available
             if st.session_state.get('matched_projects'):
