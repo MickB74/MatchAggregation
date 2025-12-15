@@ -4,4 +4,4 @@ numpy
 plotly
 matplotlib
 fpdf2
-kaleido
+kaleido==0.2.1
