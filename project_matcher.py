@@ -2,6 +2,7 @@
 import pandas as pd
 import numpy as np
 import os
+import random
 
 def load_projects(csv_path='projects_in_queue_all_generators.csv'):
     """
@@ -177,11 +178,21 @@ def match_projects_to_recommendation(recommendation, max_projects_per_tech=5):
             if tech_projects.empty:
                 continue
             
-            # Prioritize projects
+            # Prioritize projects (Deterministic sort)
             prioritized = prioritize_projects(tech_projects, capacity)
             
-            # Select top N projects
-            top_projects = prioritized.head(max_projects_per_tech)
+            # Add Randomness: Take top 20 candidates and sample 5 (max_projects_per_tech)
+            # This ensures we get high-quality projects but with variety on each run.
+            candidate_pool_size = 20
+            candidates = prioritized.head(candidate_pool_size)
+            
+            if len(candidates) > max_projects_per_tech:
+                # Randomly sample from the top candidates
+                # Use random.sample to avoid duplicates
+                indices = random.sample(range(len(candidates)), max_projects_per_tech)
+                top_projects = candidates.iloc[indices]
+            else:
+                top_projects = candidates
             
             # Extract relevant fields
             project_list = []

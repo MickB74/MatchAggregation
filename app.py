@@ -32,6 +32,8 @@ st.set_page_config(page_title="ERCOT North Aggregation", layout="wide")
 chart_template = 'plotly_white'
 
 
+
+
 st.title("ERCOT North Renewable Energy Aggregation")
 st.markdown("Aggregate load participants and optimize for 24/7 clean energy matching.")
 
@@ -161,6 +163,7 @@ def load_scenario():
                      st.session_state['shared_market_prices'] = pd.DataFrame({'Price': price_data}, index=dates)
 
             st.toast("Scenario Loaded Successfully!")
+            st.toast(f"Solar: {st.session_state.get('solar_input', 0)} MW | Wind: {st.session_state.get('wind_input', 0)} MW")
             
         except Exception as e:
             st.error(f"Error parsing scenario: {e}")
@@ -220,34 +223,34 @@ with st.expander("Configuration & Setup", expanded=True):
             
             export_config = {
                 "region": "ERCOT North",
-                "total_load_mwh": st.session_state.get('total_load_mwh', 0), # This might need calculation if not stored
-                # Capacities
-                "solar_capacity": st.session_state.get('solar_input', 0.0),
-                "wind_capacity": st.session_state.get('wind_input', 0.0),
-                "geo_capacity": st.session_state.get('geo_input', 0.0),
-                "nuc_capacity": st.session_state.get('nuc_input', 0.0),
-                "ccs_capacity": st.session_state.get('ccs_input', 0.0),
-                "batt_capacity": st.session_state.get('batt_input', 0.0),
-                "batt_duration": st.session_state.get('batt_duration_input', 0.0),
+                "total_load_mwh": float(st.session_state.get('total_load_mwh', 0)), 
+                # Capacities (Explicit conversions for JSON safety)
+                "solar_capacity": float(st.session_state.get('solar_input', 0.0)),
+                "wind_capacity": float(st.session_state.get('wind_input', 0.0)),
+                "geo_capacity": float(st.session_state.get('geo_input', 0.0)),
+                "nuc_capacity": float(st.session_state.get('nuc_input', 0.0)),
+                "ccs_capacity": float(st.session_state.get('ccs_input', 0.0)),
+                "batt_capacity": float(st.session_state.get('batt_input', 0.0)),
+                "batt_duration": float(st.session_state.get('batt_duration_input', 0.0)),
                 # Prices
-                "solar_price": st.session_state.get('solar_price_input', 0.0),
-                "wind_price": st.session_state.get('wind_price_input', 0.0),
-                "ccs_price": st.session_state.get('ccs_price_input', 0.0),
-                "geo_price": st.session_state.get('geo_price_input', 0.0),
-                "nuc_price": st.session_state.get('nuc_price_input', 0.0),
-                "market_price": st.session_state.get('avg_price_input', 35.0), # Approximate
-                "rec_price": st.session_state.get('rec_price_input', 0.0),
+                "solar_price": float(st.session_state.get('solar_price_input', 0.0)),
+                "wind_price": float(st.session_state.get('wind_price_input', 0.0)),
+                "ccs_price": float(st.session_state.get('ccs_price_input', 0.0)),
+                "geo_price": float(st.session_state.get('geo_price_input', 0.0)),
+                "nuc_price": float(st.session_state.get('nuc_price_input', 0.0)),
+                "market_price": float(st.session_state.get('avg_price_input', 35.0)), 
+                "rec_price": float(st.session_state.get('rec_price_input', 0.0)),
                 # Battery Financials
-                "batt_base_rate": st.session_state.get('cvta_fixed_input', 12000.0),
-                "batt_guar_rte": st.session_state.get('cvta_rte_input', 85.0),
-                "batt_vom": st.session_state.get('cvta_vom_input', 2.0),
+                "batt_base_rate": float(st.session_state.get('cvta_fixed_input', 12000.0)),
+                "batt_guar_rte": float(st.session_state.get('cvta_rte_input', 85.0)),
+                "batt_vom": float(st.session_state.get('cvta_vom_input', 2.0)),
                 # Participants
                 "participants": st.session_state.get('participants', []),
                 # Exclusions
-                "excluded_techs": st.session_state.get('excluded_techs', []),
+                "excluded_techs": st.session_state.get('excluded_techs_input', []),
                 # Market Logic
-                "market_year": st.session_state.get('market_year_input', 2024),
-                "price_scaler": st.session_state.get('price_scaler_input', 1.0)
+                "market_year": int(st.session_state.get('market_year_input', 2024)),
+                "price_scaler": float(st.session_state.get('price_scaler_input', 1.0))
             }
             
             # Add Custom Profiles if Available
