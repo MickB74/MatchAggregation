@@ -1648,6 +1648,17 @@ else:
         'Surplus_MW': surplus
     })
 
+    # Add Individual Participant Loads
+    if st.session_state.participants:
+        for p in st.session_state.participants:
+            # Generate profile for this participant
+            # Re-generate to ensure consistency (using same seed/logic in utils)
+            p_profile = generate_dummy_load_profile(p['load'], p['type'])
+            
+            # Add to DF with formatted name
+            col_name = f"{p['name']} ({p['type']})_MW"
+            results_df[col_name] = p_profile
+
     # --- Financial Columns for CSV ---
     # 1. Market Price (Hourly)
     market_price_profile = get_market_price_profile(market_price, year=market_year)
