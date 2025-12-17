@@ -314,7 +314,7 @@ with st.expander("Configuration & Setup", expanded=True):
             *   CCS Gas
             *   Battery Storage: Power (MW) and Duration (hours)
         *   **✨ Smart Fill (Optional)**
-            *   Automatically recommends a portfolio designed to achieve a 95% Carbon-Free Energy (CFE) target.
+            *   Automatically recommends a portfolio designed to achieve a >95% Carbon-Free Energy (CFE) target.
             *   Lock technologies you want to keep fixed while the optimizer adjusts the remaining resources.
 
         **Output:** Hourly clean generation and storage dispatch aligned to your load profile.
@@ -1744,28 +1744,32 @@ else:
         # Generate PDF Report
         pdf_bytes = generate_pdf_report(metrics, scenario_config, fin_metrics, figures=figures)
         
-    with tab_fin:
-        st.markdown("---")
-        st.subheader("Export Results")
-        
-        col_dl1, col_dl2 = st.columns(2)
-        with col_dl1:
-            st.download_button(
-                label="Download Results & Scenario (ZIP)",
-                data=zip_buffer.getvalue(),
-                file_name="simulation_results.zip",
-                mime="application/zip"
-            )
-        with col_dl2:
-            st.download_button(
-                label="📄 Download PDF Report",
-                data=pdf_bytes,
-                file_name="Portfolio_Report.pdf",
-                mime="application/pdf"
-            )
-        
-
-
-        
-
+    # Remove the buttons from inside the tab
     
+    # --- Footer: Export Results (Visible on all pages) ---
+    st.markdown("---")
+    
+    # Styled Header matching the image (Orange background, White text)
+    st.markdown("""
+        <div style="background-color: #D35400; padding: 10px; border-radius: 5px; margin-bottom: 20px;">
+            <h3 style="color: white; margin: 0; padding: 0;">Export Results</h3>
+        </div>
+    """, unsafe_allow_html=True)
+
+    col_dl1, col_dl2 = st.columns(2)
+    with col_dl1:
+        st.download_button(
+            label="Download Results & Scenario (ZIP)",
+            data=zip_buffer.getvalue(),
+            file_name="simulation_results.zip",
+            mime="application/zip",
+            use_container_width=True
+        )
+    with col_dl2:
+        st.download_button(
+            label="📄 Download PDF Report",
+            data=pdf_bytes,
+            file_name="Portfolio_Report.pdf",
+            mime="application/pdf",
+            use_container_width=True
+        )
