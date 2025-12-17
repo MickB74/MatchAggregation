@@ -199,7 +199,7 @@ with st.expander("Configuration & Setup", expanded=True):
                 st.success("Scenario loaded successfully!")
                 
         with col_export:
-            st.subheader("💾 Save Scenario")
+            st.subheader("💾 Save Current Scenario")
             st.markdown("Download your current configuration as a JSON file.")
             
             # Reconstruct scenario_config for export (Duplicated logic for independence)
@@ -390,6 +390,10 @@ with st.expander("Configuration & Setup", expanded=True):
         st.markdown("**Battery Efficiency (RTE):**")
         st.markdown("Energy is lost during charging based on the Round Trip Efficiency (RTE).")
         st.latex(r"\text{Energy Stored} = \text{Energy Charged} \times \text{RTE \%}")
+        
+        st.markdown("**Battery Adder Price (Effective Net Cost):**")
+        st.markdown("Represents the effective premium paid per MWh of battery energy dispatched.")
+        st.latex(r"\text{Adder Price} = \frac{\text{Net Cost}}{\text{Total Discharged Energy (MWh)}}")
         
         st.markdown("#### 5. Synthetic Market Price Model (Duck Curve)")
         st.markdown("""
