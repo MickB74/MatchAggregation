@@ -34,6 +34,12 @@ def generate_dummy_load_profile(annual_consumption_mwh, profile_type='Flat'):
         noise = rng.normal(0, 0.05 * avg_load, hours)
         profile = np.full(hours, avg_load) + noise
         
+    elif profile_type == 'Manufacturing':
+        # Similar to Data Center (High Load Factor) but different noise pattern
+        avg_load = annual_consumption_mwh / hours
+        noise = rng.normal(0, 0.10 * avg_load, hours) # More volatile than DC
+        profile = np.full(hours, avg_load) + noise
+        
     elif profile_type == 'Office':
         # Higher during day (8am-6pm), lower at night
         # Simple simulation

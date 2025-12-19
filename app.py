@@ -656,7 +656,15 @@ with tab_load:
         
         with st.form("add_participant", clear_on_submit=True):
             p_name = st.text_input("Participant Name", placeholder="e.g. Data Center 1")
-            p_type = st.selectbox("Building Type", ["Data Center", "Office", "Flat"])
+            
+            type_options = ["Data Center", "Manufacturing", "Office", "Flat"]
+            type_labels = {
+                "Data Center": "Data Center (LF: ~95%)",
+                "Manufacturing": "Manufacturing (LF: ~90%)",
+                "Office": "Office (LF: ~45%)",
+                "Flat": "Baseload / Flat (LF: 100%)"
+            }
+            p_type = st.selectbox("Building Type", type_options, format_func=lambda x: type_labels.get(x, x))
             p_load = st.number_input("Annual Consumption (MWh)", min_value=1000, value=50000, step=50000)
             submitted = st.form_submit_button("Add Participant")
             
