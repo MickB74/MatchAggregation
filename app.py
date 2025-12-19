@@ -823,7 +823,14 @@ with tab_fin:
         geo_price = st.number_input("Geothermal PPA Price", min_value=0.0, value=77.5, step=0.5, key='geo_price_input', help="2025 Market Est: $70.00 - $85.00")
     with c_fin_3:
         nuc_price = st.number_input("Nuclear PPA Price", min_value=0.0, value=95.0, step=1.0, key='nuc_price_input', help="2025 Market Est: $90.00 - $100.00")
-    
+        ppa_price_scaler = st.number_input("PPA Price Scaler", min_value=0.1, max_value=5.0, value=1.0, step=0.1, key='ppa_scaler_input', help="Multiplier for all PPA Prices")
+
+    # Calculate Effective PPA Prices
+    solar_price_eff = solar_price * ppa_price_scaler
+    wind_price_eff = wind_price * ppa_price_scaler
+    ccs_price_eff = ccs_price * ppa_price_scaler
+    geo_price_eff = geo_price * ppa_price_scaler
+    nuc_price_eff = nuc_price * ppa_price_scaler
 
 
 
@@ -880,23 +887,6 @@ with tab_fin:
         help="Base × Scaler = Effective market price"
     )
 
-    ppa_price_scaler = c_mkt_4.number_input(
-        "PPA Price Scaler",
-        min_value=0.1,
-        max_value=5.0,
-        value=1.0,
-        step=0.1,
-        key='ppa_scaler_input',
-        help="Multiplier for PPA Prices"
-    )
-
-    # Calculate Effective PPA Prices
-    solar_price_eff = solar_price * ppa_price_scaler
-    wind_price_eff = wind_price * ppa_price_scaler
-    ccs_price_eff = ccs_price * ppa_price_scaler
-    geo_price_eff = geo_price * ppa_price_scaler
-    nuc_price_eff = nuc_price * ppa_price_scaler
-    
     rec_price = c_mkt_4.number_input("REC Price ($/MWh)", min_value=0.0, value=3.50, step=0.5, key='rec_input', help="Market est: $2-4/MWh")
     
     
