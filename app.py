@@ -213,45 +213,139 @@ with tab_comp:
         
         comp_df = pd.DataFrame(comp_data)
         
-        # Display Table
-        st.subheader("Summary Table")
-        st.dataframe(
-            comp_df.style.format({
-                "CFE Score": "{:.1%}",
-                "Total Load (GWh)": "{:,.1f}",
-                "Avg PPA Price ($/MWh)": "${:.2f}",
-                "Net Settlement ($M)": "${:,.2f}",
-                "Total Cost ($M)": "${:,.2f}",
-                "Market Revenue ($M)": "${:,.2f}",
-                "PPA Cost ($M)": "${:,.2f}",
-                "REC Cost ($M)": "${:,.2f}",
-                "Deficit Cost ($M)": "${:,.2f}",
-                "Solar (MW)": "{:,.0f}",
-                "Wind (MW)": "{:,.0f}",
-                "Firm (MW)": "{:,.0f}",
-                "Battery (MW)": "{:,.0f}"
-            }),
-            hide_index=True,
-            use_container_width=True
+        # --- 1. Top-Level Metrics (Best Performance) ---
+        if not comp_df.empty:
+            best_cfe_idx = comp_df['CFE Score'].idxmax()
+            best_cost_idx = comp_df['Total Cost ($M)'].idxmin() # Lower is better?
+            # Net Settlement: Higher is better (more positive = revenue, more negative = cost)
+            # Total Cost: Lower is better.
+            
+            best_cfe = comp_df.loc[best_cfe_idx]
+            best_cost = comp_df.loc[best_cost_idx]
+            
+            m1, m2, m3 = st.columns(3)
+            m1.metric("Highest CFE Score", f"{best_cfe['CFE Score']:.1f}%", best_cfe['Scenario'])
+            m2.metric("Lowest Total Cost", f"${best_cost['Total Cost ($M)']:,.1f}M", best_cost['Scenario'])
+            m3.metric("Scenarios Compared", len(comp_df))
+            
+            st.markdown("---")
+
+        # --- 2. Visual Analysis (Charts) ---
+        st.subheader("📊 Visual Trade-Off Analysis")
+        
+        c1, c2 = st.columns([2, 1])
+        
+        with c1:
+            st.markdown("**Efficiency Frontier: CFE vs. Cost**")
+            # Scatter Plot: X=CFE, Y=Total Cost
+            fig_scatter = go.Figure()
+            
+            for i, row in comp_df.iterrows():
+                fig_scatter.add_trace(go.Scatter(
+                    x=[row['CFE Score']],
+                    y=[row['Total Cost ($M)']],
+                    mode='markers+text',
+                    text=[row['Scenario']],
+                    textposition="top center",
+                    marker=dict(size=12, line=dict(width=2, color='DarkSlateGrey')),
+                    name=row['Scenario']
+                ))
+            
+            fig_scatter.update_layout(
+                xaxis_title="CFE Score (%)",
+                yaxis_title="Total Annual Cost ($M)",
+                template=chart_template,
+                showlegend=False,
+                height=400
+            )
+            st.plotly_chart(fig_scatter, use_container_width=True)
+            
+        with c2:
+            st.markdown("**Portfolio Capacity Mix (MW)**")
+            # Stacked Bar of Capacities
+            cap_cols = ['Solar (MW)', 'Wind (MW)', 'Firm (MW)', 'Battery (MW)']
+            fig_mix = go.Figure()
+            for col in cap_cols:
+                fig_mix.add_trace(go.Bar(
+                    name=col.replace(" (MW)", ""),
+                    x=comp_df['Scenario'],
+                    y=comp_df[col]
+                ))
+            
+            fig_mix.update_layout(
+                barmode='stack',
+                template=chart_template,
+                legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+                height=400,
+                margin=dict(l=20, r=20, t=20, b=20)
+            )
+            st.plotly_chart(fig_mix, use_container_width=True)
+
+        # --- 3. Detailed Financial Breakdown Chart ---
+        st.markdown("**Detailed Annual Cost Components ($M)**")
+        # Stacked bar: PPA Cost, REC Cost, Deficit Cost vs Market Revenue (Line?)
+        # Let's just do Cost Components Stacked
+        cost_cols_plot = ["PPA Cost ($M)", "REC Cost ($M)", "Deficit Cost ($M)"]
+        fig_cost = go.Figure()
+        for col in cost_cols_plot:
+            fig_cost.add_trace(go.Bar(
+                name=col.replace(" ($M)", ""),
+                x=comp_df['Scenario'],
+                y=comp_df[col]
+            ))
+            
+        # Add Net Settlement as a Line/Dot?
+        # Or Total Cost as a Line
+        fig_cost.add_trace(go.Scatter(
+            name="Total Net Cost",
+            x=comp_df['Scenario'],
+            y=comp_df['Total Cost ($M)'],
+            mode='lines+markers',
+            line=dict(color='black', width=3, dash='dot')
+        ))
+        
+        fig_cost.update_layout(
+            barmode='stack',
+            template=chart_template,
+            height=350,
+             margin=dict(l=20, r=20, t=20, b=20)
+        )
+        st.plotly_chart(fig_cost, use_container_width=True)
+
+        # --- 4. Comparison Table (Styled) ---
+        st.subheader("📋 Detailed Comparison Table")
+        
+        # Apply Pandas Styling
+        # CFE: Green High
+        # Total Cost: Green Low
+        # Net Settlement: Green High (Revenue) or Green Low (Cost)? 
+        # Net Settlement in this app: Revenue - Cost. High Positive is BEST. 
+        # So Green High.
+        
+        format_dict = {
+            "CFE Score": "{:.1f}%",
+            "Total Load (GWh)": "{:,.1f}",
+            "Avg PPA Price ($/MWh)": "${:.2f}",
+            "Net Settlement ($M)": "${:,.1f}",
+            "Total Cost ($M)": "${:,.1f}",
+            "Market Revenue ($M)": "${:,.1f}",
+            "PPA Cost ($M)": "${:,.1f}",
+            "REC Cost ($M)": "${:,.1f}",
+            "Deficit Cost ($M)": "${:,.1f}",
+            "Solar (MW)": "{:,.0f}",
+            "Wind (MW)": "{:,.0f}",
+            "Firm (MW)": "{:,.0f}",
+            "Battery (MW)": "{:,.0f}"
+        }
+        
+        # Gradient Styling
+        styled_df = comp_df.style.format(format_dict).background_gradient(
+            subset=["CFE Score", "Net Settlement ($M)"], cmap="RdYlGn"
+        ).background_gradient(
+            subset=["Total Cost ($M)"], cmap="RdYlGn_r" # Reversed: Low cost is green
         )
         
-        # Comparison Charts
-        st.subheader("Visual Comparison")
-        col_ch1, col_ch2 = st.columns(2)
-        
-        with col_ch1:
-            st.markdown("**CFE Score (%)**")
-            st.bar_chart(comp_df.set_index("Scenario")["CFE Score"], color="#2E86C1")
-            
-        with col_ch2:
-            st.markdown("**Net Settlement ($M)**")
-            st.bar_chart(comp_df.set_index("Scenario")["Net Settlement ($M)"], color="#28B463")
-            
-        # Cost Breakdown Stacked Chart
-        st.subheader("Total Cost Breakdown ($M)")
-        # Stacked bar of Deficit, PPA, REC costs
-        cost_df = comp_df[["Scenario", "Deficit Cost ($M)", "PPA Cost ($M)", "REC Cost ($M)"]].set_index("Scenario")
-        st.bar_chart(cost_df)
+        st.dataframe(styled_df, use_container_width=True, hide_index=True)
             
         if st.button("🗑️ Clear Comparison Scenarios"):
             st.session_state.comparison_scenarios = {}
