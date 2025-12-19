@@ -956,9 +956,6 @@ with tab_offtake:
             except Exception as e:
                 st.error(f"Error parsing file: {e}")
         
-        if df_prices is None and 'shared_market_prices' in st.session_state:
-            # Use restored custom prices from session state
-            df_prices = st.session_state['shared_market_prices']
         
         if df_prices is None:
             # Default to Auto-Load ERCOT Data (Year Based)
