@@ -262,9 +262,11 @@ def generate_random_scenario():
         st.session_state.batt_input = 0.0
         
     st.toast(f"🎲 Generated: {ind} ({strategy})")
+    st.toast("ℹ️ Go to 'Generation Portfolio' tab to tweak settings.")
 
 st.markdown("### 🎲 Explore")
-if st.button("Generate Random Scenario", type="primary", use_container_width=True):
+st.warning("⚠️ **Note**: Generating a random scenario will overwrite your current configuration.")
+if st.button("Generate Random Scenario", type="primary"):
     generate_random_scenario()
 st.caption("Click to instantly create a new load & portfolio configuration.")
 
