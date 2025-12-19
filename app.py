@@ -1887,59 +1887,58 @@ else:
                 
                 st.write("### Multi-Year Results")
                 
-                col_s1, col_s2 = st.columns([1, 2])
-                with col_s1:
-                    # Format table
-                    display_cols = ['Year', 'Solar', 'Wind', 'Firm', 'Battery', 'Total Net Settlement']
-                    # Filter out columns that are all 0
-                    cols_to_show = ['Year']
-                    for c in ['Solar', 'Wind', 'Firm', 'Battery', 'Total Net Settlement']:
-                        if s_df[c].sum() != 0:
-                            cols_to_show.append(c)
-                            
-                    st.dataframe(s_df[cols_to_show].style.format({
-                        'Solar': '${:,.0f}',
-                        'Wind': '${:,.0f}',
-                        'Firm': '${:,.0f}',
-                        'Battery': '${:,.0f}',
-                        'Total Net Settlement': '${:,.0f}'
-                    }), use_container_width=True)
+                # 1. Chart (Top)
+                fig_sens = go.Figure()
                 
-                with col_s2:
-                    fig_sens = go.Figure()
-                    
-                    # Stacked Bars
-                    if s_df['Solar'].abs().sum() > 0:
-                        fig_sens.add_trace(go.Bar(name='Solar', x=s_df['Year'], y=s_df['Solar'], marker_color='#FFA500'))
-                    if s_df['Wind'].abs().sum() > 0:
-                        fig_sens.add_trace(go.Bar(name='Wind', x=s_df['Year'], y=s_df['Wind'], marker_color='#1f77b4'))
-                    if s_df['Firm'].abs().sum() > 0:
-                        fig_sens.add_trace(go.Bar(name='Firm', x=s_df['Year'], y=s_df['Firm'], marker_color='grey'))
-                    if s_df['Battery'].abs().sum() > 0:
-                        fig_sens.add_trace(go.Bar(name='Battery', x=s_df['Year'], y=s_df['Battery'], marker_color='#2ca02c'))
-                    
-                    # Total Line
-                    fig_sens.add_trace(go.Scatter(
-                        x=s_df['Year'], y=s_df['Total Net Settlement'],
-                        mode='lines+markers+text',
-                        name='Net Total',
-                        text=s_df['Total Net Settlement'],
-                        texttemplate='$%{text:,.2s}',
-                        textposition='top center',
-                        line=dict(color='white', width=3, dash='dot')
-                    ))
-                    
-                    fig_sens.update_layout(
-                        title="Portfolio Financial Performance by Source (2020-2024)",
-                        yaxis_title="Net Settlement ($)",
-                        barmode='relative', # Stacked but allows negatives
-                        template=chart_template,
-                        paper_bgcolor=chart_bg,
-                        plot_bgcolor=chart_bg,
-                        font=dict(color=chart_font_color),
-                        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
-                    )
-                    st.plotly_chart(fig_sens, use_container_width=True)
+                # Grouped Bars
+                if s_df['Solar'].abs().sum() > 0:
+                    fig_sens.add_trace(go.Bar(name='Solar', x=s_df['Year'], y=s_df['Solar'], marker_color='#FFA500'))
+                if s_df['Wind'].abs().sum() > 0:
+                    fig_sens.add_trace(go.Bar(name='Wind', x=s_df['Year'], y=s_df['Wind'], marker_color='#1f77b4'))
+                if s_df['Firm'].abs().sum() > 0:
+                    fig_sens.add_trace(go.Bar(name='Firm', x=s_df['Year'], y=s_df['Firm'], marker_color='grey'))
+                if s_df['Battery'].abs().sum() > 0:
+                    fig_sens.add_trace(go.Bar(name='Battery', x=s_df['Year'], y=s_df['Battery'], marker_color='#2ca02c'))
+                
+                # Total Line
+                fig_sens.add_trace(go.Scatter(
+                    x=s_df['Year'], y=s_df['Total Net Settlement'],
+                    mode='lines+markers+text',
+                    name='Net Total',
+                    text=s_df['Total Net Settlement'],
+                    texttemplate='$%{text:,.2s}',
+                    textposition='top center',
+                    line=dict(color='white', width=3, dash='dot')
+                ))
+                
+                fig_sens.update_layout(
+                    title="Portfolio Financial Performance by Source (2020-2024)",
+                    yaxis_title="Net Settlement ($)",
+                    barmode='group', # Grouped bars next to each other
+                    template=chart_template,
+                    paper_bgcolor=chart_bg,
+                    plot_bgcolor=chart_bg,
+                    font=dict(color=chart_font_color),
+                    legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
+                )
+                st.plotly_chart(fig_sens, use_container_width=True)
+
+                # 2. Table (Bottom)
+                # Format table
+                display_cols = ['Year', 'Solar', 'Wind', 'Firm', 'Battery', 'Total Net Settlement']
+                # Filter out columns that are all 0
+                cols_to_show = ['Year']
+                for c in ['Solar', 'Wind', 'Firm', 'Battery', 'Total Net Settlement']:
+                    if s_df[c].sum() != 0:
+                        cols_to_show.append(c)
+                        
+                st.dataframe(s_df[cols_to_show].style.format({
+                    'Solar': '${:,.0f}',
+                    'Wind': '${:,.0f}',
+                    'Firm': '${:,.0f}',
+                    'Battery': '${:,.0f}',
+                    'Total Net Settlement': '${:,.0f}'
+                }), use_container_width=True)
 
 
 
