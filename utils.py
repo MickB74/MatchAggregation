@@ -905,11 +905,10 @@ def get_market_price_profile(avg_price, return_base_avg=False, year=2024):
                     # Calculate base average from real data
                     base_average = np.mean(profile)
                     
-                    # Scaling: User requested ACTUAL data, so we disable scaling here.
-                    # The 'avg_price' argument is ignored for real data.
-                    # current_avg = np.mean(profile)
-                    # if current_avg != 0:
-                    #     profile = profile * (avg_price / current_avg)
+                    # Scaling: Scale to target avg_price if provided
+                    current_avg = np.mean(profile)
+                    if current_avg != 0:
+                        profile = profile * (avg_price / current_avg)
                     
                     if return_base_avg:
                         return pd.Series(profile, name='Market Price ($/MWh)'), base_average

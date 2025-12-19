@@ -988,17 +988,25 @@ with tab_fin:
     
     # Get base average from actual data
     _, base_market_avg = get_market_price_profile(32.0, return_base_avg=True, year=market_year)
-    market_price = base_market_avg  # Use the actual base average
     
-    # Display base average (read-only)
-    # Using a new column/metric spot or reusing c_mkt_1 but we used it for selectbox.
-    # Let's shift metric to row below or just allow sharing? 
-    # c_mkt_1 has the selectbox now. Let's put the metric BELOW the selectbox or use a container.
-    c_mkt_1.metric(
-        f"Base Avg ({market_year})", 
-        f"${base_market_avg:.2f}",
-        help=f"Average from {market_year} ERCOT HB_NORTH data"
-    )
+    # Toggle for Pricing Mode
+    use_hist_avg = c_mkt_1.checkbox("Use Historical Mean", value=True, help="Use the actual average price from the selected year's data.")
+    
+    if use_hist_avg:
+        market_price = base_market_avg
+        c_mkt_1.metric(
+            f"Base Avg ({market_year})", 
+            f"${base_market_avg:.2f}",
+            help=f"Actual average from {market_year} ERCOT HB_NORTH data"
+        )
+    else:
+        market_price = c_mkt_1.number_input(
+            "Target Annual Price ($/MWh)", 
+            value=float(base_market_avg), 
+            step=0.5, 
+            format="%.2f",
+            help="Scale the historical hourly shape to match this annual average price."
+        )
     
     price_scaler = c_mkt_2.number_input(
         "Price Scaler", 
