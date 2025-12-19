@@ -203,66 +203,71 @@ with st.sidebar:
     st.markdown("---")
 
 
-# --- Wizard Section (Onboarding) ---
-if 'wizard_expanded' not in st.session_state:
-    st.session_state.wizard_expanded = True
+import random
 
-def close_wizard():
-    st.session_state.wizard_expanded = False
+# --- Random Scenario Generator ---
+def generate_random_scenario():
+    # 1. Clear State
+    st.session_state.participants = []
+    
+    # 2. Random Load
+    industries = ["Data Center", "Manufacturing", "Office Campus", "Green Hydrogen"]
+    sizes = [50000, 250000, 500000, 1000000] # GWh
+    
+    ind = random.choice(industries)
+    size = random.choice(sizes)
+    
+    st.session_state.participants.append({
+        "name": f"Random {ind} Project",
+        "type": ind if ind != "Green Hydrogen" else "Data Center", # Partial mapping
+        "load": size
+    })
+    
+    # 3. Random Portfolio Strategy
+    # Strategy A: Solar Heavy
+    # Strategy B: Wind Heavy
+    # Strategy C: Balanced
+    # Strategy D: Firm Power Only
+    
+    strategy = random.choice(["Solar Heavy", "Wind Heavy", "Balanced", "Firm Focus"])
+    
+    load_mw_avg = size / 8760.0
+    
+    if strategy == "Solar Heavy":
+        st.session_state.solar_input = load_mw_avg * 3.5
+        st.session_state.wind_input = load_mw_avg * 0.5
+        st.session_state.batt_input = load_mw_avg * 1.0
+        st.session_state.batt_duration_input = 4.0
+        st.session_state.ccs_input = 0.0
+        
+    elif strategy == "Wind Heavy":
+        st.session_state.solar_input = load_mw_avg * 0.5
+        st.session_state.wind_input = load_mw_avg * 2.5
+        st.session_state.batt_input = load_mw_avg * 0.5
+        st.session_state.batt_duration_input = 2.0
+        st.session_state.ccs_input = 0.0
+        
+    elif strategy == "Balanced":
+        st.session_state.solar_input = load_mw_avg * 1.5
+        st.session_state.wind_input = load_mw_avg * 1.5
+        st.session_state.batt_input = load_mw_avg * 0.8
+        st.session_state.batt_duration_input = 4.0
+        st.session_state.ccs_input = load_mw_avg * 0.2
+        
+    elif strategy == "Firm Focus":
+        st.session_state.solar_input = load_mw_avg * 0.5
+        st.session_state.wind_input = load_mw_avg * 0.5
+        st.session_state.ccs_input = load_mw_avg * 0.8
+        st.session_state.nuc_input = load_mw_avg * 0.1
+        st.session_state.batt_input = 0.0
+        
+    st.toast(f"🎲 Generated: {ind} ({strategy})")
 
-wiz_container = st.container()
-if st.session_state.wizard_expanded:
-    with wiz_container:
-        with st.expander("🚀 Start Here: 3-Step Setup", expanded=True):
-            w_col1, w_col2, w_col3 = st.columns(3)
-            
-            with w_col1:
-                st.markdown("#### 1. Define Load")
-                w_industry = st.selectbox("Industry Type", ["Data Center", "Manufacturing", "Office Campus"], key="wiz_industry")
-                w_size = st.select_slider("Annual Load Size", options=["Small (50 GWh)", "Medium (250 GWh)", "Large (1 TWh)"], value="Medium (250 GWh)")
-                
-                if st.button("Set Load Profile"):
-                    # Map Selection to participants
-                    st.session_state.participants = []
-                    load_map = {"Small (50 GWh)": 50000, "Medium (250 GWh)": 250000, "Large (1 TWh)": 1000000}
-                    type_map = w_industry
-                    
-                    st.session_state.participants.append({
-                        "name": f"New {w_industry}",
-                        "type": type_map,
-                        "load": load_map[w_size]
-                    })
-                    st.success(f"✅ Set Load: {w_size}")
+st.markdown("### 🎲 Explore")
+if st.button("Generate Random Scenario", type="primary", use_container_width=True):
+    generate_random_scenario()
+st.caption("Click to instantly create a new load & portfolio configuration.")
 
-            with w_col2:
-                st.markdown("#### 2. Design Portfolio")
-                w_target = st.slider("Target CFE Score", 80, 100, 95, key="wiz_target")
-                
-                def run_wizard_recommendation():
-                    # Generate temporary load
-                    temp_load = pd.Series(0.0, index=range(8760))
-                    if st.session_state.participants:
-                        for p in st.session_state.participants:
-                            temp_load += generate_dummy_load_profile(p['load'], p['type'])
-                        
-                        rec = recommend_portfolio(temp_load, target_cfe=w_target/100.0, excluded_techs=[])
-                        st.session_state.solar_input = rec['Solar']
-                        st.session_state.wind_input = rec['Wind']
-                        st.session_state.ccs_input = rec['CCS Gas']
-                        st.session_state.geo_input = rec['Geothermal']
-                        st.session_state.nuc_input = rec['Nuclear']
-                        st.session_state.batt_input = rec['Battery_MW']
-                        st.session_state.batt_duration_input = rec['Battery_Hours']
-                        st.toast(f"✅ Portfolio Optimized for {w_target}% CFE")
-                    else:
-                        st.error("Set Load First!")
-
-                st.button("✨ Recommend Portfolio", on_click=run_wizard_recommendation)
-                
-            with w_col3:
-                st.markdown("#### 3. Analyze")
-                st.markdown("View detailed financial and operational analysis.")
-                st.button("Run Analysis 🚀", on_click=close_wizard, type="primary")
 
 # --- Executive Summary Container (Placeholder) ---
 # Populated at the end of the run
