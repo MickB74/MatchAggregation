@@ -2394,7 +2394,7 @@ else:
                 use_container_width=True
             )
             st.download_button(
-                label="📊 Download Interactive Excel Report",
+                label="📊 Download Excel Report",
                 data=excel_data,
                 file_name="Interactive_Report.xlsx",
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
