@@ -148,7 +148,7 @@ def generate_excel_report(buffer, simulation_df, config, financial_metrics, mont
         ws_data.freeze_panes(1, 1) # Freeze header and first column (Datetime)
         ws_data.set_column(0, 0, 20) # Widen datetime column
         
-        # --- Sheet 4: Configuration Audit ---
+        # --- Sheet 5: Configuration Audit ---
         ws_config = workbook.add_worksheet("Configuration")
         ws_config.write(1, 1, "Scenario Configuration", title_fmt)
         ws_config.set_column('B:C', 30)
@@ -172,26 +172,40 @@ def generate_excel_report(buffer, simulation_df, config, financial_metrics, mont
             ws_config.write(audit_row, 2, str(v), val_fmt)
             audit_row += 1
             
-        # --- Tech Financials Wrapper ---
+        # --- Sheet 4: Financials ---
+        ws_fin = workbook.add_worksheet("Financials")
+        ws_fin.hide_gridlines(2)
+        ws_fin.set_column('B:B', 30)
+        ws_fin.set_column('C:G', 15)
+        
+        ws_fin.write(1, 1, "Detailed Financial Performance", title_fmt)
+        
         if 'tech_details' in financial_metrics:
-            ws_dash.write(monthly_row + 2, 4, "Financial Performance by Technology", title_fmt)
-            fin_head_row = monthly_row + 3
+            ws_fin.write(3, 1, "Financial Performance by Technology", header_fmt)
             fin_headers = ['Technology', 'Generated (MWh)', 'Matched (MWh)', 'PPA Cost ($)', 'Market Value ($)', 'Net Settlement ($)']
             for col, h in enumerate(fin_headers):
-                 ws_dash.write(fin_head_row, 4 + col, h, header_fmt)
+                 ws_fin.write(4, 1 + col, h, header_fmt)
             
-            fin_row = fin_head_row + 1
+            fin_row = 5
             for tech, details in financial_metrics['tech_details'].items():
                 if details['Matched_MWh'] > 0:
-                    ws_dash.write(fin_row, 4, tech)
-                    ws_dash.write(fin_row, 5, details.get('Total_MWh', 0), workbook.add_format({'num_format': '#,##0'}))
-                    ws_dash.write(fin_row, 6, details.get('Matched_MWh', 0), workbook.add_format({'num_format': '#,##0'}))
-                    ws_dash.write(fin_row, 7, details.get('Total_Cost', 0), curr_fmt)
-                    ws_dash.write(fin_row, 8, details.get('Market_Value', 0), curr_fmt)
+                    ws_fin.write(fin_row, 1, tech, workbook.add_format({'border': 1}))
+                    ws_fin.write(fin_row, 2, details.get('Total_MWh', 0), workbook.add_format({'num_format': '#,##0', 'border': 1}))
+                    ws_fin.write(fin_row, 3, details.get('Matched_MWh', 0), workbook.add_format({'num_format': '#,##0', 'border': 1}))
+                    ws_fin.write(fin_row, 4, details.get('Total_Cost', 0), workbook.add_format({'num_format': '$#,##0', 'border': 1}))
+                    ws_fin.write(fin_row, 5, details.get('Market_Value', 0), workbook.add_format({'num_format': '$#,##0', 'border': 1}))
                     
                     settlement = details.get('Settlement', 0)
-                    ws_dash.write(fin_row, 9, settlement, curr_fmt)
+                    ws_fin.write(fin_row, 6, settlement, workbook.add_format({'num_format': '$#,##0', 'border': 1}))
                     fin_row += 1
+            
+            # Add Total Row
+            ws_fin.write(fin_row, 1, "Total", workbook.add_format({'bold': True, 'bg_color': '#D9D9D9', 'border': 1}))
+            ws_fin.write(fin_row, 4, financial_metrics.get('total_cost', 0), workbook.add_format({'bold': True, 'num_format': '$#,##0', 'bg_color': '#D9D9D9', 'border': 1})) 
+            ws_fin.write(fin_row, 5, "N/A", workbook.add_format({'bold': True, 'bg_color': '#D9D9D9', 'border': 1}))
+            ws_fin.write(fin_row, 6, financial_metrics.get('settlement_value', 0), workbook.add_format({'bold': True, 'num_format': '$#,##0', 'bg_color': '#D9D9D9', 'border': 1}))
+
+        # --- Sheet 5: Configuration Audit ---
                     
         # Clean up
         # Writer context manager handles save/close
