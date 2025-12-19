@@ -1892,13 +1892,13 @@ else:
                 
                 # Grouped Bars
                 if s_df['Solar'].abs().sum() > 0:
-                    fig_sens.add_trace(go.Bar(name='Solar', x=s_df['Year'], y=s_df['Solar'], marker_color='#FFA500'))
+                    fig_sens.add_trace(go.Bar(name='Solar', x=s_df['Year'], y=s_df['Solar'], marker_color='#FFA500', hovertemplate='$%{y:,.1f}'))
                 if s_df['Wind'].abs().sum() > 0:
-                    fig_sens.add_trace(go.Bar(name='Wind', x=s_df['Year'], y=s_df['Wind'], marker_color='#1f77b4'))
+                    fig_sens.add_trace(go.Bar(name='Wind', x=s_df['Year'], y=s_df['Wind'], marker_color='#1f77b4', hovertemplate='$%{y:,.1f}'))
                 if s_df['Firm'].abs().sum() > 0:
-                    fig_sens.add_trace(go.Bar(name='Firm', x=s_df['Year'], y=s_df['Firm'], marker_color='grey'))
+                    fig_sens.add_trace(go.Bar(name='Firm', x=s_df['Year'], y=s_df['Firm'], marker_color='grey', hovertemplate='$%{y:,.1f}'))
                 if s_df['Battery'].abs().sum() > 0:
-                    fig_sens.add_trace(go.Bar(name='Battery', x=s_df['Year'], y=s_df['Battery'], marker_color='#2ca02c'))
+                    fig_sens.add_trace(go.Bar(name='Battery', x=s_df['Year'], y=s_df['Battery'], marker_color='#2ca02c', hovertemplate='$%{y:,.1f}'))
                 
                 # Total Line
                 fig_sens.add_trace(go.Scatter(
@@ -1908,6 +1908,7 @@ else:
                     text=s_df['Total Net Settlement'],
                     texttemplate='$%{text:,.2s}',
                     textposition='top center',
+                    hovertemplate='$%{y:,.1f}',
                     line=dict(color='white', width=3, dash='dot')
                 ))
                 
