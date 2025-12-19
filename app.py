@@ -239,146 +239,6 @@ with tab_comp:
             st.session_state.comparison_scenarios = {}
             st.rerun()
 
-# --- Tab 6: Scenario Manager ---
-with tab_scenario:
-    st.header("Scenario Management")
-    st.caption("Save your current configuration to a JSON file or load a previously saved scenario.")
-    
-    col_import, col_export = st.columns(2)
-    
-    with col_import:
-        st.subheader("📥 Load Scenario")
-        st.markdown("Upload a `scenario_config.json` file to restore settings.")
-        uploaded_scen = st.file_uploader(
-            "Select JSON File", 
-            type=['json', 'txt'], 
-            key='uploaded_scenario_tab', 
-            on_change=load_scenario
-        )
-        if uploaded_scen:
-            st.success("Scenario loaded successfully!")
-            
-    with col_export:
-        st.subheader("💾 Save Current Scenario")
-        st.markdown("Download your current configuration as a JSON file.")
-        
-        # Reconstruct scenario_config for export (Duplicated logic for independence)
-        # Safe checking for variables that might not be defined if tabs haven't run? 
-        # Actually, Streamlit runs top-to-bottom. If we are here, we have access to the inputs defined in tabs 1-4?
-        # NO. Tabs are containers. The code inside `with tab:` runs linearly.
-        # But the inputs (st.number_input) are widgets. Their values are in st.session_state or returned by the function.
-        # We must access them via st.session_state for safety if they are defined in other tabs.
-        # However, standard variables like `solar_capacity` are local variables.
-        # This tab is defined BEFORE the variable assignment lines in the original tabs...
-        # WAIT. The original code defines tabs: `tab_load, ... = st.tabs(...)`
-        # Then `with tab_load:` block runs...
-        # Then `with tab_gen:` block runs...
-        # If I place `with tab_scenario:` at the top, the variables `solar_capacity` etc. are NOT YET DEFINED.
-        # CRITICAL: I must place the content of `tab_scenario` at the BOTTOM of the file, 
-        # OR I must read from `st.session_state` keys.
-        # The keys are like 'solar_cap_input', 'wind_cap_input', etc.
-        
-        # Let's rely on Session State for the "Save" button to ensure we capture current state.
-        # We need to ensure we map session state keys correctly.
-        
-        export_config = {
-            "region": "ERCOT North",
-            "total_load_mwh": float(st.session_state.get('total_load_mwh', 0)), 
-            # Capacities (Explicit conversions for JSON safety)
-            "solar_capacity": float(st.session_state.get('solar_input', 0.0)),
-            "wind_capacity": float(st.session_state.get('wind_input', 0.0)),
-            "geo_capacity": float(st.session_state.get('geo_input', 0.0)),
-            "nuc_capacity": float(st.session_state.get('nuc_input', 0.0)),
-            "ccs_capacity": float(st.session_state.get('ccs_input', 0.0)),
-            "batt_capacity": float(st.session_state.get('batt_input', 0.0)),
-            "batt_duration": float(st.session_state.get('batt_duration_input', 0.0)),
-            # Prices
-            "solar_price": float(st.session_state.get('solar_price_input', 0.0)),
-            "wind_price": float(st.session_state.get('wind_price_input', 0.0)),
-            "ccs_price": float(st.session_state.get('ccs_price_input', 0.0)),
-            "geo_price": float(st.session_state.get('geo_price_input', 0.0)),
-            "nuc_price": float(st.session_state.get('nuc_price_input', 0.0)),
-            "market_price": float(st.session_state.get('avg_price_input', 35.0)), 
-            "rec_price": float(st.session_state.get('rec_price_input', 0.0)),
-            # Battery Financials
-            "batt_base_rate": float(st.session_state.get('cvta_fixed', 12000.0)),
-            "batt_guar_rte": float(st.session_state.get('cvta_rte', 85.0)),
-            "batt_vom": float(st.session_state.get('cvta_vom', 2.0)),
-            # Participants
-            "participants": st.session_state.get('participants', []),
-            # Exclusions
-            "excluded_techs": st.session_state.get('excluded_techs_input', []),
-            # Market Logic
-            "market_year": int(st.session_state.get('market_year_input', 2024)),
-            "price_scaler": float(st.session_state.get('price_scaler_input', 1.0)),
-            "ppa_price_scaler": float(st.session_state.get('ppa_scaler_input', 1.0))
-        }
-        
-        # Add Custom Profiles if Available
-        if 'custom_solar_profile' in st.session_state:
-             # It's a Series, convert to list
-             export_config['custom_solar_profile'] = st.session_state['custom_solar_profile'].tolist()
-        
-        if 'custom_wind_profile' in st.session_state:
-             export_config['custom_wind_profile'] = st.session_state['custom_wind_profile'].tolist()
-             
-        if 'shared_market_prices' in st.session_state:
-             # It's a DataFrame, let's save the 'Price' column as list
-             df_prices = st.session_state['shared_market_prices']
-             if 'Price' in df_prices.columns:
-                 export_config['custom_battery_prices'] = df_prices['Price'].tolist()
-        
-        # Recalculate load if needed? 
-        # Total Load is derived. If we don't store it, we might export 0.
-        # But `participants` list is source of truth.
-        
-        json_export = json.dumps(export_config, indent=4)
-        
-        st.download_button(
-            label="📥 Download JSON Configuration",
-            data=json_export,
-            file_name="scenario_config.json",
-            mime="application/json"
-        )
-
-        st.markdown("---")
-        st.subheader("📸 Scenario Comparison Capture")
-        st.markdown("Capture current configuration and results for side-by-side comparison.")
-        
-        cap_name = st.text_input("Scenario Name", f"Scenario {len(st.session_state.get('comparison_scenarios', {})) + 1}")
-        
-        if st.button("Capture for Comparison"):
-            if 'comparison_scenarios' not in st.session_state:
-                st.session_state.comparison_scenarios = {}
-            
-            # Fetch current metrics from session state (they are calculated in main)
-            # Note: Main loop hasn't run yet for THIS specific rerun, 
-            # but we can grab what was there from the PREVIOUS run or calculate now.
-            # Actually, metrics are usually stored in session state by the main logic.
-            
-            current_metrics = {
-                'total_load_mwh': st.session_state.get('total_load_mwh', 0),
-                'cfe_score': st.session_state.get('cfe_score', 0),
-                'avg_ppa_price': st.session_state.get('avg_ppa_price', 0),
-                'net_settlement': st.session_state.get('net_settlement', 0),
-                'total_cost': st.session_state.get('total_cost', 0)
-            }
-            
-            current_caps = {
-                'solar': st.session_state.get('solar_input', 0),
-                'wind': st.session_state.get('wind_input', 0),
-                'firm': (st.session_state.get('geo_input', 0) + 
-                         st.session_state.get('nuc_input', 0) + 
-                         st.session_state.get('ccs_input', 0)),
-                'batt_mw': st.session_state.get('batt_input', 0)
-            }
-            
-            st.session_state.comparison_scenarios[cap_name] = {
-                'metrics': current_metrics,
-                'caps': current_caps
-            }
-            st.success(f"Scenario '{cap_name}' captured!")
-            st.toast(f"Captured {cap_name}")
 
 # --- Tab 1: User Guide (Moved to Top) ---
 with tab_guide:
@@ -2170,6 +2030,111 @@ else:
         
     # Remove the buttons from inside the tab
     
+    # --- Tab 6: Scenario Manager (moved to end for data freshness) ---
+    with tab_scenario:
+        st.header("Scenario Management")
+        st.caption("Save your current configuration to a JSON file or load a previously saved scenario.")
+        
+        col_import, col_export = st.columns(2)
+        
+        with col_import:
+            st.subheader("📥 Load Scenario")
+            st.markdown("Upload a `scenario_config.json` file to restore settings.")
+            uploaded_scen = st.file_uploader(
+                "Select JSON File", 
+                type=['json', 'txt'], 
+                key='uploaded_scenario_tab', 
+                on_change=load_scenario
+            )
+            if uploaded_scen:
+                st.success("Scenario loaded successfully!")
+                
+        with col_export:
+            st.subheader("💾 Save Current Scenario")
+            st.markdown("Download your current configuration as a JSON file.")
+            
+            export_config = {
+                "region": "ERCOT North",
+                "total_load_mwh": float(st.session_state.get('total_load_mwh', 0)), 
+                "solar_capacity": float(st.session_state.get('solar_input', 0.0)),
+                "wind_capacity": float(st.session_state.get('wind_input', 0.0)),
+                "geo_capacity": float(st.session_state.get('geo_input', 0.0)),
+                "nuc_capacity": float(st.session_state.get('nuc_input', 0.0)),
+                "ccs_capacity": float(st.session_state.get('ccs_input', 0.0)),
+                "batt_capacity": float(st.session_state.get('batt_input', 0.0)),
+                "batt_duration": float(st.session_state.get('batt_duration_input', 0.0)),
+                "solar_price": float(st.session_state.get('solar_price_input', 0.0)),
+                "wind_price": float(st.session_state.get('wind_price_input', 0.0)),
+                "ccs_price": float(st.session_state.get('ccs_price_input', 0.0)),
+                "geo_price": float(st.session_state.get('geo_price_input', 0.0)),
+                "nuc_price": float(st.session_state.get('nuc_price_input', 0.0)),
+                "market_price": float(st.session_state.get('avg_price_input', 35.0)), 
+                "rec_price": float(st.session_state.get('rec_price_input', 0.0)),
+                "batt_base_rate": float(st.session_state.get('cvta_fixed', 12000.0)),
+                "batt_guar_rte": float(st.session_state.get('cvta_rte', 85.0)),
+                "batt_vom": float(st.session_state.get('cvta_vom', 2.0)),
+                "participants": st.session_state.get('participants', []),
+                "excluded_techs": st.session_state.get('excluded_techs_input', []),
+                "market_year": int(st.session_state.get('market_year_input', 2024)),
+                "price_scaler": float(st.session_state.get('price_scaler_input', 1.0)),
+                "ppa_price_scaler": float(st.session_state.get('ppa_scaler_input', 1.0))
+            }
+            
+            if 'custom_solar_profile' in st.session_state:
+                 export_config['custom_solar_profile'] = st.session_state['custom_solar_profile'].tolist()
+            
+            if 'custom_wind_profile' in st.session_state:
+                 export_config['custom_wind_profile'] = st.session_state['custom_wind_profile'].tolist()
+                 
+            if 'shared_market_prices' in st.session_state:
+                 df_prices = st.session_state['shared_market_prices']
+                 if 'Price' in df_prices.columns:
+                     export_config['custom_battery_prices'] = df_prices['Price'].tolist()
+            
+            json_export = json.dumps(export_config, indent=4)
+            
+            st.download_button(
+                label="📥 Download JSON Configuration",
+                data=json_export,
+                file_name="scenario_config.json",
+                mime="application/json"
+            )
+
+            st.markdown("---")
+            st.subheader("📸 Scenario Comparison Capture")
+            st.markdown("Capture current configuration and results for side-by-side comparison.")
+            
+            cap_name = st.text_input("Scenario Name", f"Scenario {len(st.session_state.get('comparison_scenarios', {})) + 1}")
+            
+            if st.button("Capture for Comparison"):
+                if 'comparison_scenarios' not in st.session_state:
+                    st.session_state.comparison_scenarios = {}
+                
+                current_metrics = {
+                    'total_load_mwh': st.session_state.get('total_load_mwh', 0),
+                    'cfe_score': st.session_state.get('cfe_score', 0),
+                    'avg_ppa_price': st.session_state.get('avg_ppa_price', 0),
+                    'net_settlement': st.session_state.get('net_settlement', 0),
+                    'total_cost': st.session_state.get('total_cost', 0)
+                }
+                
+                current_caps = {
+                    'solar': st.session_state.get('solar_input', 0),
+                    'wind': st.session_state.get('wind_input', 0),
+                    'firm': (st.session_state.get('geo_input', 0) + 
+                             st.session_state.get('nuc_input', 0) + 
+                             st.session_state.get('ccs_input', 0)),
+                    'batt_mw': st.session_state.get('batt_input', 0)
+                }
+                
+                st.session_state.comparison_scenarios[cap_name] = {
+                    'metrics': current_metrics,
+                    'caps': current_caps
+                }
+                st.success(f"Scenario '{cap_name}' captured!")
+                st.toast(f"Captured {cap_name}")
+                st.rerun()
+
     # --- Footer: Export Results (Visible on all pages) ---
     st.markdown("---")
     
