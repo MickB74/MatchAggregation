@@ -1126,30 +1126,57 @@ import datetime
 
 def generate_pdf_report(metrics, scenario_config, fin_metrics, figures=None):
     """
-    Generates a PDF summary report using fpdf2.
+    Generates a professional PDF summary report using fpdf2.
     """
     class PDF(FPDF):
         def header(self):
-            self.set_font('helvetica', 'B', 16)
-            self.cell(0, 10, 'Energy Portfolio Simulation Report', border=False, align='C')
-            self.ln(10)
-            self.set_font('helvetica', 'I', 10)
-            self.cell(0, 10, f'Generated on: {datetime.datetime.now().strftime("%Y-%m-%d %H:%M")}', border=False, align='C')
-            self.ln(20)
+            # Only show simplified header on content pages (not page 1)
+            if self.page_no() > 1:
+                self.set_font('helvetica', 'I', 8)
+                self.cell(0, 10, 'Energy Portfolio Simulation Report', border=False, align='R')
+                self.ln(10)
 
         def footer(self):
             self.set_y(-15)
             self.set_font('helvetica', 'I', 8)
             self.cell(0, 10, f'Page {self.page_no()}/{{nb}}', align='C')
+            
+        def chapter_title(self, title):
+            self.set_font('helvetica', 'B', 14)
+            self.set_text_color(0, 51, 102) # Corporate Blue
+            self.cell(0, 10, title, ln=True)
+            self.ln(2)
+            self.line(self.get_x(), self.get_y(), 190, self.get_y()) # Underline
+            self.ln(5)
+            self.set_text_color(0, 0, 0) # Reset to black
+
+        def add_table_row(self, label, value, col_width=90, row_height=7, bold_label=False):
+            self.set_font('helvetica', 'B' if bold_label else '', 11)
+            self.cell(col_width, row_height, label, border=1)
+            self.set_font('helvetica', '', 11)
+            self.cell(col_width, row_height, value, border=1, align='R')
+            self.ln(row_height)
 
     pdf = PDF()
-    pdf.add_page()
-    pdf.set_font("helvetica", size=12)
     
-    # --- Operational Summary ---
-    pdf.set_font("helvetica", 'B', 14)
-    pdf.cell(0, 10, "1. Operational Analysis", ln=True)
-    pdf.set_font("helvetica", size=12)
+    # --- Title Page ---
+    pdf.add_page()
+    pdf.ln(60)
+    pdf.set_font("helvetica", 'B', 24)
+    pdf.set_text_color(0, 51, 102) # Corporate Blue
+    pdf.cell(0, 15, "Energy Portfolio", align='C', ln=True)
+    pdf.cell(0, 15, "Simulation Report", align='C', ln=True)
+    
+    pdf.ln(20)
+    pdf.set_font("helvetica", '', 12)
+    pdf.set_text_color(0, 0, 0)
+    pdf.cell(0, 10, f"Generated on: {datetime.datetime.now().strftime('%B %d, %Y')}", align='C', ln=True)
+    pdf.cell(0, 10, f"Region: {scenario_config.get('region', 'ERCOT North')}", align='C', ln=True)
+    pdf.cell(0, 10, f"Total Load: {scenario_config.get('total_load_mwh', 0):,.0f} MWh", align='C', ln=True)
+    
+    # --- Page 2: Executive Summary ---
+    pdf.add_page()
+    pdf.chapter_title("1. Operational Analysis")
     
     # Extract metrics
     total_load = scenario_config.get('total_load_mwh', 0)
@@ -1157,8 +1184,6 @@ def generate_pdf_report(metrics, scenario_config, fin_metrics, figures=None):
     cfe_score = metrics.get('cfe_score', 0)
     productivity = metrics.get('productivity', 0)
     logh = metrics.get('logh', 0)
-    
-    # Calculate Ratio if not passed directly
     annual_ratio = clean_gen / total_load if total_load > 0 else 0
     
     op_data = [
@@ -1170,80 +1195,80 @@ def generate_pdf_report(metrics, scenario_config, fin_metrics, figures=None):
         ["Loss of Green Hours", f"{logh:.1%}"],
     ]
     
-    col_width = 90
-    row_height = 8
-    
     for row in op_data:
-        pdf.cell(col_width, row_height, row[0], border=1)
-        pdf.cell(col_width, row_height, row[1], border=1, align='R')
-        pdf.ln(row_height)
+        pdf.add_table_row(row[0], row[1])
         
-    pdf.ln(5)
-    pdf.set_font("helvetica", 'B', 12)
-    pdf.cell(0, 10, "Participant Loads", ln=True)
-    pdf.set_font("helvetica", size=10)
+    pdf.ln(10)
     
+    # Participants
+    pdf.chapter_title("Participant Loads")
+    pdf.set_font("helvetica", '', 10)
     participants = scenario_config.get('participants', [])
     if participants:
         for p in participants:
             p_name = p.get('name', 'Unknown')
             p_load = p.get('load', 0)
             p_type = p.get('type', 'Unknown')
-            pdf.cell(0, 8, f"- {p_name} ({p_type}): {p_load:,.0f} MWh", ln=True)
+            pdf.cell(0, 6, f"- {p_name} ({p_type}): {p_load:,.0f} MWh", ln=True)
     else:
-        pdf.cell(0, 8, "No participants defined.", ln=True)
-        
+        pdf.cell(0, 6, "No participants defined.", ln=True)
+
     pdf.ln(10)
     
     # --- Financial Summary ---
-    pdf.set_font("helvetica", 'B', 14)
-    pdf.cell(0, 10, "2. Financial Analysis", ln=True)
-    pdf.set_font("helvetica", size=12)
+    pdf.chapter_title("2. Financial Analysis")
     
     settlement = fin_metrics.get('settlement_value', 0)
     ppa_price = fin_metrics.get('weighted_ppa_price', 0)
     market_price = fin_metrics.get('weighted_market_price', 0)
     rec_val = fin_metrics.get('rec_cost', 0)
     excess_rec = fin_metrics.get('excess_rec_value', 0)
+    avg_price_input = scenario_config.get('market_price', 0.0) # Saved average price
+    
+    # Determine color for settlement
+    settlement_str = f"${settlement:,.0f}"
     
     fin_data = [
-        ["Annual PPA Settlement Value", f"${settlement:,.0f}"],
+        ["Annual PPA Settlement Value", settlement_str],
         ["Weighted Avg PPA Price", f"${ppa_price:.2f}/MWh"],
-        ["Capture Value (Base)", f"${market_price:.2f}/MWh"],
+        ["Est. Market Price (Avg)", f"${avg_price_input:.2f}/MWh"],
         ["Matched REC Value", f"${rec_val:,.0f}"],
         ["Excess REC Value", f"${excess_rec:,.0f}"],
     ]
     
     for row in fin_data:
-        pdf.cell(col_width, row_height, row[0], border=1)
-        pdf.cell(col_width, row_height, row[1], border=1, align='R')
-        pdf.ln(row_height)
+        pdf.add_table_row(row[0], row[1])
         
-    pdf.ln(5)
-    pdf.set_font("helvetica", 'B', 12)
-    pdf.cell(0, 10, "Detailed Settlement by Technology", ln=True)
-    pdf.set_font("helvetica", size=10)
+    pdf.ln(10)
     
-    # Header
+    # --- Detailed Settlement Table ---
+    pdf.chapter_title("Detailed Settlement by Technology")
+    
+    # Table Header
     cols = [35, 30, 30, 30, 30, 30]
     headers = ["Tech", "Gen (MWh)", "PPA Price", "PPA Cost", "Mkt Value", "Settlement"]
     
+    pdf.set_font("helvetica", 'B', 9)
+    pdf.set_fill_color(240, 240, 240) # Light Gray
     for i, h in enumerate(headers):
-        pdf.cell(cols[i], 8, h, border=1, align='C')
+        pdf.cell(cols[i], 8, h, border=1, align='C', fill=True)
     pdf.ln(8)
     
-    pdf.set_font("helvetica", size=10)
+    pdf.set_font("helvetica", '', 9)
     
     if 'tech_details' in fin_metrics:
         for tech, details in fin_metrics['tech_details'].items():
-            if details['Matched_MWh'] > 0:
+            if details['Matched_MWh'] > 1: # Filter out near-zero
+                # Handle potentially missing settlement
+                tech_settle = details.get('Settlement', details['Market_Value'] - details['Total_Cost'])
+                
                 row = [
                     tech,
                     f"{details['Matched_MWh']:,.0f}",
                     f"${details['PPA_Price']:.2f}",
                     f"${details['Total_Cost']:,.0f}",
                     f"${details['Market_Value']:,.0f}",
-                    f"${details['Settlement']:,.0f}"
+                    f"${tech_settle:,.0f}"
                 ]
                 for i, r in enumerate(row):
                     pdf.cell(cols[i], 8, r, border=1, align='R')
@@ -1251,10 +1276,9 @@ def generate_pdf_report(metrics, scenario_config, fin_metrics, figures=None):
                 
     pdf.ln(10)
     
-    # --- Portfolio Configuration ---
-    pdf.set_font("helvetica", 'B', 14)
-    pdf.cell(0, 10, "3. Portfolio Configuration", ln=True)
-    pdf.set_font("helvetica", size=12)
+    # --- Page 3: Configuration & Charts ---
+    pdf.add_page()
+    pdf.chapter_title("3. Portfolio Configuration")
     
     config_data = [
         ["Solar Capacity", f"{scenario_config.get('solar_capacity', 0):,.0f} MW"],
@@ -1266,37 +1290,53 @@ def generate_pdf_report(metrics, scenario_config, fin_metrics, figures=None):
         ["Battery Duration", f"{scenario_config.get('batt_duration', 0):.1f} Hours"],
     ]
     
-    pdf.set_font("helvetica", 'I', 12)
-    pdf.cell(0, 10, "Installed Capacities:", ln=True)
-    pdf.set_font("helvetica", size=12)
-
     for row in config_data:
-        # Only show non-zero
         val_str = row[1]
         if " 0 " not in val_str and " 0.0 " not in val_str:
-            pdf.cell(col_width, row_height, row[0], border=1)
-            pdf.cell(col_width, row_height, row[1], border=1, align='R')
-            pdf.ln(row_height)
-            
+             pdf.add_table_row(row[0], row[1])
+
     # --- Charts ---
     if figures:
-        pdf.add_page()
-        pdf.set_font("helvetica", 'B', 14)
-        pdf.cell(0, 10, "4. Key Visualizations", ln=True)
-        pdf.set_font("helvetica", size=12)
+        pdf.ln(10)
+        pdf.chapter_title("4. Key Visualizations")
         
         import tempfile
         import os
 
+        font_settings = dict(color="black") # Force black text for white background
+
         for title, fig in figures.items():
+            # Force New Page for each chart to ensure size
+            if pdf.get_y() > 200:
+                pdf.add_page()
+                
             pdf.ln(5)
-            pdf.set_font("helvetica", 'B', 12)
+            pdf.set_font("helvetica", 'B', 11)
             pdf.cell(0, 10, title, ln=True)
+            
+            # --- CRITICAL: Enforce White Background for PDF ---
+            # We copy the figure to avoid mutating the live session state one (optional but safer)
+            # Actually, update_layout is in-place, but for PDF export loop it's fine.
+            # If we want to be safe, deepcopy, but that's heavy.
+            # Let's just modify the update_layout params for the write_image call?
+            # Plotly write_image doesn't take layout overrides easily.
+            # We will modify the fig object in place. It might affect the UI if re-rendered?
+            # It shouldn't, UI renders earlier.
+            
+            original_template = fig.layout.template
+            
+            fig.update_layout(
+                template="plotly_white",
+                plot_bgcolor="white",
+                paper_bgcolor="white",
+                font=font_settings
+            )
             
             # Save chart as temporary image
             try:
                 with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as tmp_file:
-                    fig.write_image(tmp_file.name, engine="kaleido", scale=1.5, width=800, height=400)
+                    # High scale for crispness
+                    fig.write_image(tmp_file.name, engine="kaleido", scale=2.0, width=1000, height=500)
                     tmp_filename = tmp_file.name
                 
                 # Add to PDF
@@ -1305,9 +1345,11 @@ def generate_pdf_report(metrics, scenario_config, fin_metrics, figures=None):
                 
                 # Cleanup
                 os.unlink(tmp_filename)
+                
             except Exception as e:
                 pdf.set_font("helvetica", 'I', 10)
+                pdf.set_text_color(200, 0, 0)
                 pdf.cell(0, 10, f"Error rendering chart: {str(e)}", ln=True)
+                pdf.set_text_color(0, 0, 0)
 
-    
     return bytes(pdf.output())
