@@ -2078,7 +2078,7 @@ else:
                     
                     if hist_prices is None:
                         # Generate synthetic if file missing (use actual year from loop, NOT selected market_year)
-                        hist_prices = get_market_price_profile(30.0, year=year)
+                        hist_prices = get_market_price_profile(30.0, year=year, scale_to_target=False)
 
                     # Ensure series length matches profile (truncate or pad)
                     # Helper to align

@@ -834,16 +834,17 @@ def recommend_portfolio(load_profile, target_cfe=0.95, excluded_techs=None, exis
     return recommendation
 
 @st.cache_data
-def get_market_price_profile(avg_price, return_base_avg=False, year=2024):
+def get_market_price_profile(avg_price, return_base_avg=False, year=2024, scale_to_target=True):
     """
     Generates an hourly market price profile (8760 hours).
     Attempts to load real ERCOT Data (HB_NORTH) from 'ercot_rtm_{year}.parquet'.
     Falls back to synthetic duck curve if file missing.
     
     Args:
-        avg_price: Average price (used only for synthetic fallback)
+        avg_price: Average price (used only for synthetic fallback, or if scale_to_target=True)
         return_base_avg: If True, returns (profile, base_average) tuple
-        year: Year for historical data (2023 or 2024)
+        year: Year for historical data (2023 or 2024 or 'Average')
+        scale_to_target: If True, scales historical data to match avg_price.
         
     Returns:
         pd.Series or tuple: Price profile, or (profile, base_avg) if return_base_avg=True
@@ -901,19 +902,13 @@ def get_market_price_profile(avg_price, return_base_avg=False, year=2024):
                         raw_profile = np.pad(raw_profile, (0, hours - len(raw_profile)), 'constant', constant_values=raw_profile.mean())
                     
                     profile = raw_profile
-                    
-                    # Clip negative prices first (to avoids mean drift after normalization)
-                    # User requested negative prices be allowed
-                    # profile = np.clip(raw_profile, 0, None) 
-                    profile = raw_profile
-                    
-                    # Calculate base average from real data
                     base_average = np.mean(profile)
                     
-                    # Scaling: Scale to target avg_price if provided
-                    current_avg = np.mean(profile)
-                    if current_avg != 0:
-                        profile = profile * (avg_price / current_avg)
+                    # Scaling: Scale to target avg_price if provided and requested
+                    if scale_to_target:
+                        current_avg = np.mean(profile)
+                        if current_avg != 0:
+                            profile = profile * (avg_price / current_avg)
                     
                     if return_base_avg:
                         return pd.Series(profile, name='Market Price ($/MWh)'), base_average
