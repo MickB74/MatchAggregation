@@ -276,7 +276,7 @@ st.caption("Click to instantly create a new load & portfolio configuration.")
 exec_summary_container = st.container()
 
 # --- Configuration Section (Top) ---
-tab_guide, tab_load, tab_gen, tab_fin, tab_offtake, tab_comp, tab_scenario = st.tabs(["User Guide", "1. Load Setup", "2. Generation Portfolio", "3. Financial Analysis", "4. Battery Financials", "5. Scenario Comparison", "6. Scenario Manager"])
+tab_guide, tab_load, tab_gen, tab_fin, tab_offtake, tab_scenario, tab_comp = st.tabs(["User Guide", "1. Load Setup", "2. Generation Portfolio", "3. Financial Analysis", "4. Battery Financials", "5. Scenario Manager", "6. Scenario Comparison"])
     
     # --- Tab 5: Scenario Comparison ---
 with tab_comp:
