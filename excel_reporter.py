@@ -131,8 +131,13 @@ def generate_excel_report(buffer, simulation_df, config, financial_metrics, mont
                 
                 monthly_row += 1
             
-            # Conditional Formatting for CFE Score
-            ws_dash.conditional_format(f'I6:I{monthly_row}', {'type': '3_color_scale'})
+            # Conditional Formatting for Deficit (Column I): 0 is Good (Green), High is Bad (Red)
+            ws_dash.conditional_format(f'I6:I{monthly_row}', {
+                'type': '3_color_scale',
+                'min_color': '#63BE7B', # Green
+                'mid_color': '#FFEB84', # Yellow
+                'max_color': '#F8696B'  # Red
+            })
             
         # --- Sheet 3: Hourly Data ---
         # simulation_df is huge, so using direct write for speed
