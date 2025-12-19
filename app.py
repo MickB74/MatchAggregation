@@ -1056,25 +1056,58 @@ with tab_fin:
     st.markdown("---")
     st.markdown("##### 📥 Download Market Price Data")
     
-    # Generate the price profile for download
-    download_price_profile = get_market_price_profile(market_price, year=market_year) * price_scaler
+    col_dl1, col_dl2 = st.columns(2)
     
-    # Create DataFrame with timestamps
-    price_dates = pd.date_range(start='2024-01-01', periods=8760, freq='h')
-    price_df = pd.DataFrame({
-        'Datetime': price_dates,
-        'Price_USD_MWh': download_price_profile.values
-    })
+    with col_dl1:
+        # Single Year Download
+        download_price_profile = get_market_price_profile(market_price, year=market_year) * price_scaler
+        
+        price_dates = pd.date_range(start='2024-01-01', periods=8760, freq='h')
+        price_df = pd.DataFrame({
+            'Datetime': price_dates,
+            'Price_USD_MWh': download_price_profile.values
+        })
+        
+        price_csv = price_df.to_csv(index=False)
+        
+        st.download_button(
+            label=f"📊 Download {market_year} Prices",
+            data=price_csv,
+            file_name=f"ercot_prices_{market_year}_scaled_{price_scaler}x.csv",
+            mime="text/csv",
+            help=f"Hourly market prices for {market_year} (Base: ${base_market_avg:.2f}, Scaler: {price_scaler}x)",
+            use_container_width=True
+        )
     
-    price_csv = price_df.to_csv(index=False)
-    
-    st.download_button(
-        label=f"📊 Download Hourly Prices ({market_year})",
-        data=price_csv,
-        file_name=f"ercot_prices_{market_year}_scaled_{price_scaler}x.csv",
-        mime="text/csv",
-        help=f"Hourly market prices for {market_year} (Base: ${base_market_avg:.2f}, Scaler: {price_scaler}x)"
-    )
+    with col_dl2:
+        # All Years Download (ZIP)
+        import zipfile
+        import io
+        
+        zip_buffer = io.BytesIO()
+        
+        with zipfile.ZipFile(zip_buffer, "w") as zf:
+            all_years = [2020, 2021, 2022, 2023, 2024, "Average"]
+            
+            for yr in all_years:
+                yr_profile = get_market_price_profile(30.0, year=yr) * price_scaler
+                yr_dates = pd.date_range(start='2024-01-01', periods=8760, freq='h')
+                yr_df = pd.DataFrame({
+                    'Datetime': yr_dates,
+                    'Price_USD_MWh': yr_profile.values
+                })
+                
+                yr_csv = yr_df.to_csv(index=False)
+                zf.writestr(f"ercot_prices_{yr}.csv", yr_csv)
+        
+        st.download_button(
+            label="📦 Download All Years (ZIP)",
+            data=zip_buffer.getvalue(),
+            file_name=f"ercot_prices_all_years_scaled_{price_scaler}x.zip",
+            mime="application/zip",
+            help=f"Includes 2020-2024 and Average composite (Scaler: {price_scaler}x)",
+            use_container_width=True
+        )
 
 
 # --- Tab 4: Battery Financials (CVTA) ---
