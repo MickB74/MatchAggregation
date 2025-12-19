@@ -1884,6 +1884,8 @@ else:
                 
                 # Render Results
                 s_df = pd.DataFrame(sensitivity_results)
+                # Calculate Cumulative
+                s_df['Cumulative Net Settlement'] = s_df['Total Net Settlement'].cumsum()
                 
                 st.write("### Multi-Year Results")
                 
@@ -1900,16 +1902,13 @@ else:
                 if s_df['Battery'].abs().sum() > 0:
                     fig_sens.add_trace(go.Bar(name='Battery', x=s_df['Year'], y=s_df['Battery'], marker_color='#2ca02c', hovertemplate='$%{y:,.0f}'))
                 
-                # Total Line
-                fig_sens.add_trace(go.Scatter(
-                    x=s_df['Year'], y=s_df['Total Net Settlement'],
-                    mode='lines+markers+text',
-                    name='Net Total',
-                    text=s_df['Total Net Settlement'],
-                    texttemplate='$%{text:,.2s}',
-                    textposition='top center',
-                    hovertemplate='$%{y:,.0f}',
-                    line=dict(color='white', width=3, dash='dot')
+                # Cumulative Net Total Bar
+                fig_sens.add_trace(go.Bar(
+                    name='Cumulative Net Total', 
+                    x=s_df['Year'], 
+                    y=s_df['Cumulative Net Settlement'], 
+                    marker_color='#9467bd', # Purple
+                    hovertemplate='$%{y:,.0f}'
                 ))
                 
                 fig_sens.update_layout(
@@ -1926,19 +1925,22 @@ else:
 
                 # 2. Table (Bottom)
                 # Format table
-                display_cols = ['Year', 'Solar', 'Wind', 'Firm', 'Battery', 'Total Net Settlement']
-                # Filter out columns that are all 0
+                display_cols = ['Year', 'Solar', 'Wind', 'Firm', 'Battery', 'Total Net Settlement', 'Cumulative Net Settlement']
+                # Filter out columns that are all 0 (except totals)
                 cols_to_show = ['Year']
-                for c in ['Solar', 'Wind', 'Firm', 'Battery', 'Total Net Settlement']:
+                for c in ['Solar', 'Wind', 'Firm', 'Battery']:
                     if s_df[c].sum() != 0:
                         cols_to_show.append(c)
+                cols_to_show.append('Total Net Settlement')
+                cols_to_show.append('Cumulative Net Settlement')
                         
                 st.dataframe(s_df[cols_to_show].style.format({
                     'Solar': '${:,.0f}',
                     'Wind': '${:,.0f}',
                     'Firm': '${:,.0f}',
                     'Battery': '${:,.0f}',
-                    'Total Net Settlement': '${:,.0f}'
+                    'Total Net Settlement': '${:,.0f}',
+                    'Cumulative Net Settlement': '${:,.0f}'
                 }), use_container_width=True)
 
 
