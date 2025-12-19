@@ -656,25 +656,49 @@ with tab_load:
         # --- Hourly Profile Export ---
         st.markdown("###### Detailed Hourly Data")
         
-        # Calculate Aggregate Hourly Load
-        hourly_load_total = pd.Series(0.0, index=range(8760))
-        # Ensure we have access to generate_dummy_load_profile (imported from utils)
-        for p in st.session_state.participants:
-            p_profile = generate_dummy_load_profile(p['load'], p['type'])
-            hourly_load_total += p_profile
-            
-        # Create DataFrame
-        hourly_df = pd.DataFrame({
-            "Hour": range(1, 8761),
-            "Total_Load_MW": hourly_load_total.values
-        })
+        # Get Market Year for Timestamps
+        m_year = st.session_state.get('market_year_input', 2024)
         
+        # Create Datetime Index
+        dates = pd.date_range(start=f'{m_year}-01-01', periods=8760, freq='h')
+        
+        # Initialize Data Dictionary with Timestamp
+        hourly_data = {'Datetime': dates}
+        total_load_profile = pd.Series(0.0, index=range(8760))
+        
+        # Generate profiles for each participant
+        for p in st.session_state.participants:
+            # Generate profile
+            p_profile = generate_dummy_load_profile(p['load'], p['type'])
+            
+            # Add to dictionary (Use name as column header)
+            col_name = p['name']
+            # Simple handle for duplicate names
+            if col_name in hourly_data:
+                 col_name = f"{col_name}_{random.randint(1,999)}"
+
+            hourly_data[col_name] = p_profile.values
+            
+            # Add to total
+            total_load_profile += p_profile.values
+            
+        # Add Total Column
+        hourly_data['Total_Load_MW'] = total_load_profile
+        
+        # Create Detailed DataFrame
+        hourly_df = pd.DataFrame(hourly_data)
+        
+        # Preview
+        with st.expander("View Hourly Data Preview"):
+            st.dataframe(hourly_df.head(24), use_container_width=True)
+            
+        # Convert to CSV
         csv_hourly = hourly_df.to_csv(index=False).encode('utf-8')
         
         st.download_button(
-            label="Download Hourly Profile (8760 Rows)",
+            label="Download Detailed Hourly Profile",
             data=csv_hourly,
-            file_name="aggregate_hourly_load.csv",
+            file_name=f"detailed_hourly_load_{m_year}.csv",
             mime="text/csv",
         )
     else:
