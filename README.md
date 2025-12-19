@@ -28,6 +28,15 @@ A Streamlit application for modeling, optimizing, and analyzing 24/7 Carbon Free
     - **Waterfall Charts**: Monthly P&L breakdown.
     - **Stacking Logic**: Battery visualized as "Gap Filling" (Base Load -> Battery -> VRE).
 
+### ⚖️ Scenario Comparison
+- **Visual Trade-Offs**: "Efficiency Frontier" scatter plot (CFE Score vs Total Cost) and stacked capacity charts.
+- **Detailed Table**: Side-by-side comparison of multiple scenarios with gradient styling for key metrics (Net Settlement, Total Cost, etc.).
+- **Scenario Manager**: Capture, name, and save different configurations to compare strategies.
+
+### 📥 Data Export
+- **Formats**: CSV (Hourly), JSON (Full Configuration), and PDF (Executive Report).
+- **AI Analysis**: Lightweight JSON export optimized for AI analysis (removes large arrays, keeps key metrics & configuration).
+
 ### 📊 24/7 CFE Analytics
 - **Hourly Matching**: Visualizes Load vs. Clean Generation every hour of the year.
 - **Heatmaps**: 365x24 heatmap of CFE matching to identify deficits.
