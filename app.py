@@ -2290,6 +2290,61 @@ else:
     with tab_scenario:
         st.header("Scenario Management")
         st.caption("Save your current configuration to a JSON file or load a previously saved scenario.")
+
+        st.subheader("📤 Save Scenario")
+        st.markdown("Download your current configuration as a JSON file.")
+
+        # Re-generate Config for JSON (Duplicated for availability in this tab)
+        export_config_mgr = {
+            "region": "ERCOT North",
+            "total_load_mwh": float(st.session_state.get('total_load_mwh', 0)), 
+            "solar_capacity": float(st.session_state.get('solar_input', 0.0)),
+            "wind_capacity": float(st.session_state.get('wind_input', 0.0)),
+            "geo_capacity": float(st.session_state.get('geo_input', 0.0)),
+            "nuc_capacity": float(st.session_state.get('nuc_input', 0.0)),
+            "ccs_capacity": float(st.session_state.get('ccs_input', 0.0)),
+            "batt_capacity": float(st.session_state.get('batt_input', 0.0)),
+            "batt_duration": float(st.session_state.get('batt_duration_input', 0.0)),
+            "solar_price": float(st.session_state.get('solar_price_input', 0.0)),
+            "wind_price": float(st.session_state.get('wind_price_input', 0.0)),
+            "ccs_price": float(st.session_state.get('ccs_price_input', 0.0)),
+            "geo_price": float(st.session_state.get('geo_price_input', 0.0)),
+            "nuc_price": float(st.session_state.get('nuc_price_input', 0.0)),
+            "market_price": float(st.session_state.get('market_input', 35.0)), 
+            "rec_price": float(st.session_state.get('rec_input', 0.0)),
+            "batt_base_rate": float(st.session_state.get('cvta_fixed', 12000.0)),
+            "batt_guar_rte": float(st.session_state.get('cvta_rte', 85.0)),
+            "batt_vom": float(st.session_state.get('cvta_vom', 2.0)),
+            "participants": st.session_state.get('participants', []),
+            "excluded_techs": st.session_state.get('excluded_techs_input', []),
+            "market_year": int(st.session_state.get('market_year_input', 2024)),
+            "price_scaler": float(st.session_state.get('price_scaler_input', 1.0)),
+            "ppa_price_scaler": float(st.session_state.get('ppa_scaler_input', 1.0))
+        }
+        
+        if 'custom_solar_profile' in st.session_state:
+            export_config_mgr['custom_solar_profile'] = st.session_state['custom_solar_profile'].tolist()
+        
+        if 'custom_wind_profile' in st.session_state:
+            export_config_mgr['custom_wind_profile'] = st.session_state['custom_wind_profile'].tolist()
+            
+        if 'shared_market_prices' in st.session_state:
+            df_prices = st.session_state['shared_market_prices']
+            if 'Price' in df_prices.columns:
+                export_config_mgr['custom_battery_prices'] = df_prices['Price'].tolist()
+
+        json_export_mgr = json.dumps(export_config_mgr, indent=4)
+
+        st.download_button(
+            label="💾 Download Configuration (JSON)",
+            data=json_export_mgr,
+            file_name="scenario_config.json",
+            mime="application/json",
+            use_container_width=False,
+            type="primary"
+        )
+        
+        st.markdown("---")
         
         st.subheader("📥 Load Scenario")
         st.markdown("Upload a `scenario_config.json` file to restore settings.")
