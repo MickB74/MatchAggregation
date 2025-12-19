@@ -177,8 +177,68 @@ with st.sidebar:
 
 # --- Configuration Section (Top) ---
 with st.expander("Configuration & Setup", expanded=True):
-    tab_guide, tab_load, tab_gen, tab_fin, tab_offtake, tab_scenario = st.tabs(["User Guide", "1. Load Setup", "2. Generation Portfolio", "3. Financial Analysis", "4. Battery Financials", "6. Scenario Manager"])
+    tab_guide, tab_load, tab_gen, tab_fin, tab_offtake, tab_comp, tab_scenario = st.tabs(["User Guide", "1. Load Setup", "2. Generation Portfolio", "3. Financial Analysis", "4. Battery Financials", "5. Scenario Comparison", "6. Scenario Manager"])
     
+    # --- Tab 5: Scenario Comparison ---
+    with tab_comp:
+        st.header("⚖️ Scenario Comparison")
+        st.caption("Compare captured scenarios side-by-side to evaluate different strategies.")
+        
+        if 'comparison_scenarios' not in st.session_state or not st.session_state.comparison_scenarios:
+            st.info("No scenarios captured yet. Go to '6. Scenario Manager' to capture your current configuration.")
+        else:
+            # Prepare data for comparison
+            comp_data = []
+            for name, data in st.session_state.comparison_scenarios.items():
+                comp_data.append({
+                    "Scenario": name,
+                    "Total Load (GWh)": data['metrics'].get('total_load_mwh', 0) / 1000,
+                    "CFE Score": data['metrics'].get('cfe_score', 0) * 100,
+                    "PPA Price ($/MWh)": data['metrics'].get('avg_ppa_price', 0),
+                    "Net Settlement ($M)": data['metrics'].get('net_settlement', 0) / 1e6,
+                    "Total Cost ($M)": data['metrics'].get('total_cost', 0) / 1e6,
+                    "Solar (MW)": data['caps'].get('solar', 0),
+                    "Wind (MW)": data['caps'].get('wind', 0),
+                    "Firm (MW)": data['caps'].get('firm', 0),
+                    "Battery (MW)": data['caps'].get('batt_mw', 0)
+                })
+            
+            comp_df = pd.DataFrame(comp_data)
+            
+            # Display Table
+            st.subheader("Summary Table")
+            st.dataframe(
+                comp_df.style.format({
+                    "Total Load (GWh)": "{:,.1f}",
+                    "CFE Score": "{:.1%}",
+                    "PPA Price ($/MWh)": "${:.2f}",
+                    "Net Settlement ($M)": "${:,.2f}",
+                    "Total Cost ($M)": "${:,.2f}",
+                    "Solar (MW)": "{:,.0f}",
+                    "Wind (MW)": "{:,.0f}",
+                    "Firm (MW)": "{:,.0f}",
+                    "Battery (MW)": "{:,.0f}"
+                }),
+                hide_index=True,
+                use_container_width=True
+            )
+            
+            # Comparison Charts
+            st.subheader("Visual Comparison")
+            col_ch1, col_ch2 = st.columns(2)
+            
+            with col_ch1:
+                st.markdown("**CFE Score (%)**")
+                st.bar_chart(comp_df.set_index("Scenario")["CFE Score"])
+                
+            with col_ch2:
+                st.markdown("**Net Settlement ($M)**")
+                st.bar_chart(comp_df.set_index("Scenario")["Net Settlement ($M)"])
+                
+            if st.button("🗑️ Clear Comparison Scenarios"):
+                st.session_state.comparison_scenarios = {}
+                st.rerun()
+
     # --- Tab 6: Scenario Manager ---
     with tab_scenario:
         st.header("Scenario Management")
@@ -279,6 +339,45 @@ with st.expander("Configuration & Setup", expanded=True):
                 file_name="scenario_config.json",
                 mime="application/json"
             )
+
+            st.markdown("---")
+            st.subheader("📸 Scenario Comparison Capture")
+            st.markdown("Capture current configuration and results for side-by-side comparison.")
+            
+            cap_name = st.text_input("Scenario Name", f"Scenario {len(st.session_state.get('comparison_scenarios', {})) + 1}")
+            
+            if st.button("Capture for Comparison"):
+                if 'comparison_scenarios' not in st.session_state:
+                    st.session_state.comparison_scenarios = {}
+                
+                # Fetch current metrics from session state (they are calculated in main)
+                # Note: Main loop hasn't run yet for THIS specific rerun, 
+                # but we can grab what was there from the PREVIOUS run or calculate now.
+                # Actually, metrics are usually stored in session state by the main logic.
+                
+                current_metrics = {
+                    'total_load_mwh': st.session_state.get('total_load_mwh', 0),
+                    'cfe_score': st.session_state.get('cfe_score', 0),
+                    'avg_ppa_price': st.session_state.get('avg_ppa_price', 0),
+                    'net_settlement': st.session_state.get('net_settlement', 0),
+                    'total_cost': st.session_state.get('total_cost', 0)
+                }
+                
+                current_caps = {
+                    'solar': st.session_state.get('solar_input', 0),
+                    'wind': st.session_state.get('wind_input', 0),
+                    'firm': (st.session_state.get('geo_input', 0) + 
+                             st.session_state.get('nuc_input', 0) + 
+                             st.session_state.get('ccs_input', 0)),
+                    'batt_mw': st.session_state.get('batt_input', 0)
+                }
+                
+                st.session_state.comparison_scenarios[cap_name] = {
+                    'metrics': current_metrics,
+                    'caps': current_caps
+                }
+                st.success(f"Scenario '{cap_name}' captured!")
+                st.toast(f"Captured {cap_name}")
 
     # --- Tab 1: User Guide (Moved to Top) ---
     with tab_guide:
@@ -461,6 +560,23 @@ with st.expander("Configuration & Setup", expanded=True):
                     count += 1
                 
                 st.success(f"Generated {count-1} participants with {current_total_load:,.0f} MWh total load!")
+                st.rerun()
+
+            if st.button("📄 Load Participants (PDF Scenario)"):
+                # Clear existing
+                st.session_state.participants = []
+                
+                pdf_participants = [
+                    {"name": "Office Park 1", "type": "Office", "load": 42907},
+                    {"name": "Office Park 2", "type": "Office", "load": 33250},
+                    {"name": "Office Park 3", "type": "Office", "load": 38015},
+                    {"name": "Office Park 4", "type": "Office", "load": 40397},
+                    {"name": "Data Center 5", "type": "Data Center", "load": 151081},
+                    {"name": "Industrial 6", "type": "Flat", "load": 366981},
+                ]
+                
+                st.session_state.participants = pdf_participants
+                st.success(f"Loaded {len(pdf_participants)} participants from PDF Scenario!")
                 st.rerun()
 
             st.markdown("---")
@@ -1224,6 +1340,13 @@ else:
             'Market_Value': f_rev, # Financial Revenue
             'Settlement': f_rev - f_cost # Net Settlement (should be neg of Net Invoice)
         }
+    
+    # Store metrics in session state for Scenario Capture
+    st.session_state.cfe_score = cfe_score
+    st.session_state.avg_ppa_price = fin_metrics['weighted_ppa_price']
+    st.session_state.net_settlement = fin_metrics['settlement_value']
+    st.session_state.total_cost = fin_metrics['net_cost']
+    st.session_state.total_load_mwh = total_annual_load
     
     # --- Dashboard moved to Tabs ---
     
