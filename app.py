@@ -816,13 +816,13 @@ with tab_fin:
     st.markdown("#### PPA Prices ($/MWh)")
     c_fin_1, c_fin_2, c_fin_3 = st.columns(3)
     with c_fin_1:
-        solar_price = st.number_input("Solar PPA Price", min_value=0.0, value=46.5, step=1.0, key='solar_price_input', help="Q4 2024 Market: $45-47. Adjusted down ~2% due to high saturation.")
-        wind_price = st.number_input("Wind PPA Price", min_value=0.0, value=54.0, step=1.0, key='wind_price_input', help="Q4 2024 Market: ~$54. Up ~3.3%. Trades at $8-10 premium over solar.")
+        solar_price = st.number_input("Solar PPA Price", min_value=0.0, value=48.5, step=0.5, key='solar_price_input', help="2025 Market Est: $45.00 - $52.00")
+        wind_price = st.number_input("Wind PPA Price", min_value=0.0, value=42.5, step=0.5, key='wind_price_input', help="2025 Market Est: $40.00 - $45.00")
     with c_fin_2:
-        ccs_price = st.number_input("CCS Gas PPA Price", min_value=0.0, value=65.0, step=1.0, key='ccs_price_input', help="Updated 2025 Market est: $55-75 (w/ 45Q)")
-        geo_price = st.number_input("Geothermal PPA Price", min_value=0.0, value=77.5, step=1.0, key='geo_price_input', help="Updated 2025 Market est: $70-85")
+        ccs_price = st.number_input("CCS Gas PPA Price", min_value=0.0, value=65.0, step=1.0, key='ccs_price_input', help="2025 Market Est: $55.00 - $75.00 (w/ 45Q)")
+        geo_price = st.number_input("Geothermal PPA Price", min_value=0.0, value=77.5, step=0.5, key='geo_price_input', help="2025 Market Est: $70.00 - $85.00")
     with c_fin_3:
-        nuc_price = st.number_input("Nuclear PPA Price", min_value=0.0, value=90.0, step=1.0, key='nuc_price_input', help="Q4 2024 Market: ~$112 (Adjusted to $90). Based on recent Vistra data center deal. Firm clean power premium.")
+        nuc_price = st.number_input("Nuclear PPA Price", min_value=0.0, value=95.0, step=1.0, key='nuc_price_input', help="2025 Market Est: $90.00 - $100.00")
     
 
 
@@ -833,7 +833,7 @@ with tab_fin:
     c_mkt_1, c_mkt_2, c_mkt_3, c_mkt_4 = st.columns(4)
     
     # Market Price Year Selection
-    market_year = c_mkt_1.selectbox("Market Year", [2024, 2023], help="Select historical price year", key='market_year_input')
+    market_year = c_mkt_1.selectbox("Market Year", [2024, 2023, 2022, 2021, 2020], help="Select historical price year", key='market_year_input')
     
     # UI Check for data availability
     import os
@@ -927,7 +927,7 @@ with tab_offtake:
         
         st.markdown("---")
         st.markdown("##### 2. Contract Terms")
-        cvta_fixed_price = st.number_input("Fixed Capacity Price ($/MW-mo)", value=12000.0, step=250.0, help="Monthly fixed payment from Corporate to Developer per MW.", key='cvta_fixed')
+        cvta_fixed_price = st.number_input("Fixed Capacity Price ($/MW-mo)", value=10000.0, step=250.0, help="Monthly fixed payment from Corporate to Developer per MW. 2025 Est: $8,000 - $12,000", key='cvta_fixed')
         
         st.markdown("---")
         st.markdown("##### 3. Market Data")
