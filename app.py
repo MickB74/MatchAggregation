@@ -2194,8 +2194,8 @@ else:
                 "ccs_price": float(st.session_state.get('ccs_price_input', 0.0)),
                 "geo_price": float(st.session_state.get('geo_price_input', 0.0)),
                 "nuc_price": float(st.session_state.get('nuc_price_input', 0.0)),
-                "market_price": float(st.session_state.get('avg_price_input', 35.0)), 
-                "rec_price": float(st.session_state.get('rec_price_input', 0.0)),
+                "market_price": float(st.session_state.get('market_input', 35.0)), 
+                "rec_price": float(st.session_state.get('rec_input', 0.0)),
                 "batt_base_rate": float(st.session_state.get('cvta_fixed', 12000.0)),
                 "batt_guar_rte": float(st.session_state.get('cvta_rte', 85.0)),
                 "batt_vom": float(st.session_state.get('cvta_vom', 2.0)),
@@ -2223,6 +2223,30 @@ else:
                 label="📥 Download JSON Configuration",
                 data=json_export,
                 file_name="scenario_config.json",
+                mime="application/json"
+            )
+
+            # Lightweight JSON for AI
+            ai_config = export_config.copy()
+            # Remove heavy arrays if they were added (though we are after the point where they might be added to export_config, 
+            # actually wait, export_config is modified in place above? Yes.
+            # So we should strip them or created copy BEFORE modifying export_config.
+            # But making copy before is harder with this chunk replacement.
+            # I will just pop them if they exist.
+            ai_config.pop('custom_solar_profile', None)
+            ai_config.pop('custom_wind_profile', None)
+            ai_config.pop('custom_battery_prices', None)
+            
+            # Add AI-specific fields
+            ai_config['region'] = "ERCOT North"
+            ai_config['total_load_mwh'] = st.session_state.get('total_load_mwh', 0)
+            
+            ai_json = json.dumps(ai_config, indent=4)
+            
+            st.download_button(
+                label="🤖 Download AI Analysis JSON",
+                data=ai_json,
+                file_name="scenario_ai_config.json",
                 mime="application/json"
             )
 
