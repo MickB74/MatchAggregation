@@ -646,8 +646,8 @@ with tab_load:
             # Generate profile
             p_profile = generate_dummy_load_profile(p['load'], p['type'])
             
-            # Add to dictionary (Use name as column header)
-            col_name = p['name']
+            # Add to dictionary (Use name + type as column header)
+            col_name = f"{p['name']} ({p['type']})"
             # Simple handle for duplicate names
             if col_name in hourly_data:
                  col_name = f"{col_name}_{random.randint(1,999)}"
