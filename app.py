@@ -190,17 +190,25 @@ with tab_comp:
         # Prepare data for comparison
         comp_data = []
         for name, data in st.session_state.comparison_scenarios.items():
+            metrics = data['metrics']
+            caps = data['caps']
             comp_data.append({
                 "Scenario": name,
-                "Total Load (GWh)": data['metrics'].get('total_load_mwh', 0) / 1000,
-                "CFE Score": data['metrics'].get('cfe_score', 0) * 100,
-                "PPA Price ($/MWh)": data['metrics'].get('avg_ppa_price', 0),
-                "Net Settlement ($M)": data['metrics'].get('net_settlement', 0) / 1e6,
-                "Total Cost ($M)": data['metrics'].get('total_cost', 0) / 1e6,
-                "Solar (MW)": data['caps'].get('solar', 0),
-                "Wind (MW)": data['caps'].get('wind', 0),
-                "Firm (MW)": data['caps'].get('firm', 0),
-                "Battery (MW)": data['caps'].get('batt_mw', 0)
+                "CFE Score": metrics.get('cfe_score', 0) * 100,
+                "Total Load (GWh)": metrics.get('total_load_mwh', 0) / 1000,
+                "Avg PPA Price ($/MWh)": metrics.get('avg_ppa_price', 0),
+                "Net Settlement ($M)": metrics.get('net_settlement', 0) / 1e6,
+                "Total Cost ($M)": metrics.get('total_cost', 0) / 1e6,
+                # Detailed Financials
+                "Market Revenue ($M)": metrics.get('market_revenue', 0) / 1e6,
+                "PPA Cost ($M)": metrics.get('gross_ppa_cost', 0) / 1e6,
+                "REC Cost ($M)": metrics.get('rec_cost', 0) / 1e6,
+                "Deficit Cost ($M)": metrics.get('deficit_cost', 0) / 1e6,
+                # Capacities
+                "Solar (MW)": caps.get('solar', 0),
+                "Wind (MW)": caps.get('wind', 0),
+                "Firm (MW)": caps.get('firm', 0),
+                "Battery (MW)": caps.get('batt_mw', 0)
             })
         
         comp_df = pd.DataFrame(comp_data)
@@ -209,11 +217,15 @@ with tab_comp:
         st.subheader("Summary Table")
         st.dataframe(
             comp_df.style.format({
-                "Total Load (GWh)": "{:,.1f}",
                 "CFE Score": "{:.1%}",
-                "PPA Price ($/MWh)": "${:.2f}",
+                "Total Load (GWh)": "{:,.1f}",
+                "Avg PPA Price ($/MWh)": "${:.2f}",
                 "Net Settlement ($M)": "${:,.2f}",
                 "Total Cost ($M)": "${:,.2f}",
+                "Market Revenue ($M)": "${:,.2f}",
+                "PPA Cost ($M)": "${:,.2f}",
+                "REC Cost ($M)": "${:,.2f}",
+                "Deficit Cost ($M)": "${:,.2f}",
                 "Solar (MW)": "{:,.0f}",
                 "Wind (MW)": "{:,.0f}",
                 "Firm (MW)": "{:,.0f}",
@@ -229,11 +241,17 @@ with tab_comp:
         
         with col_ch1:
             st.markdown("**CFE Score (%)**")
-            st.bar_chart(comp_df.set_index("Scenario")["CFE Score"])
+            st.bar_chart(comp_df.set_index("Scenario")["CFE Score"], color="#2E86C1")
             
         with col_ch2:
             st.markdown("**Net Settlement ($M)**")
-            st.bar_chart(comp_df.set_index("Scenario")["Net Settlement ($M)"])
+            st.bar_chart(comp_df.set_index("Scenario")["Net Settlement ($M)"], color="#28B463")
+            
+        # Cost Breakdown Stacked Chart
+        st.subheader("Total Cost Breakdown ($M)")
+        # Stacked bar of Deficit, PPA, REC costs
+        cost_df = comp_df[["Scenario", "Deficit Cost ($M)", "PPA Cost ($M)", "REC Cost ($M)"]].set_index("Scenario")
+        st.bar_chart(cost_df)
             
         if st.button("🗑️ Clear Comparison Scenarios"):
             st.session_state.comparison_scenarios = {}
@@ -1290,12 +1308,26 @@ else:
         fin_metrics['net_cost'] = (total_annual_load - matched_profile.sum()) * (market_price * price_scaler) + new_total_ppa_cost + fin_metrics['rec_cost']
         fin_metrics['weighted_ppa_price'] = new_total_ppa_cost / matched_profile.sum() if matched_profile.sum() > 0 else 0.0
     
-    # Store metrics in session state for Scenario Capture
+    # --- Capture Detailed Financials for Scenario Comparison ---
+    # Recalculate or grab final totals to ensure consistency (works for both if/else cases)
+    final_ppa_cost = sum(d['Total_Cost'] for d in fin_metrics['tech_details'].values())
+    final_market_revenue = sum(d['Market_Value'] for d in fin_metrics['tech_details'].values())
+    
     st.session_state.cfe_score = cfe_score
     st.session_state.avg_ppa_price = fin_metrics['weighted_ppa_price']
     st.session_state.net_settlement = fin_metrics['settlement_value']
     st.session_state.total_cost = fin_metrics['net_cost']
     st.session_state.total_load_mwh = total_annual_load
+    
+    # Detailed Financials
+    st.session_state.market_revenue = final_market_revenue
+    st.session_state.gross_ppa_cost = final_ppa_cost
+    st.session_state.fixed_costs = fin_metrics['net_cost'] - fin_metrics['settlement_value'] # Proxy? No.
+    # Total Cost = Deficit Cost + PPA Cost + REC Cost.
+    # Net Settlement = Market Revenue - PPA Cost.
+    # This is getting confusing. Let's just store the explicit components.
+    st.session_state.rec_cost = fin_metrics['rec_cost']
+    st.session_state.deficit_cost = fin_metrics['net_cost'] - final_ppa_cost - fin_metrics['rec_cost']
     
     # --- Dashboard moved to Tabs ---
     
@@ -2115,7 +2147,12 @@ else:
                     'cfe_score': st.session_state.get('cfe_score', 0),
                     'avg_ppa_price': st.session_state.get('avg_ppa_price', 0),
                     'net_settlement': st.session_state.get('net_settlement', 0),
-                    'total_cost': st.session_state.get('total_cost', 0)
+                    'total_cost': st.session_state.get('total_cost', 0),
+                    # Detailed Financials
+                    'market_revenue': st.session_state.get('market_revenue', 0),
+                    'gross_ppa_cost': st.session_state.get('gross_ppa_cost', 0),
+                    'rec_cost': st.session_state.get('rec_cost', 0),
+                    'deficit_cost': st.session_state.get('deficit_cost', 0)
                 }
                 
                 current_caps = {
