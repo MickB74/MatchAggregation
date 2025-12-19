@@ -652,6 +652,31 @@ with tab_load:
             file_name="participant_load_data.csv",
             mime="text/csv",
         )
+        
+        # --- Hourly Profile Export ---
+        st.markdown("###### Detailed Hourly Data")
+        
+        # Calculate Aggregate Hourly Load
+        hourly_load_total = pd.Series(0.0, index=range(8760))
+        # Ensure we have access to generate_dummy_load_profile (imported from utils)
+        for p in st.session_state.participants:
+            p_profile = generate_dummy_load_profile(p['load'], p['type'])
+            hourly_load_total += p_profile
+            
+        # Create DataFrame
+        hourly_df = pd.DataFrame({
+            "Hour": range(1, 8761),
+            "Total_Load_MW": hourly_load_total.values
+        })
+        
+        csv_hourly = hourly_df.to_csv(index=False).encode('utf-8')
+        
+        st.download_button(
+            label="Download Hourly Profile (8760 Rows)",
+            data=csv_hourly,
+            file_name="aggregate_hourly_load.csv",
+            mime="text/csv",
+        )
     else:
         st.info("Add participants above to enable export.")
 # --- Tab 2: Generation Portfolio ---
