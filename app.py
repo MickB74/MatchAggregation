@@ -974,17 +974,22 @@ with tab_fin:
     c_mkt_1, c_mkt_2, c_mkt_3, c_mkt_4 = st.columns(4)
     
     # Market Price Year Selection
-    market_year = c_mkt_1.selectbox("Market Year", [2024, 2023, 2022, 2021, 2020], help="Select historical price year", key='market_year_input')
+    # Add 'Average' option for multi-year composite
+    year_options = [2024, 2023, 2022, 2021, 2020, "Average"]
+    market_year = c_mkt_1.selectbox("Market Year", year_options, help="Select historical price year or 'Average' for 2020-2024 composite", key='market_year_input')
     
     # UI Check for data availability
     import os
     current_dir = os.path.dirname(__file__)
-    file_path = os.path.join(current_dir, f'ercot_rtm_{market_year}.parquet')
     
-    if os.path.exists(file_path):
-         c_mkt_1.success(f"Loaded {market_year} Data ✅")
+    if market_year == "Average":
+         c_mkt_1.success(f"Composite: 2020-2024 ✅")
     else:
-         c_mkt_1.warning(f"Missing Data (Using Synthetic)")
+        file_path = os.path.join(current_dir, f'ercot_rtm_{market_year}.parquet')
+        if os.path.exists(file_path):
+             c_mkt_1.success(f"Loaded {market_year} Data ✅")
+        else:
+             c_mkt_1.warning(f"Missing Data (Using Synthetic)")
     
     # Get base average from actual data
     _, base_market_avg = get_market_price_profile(32.0, return_base_avg=True, year=market_year)
