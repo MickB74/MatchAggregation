@@ -2231,59 +2231,72 @@ else:
     
     csv = results_df.to_csv(index=False).encode('utf-8')
 
-    # Create ZIP buffer
+    # --- Prepare Artifacts for Export ---
+    
+    # 1. Scenario Configuration (Full)
+    export_config = {
+        "region": "ERCOT North",
+        "total_load_mwh": total_annual_load,
+        "solar_capacity": solar_capacity,
+        "wind_capacity": wind_capacity,
+        "geo_capacity": geo_capacity,
+        "nuc_capacity": nuc_capacity,
+        "batt_capacity": batt_capacity,
+        "batt_duration": batt_duration,
+        "solar_price": solar_price,
+        "wind_price": wind_price,
+        "ccs_price": ccs_price,
+        "geo_price": geo_price,
+        "nuc_price": nuc_price,
+        "batt_base_rate": cvta_fixed_price if 'cvta_fixed_price' in locals() else 12000.0,
+        "batt_guar_avail": 0.98,
+        "batt_guar_rte": cvta_rte if 'cvta_rte' in locals() else 85.0,
+        "batt_vom": cvta_vom if 'cvta_vom' in locals() else 2.0,
+        "market_price": market_price,
+        "rec_price": rec_price,
+        "participants": st.session_state.participants,
+        "excluded_techs": st.session_state.get('excluded_techs', [])
+    }
+    # Add optional large arrays
+    if 'custom_solar_profile' in st.session_state:
+        export_config['custom_solar_profile'] = st.session_state['custom_solar_profile'].tolist()
+    if 'custom_wind_profile' in st.session_state:
+        export_config['custom_wind_profile'] = st.session_state['custom_wind_profile'].tolist()
+    if 'shared_market_prices' in st.session_state:
+        df_prices = st.session_state['shared_market_prices']
+        if 'Price' in df_prices.columns:
+            export_config['custom_battery_prices'] = df_prices['Price'].tolist()
+            
+    json_str_full = json.dumps(export_config, indent=4)
+
+    # 2. AI-Optimized Configuration
+    ai_config = export_config.copy()
+    ai_config.pop('custom_solar_profile', None)
+    ai_config.pop('custom_wind_profile', None)
+    ai_config.pop('custom_battery_prices', None)
+    ai_config['region'] = "ERCOT North"
+    ai_config['total_load_mwh'] = total_annual_load
+    
+    json_str_ai = json.dumps(ai_config, indent=4)
+
+    # 3. PDF Report
+    figures = {}
+    if 'fig' in locals(): figures["Hourly Energy Balance"] = fig
+    if 'fig_bar' in locals(): figures["Monthly Analysis"] = fig_bar
+    if 'fig_heat' in locals(): figures["24/7 Heatmap"] = fig_heat
+    if 'fig_ppa' in locals(): figures["PPA Price vs Capture Value"] = fig_ppa
+    if 'fig_set' in locals(): figures["Net Settlement by Tech"] = fig_set
+        
+    pdf_bytes = generate_pdf_report(metrics, export_config, fin_metrics, figures=figures)
+
+    # 4. Create ZIP Bundle
     zip_buffer = io.BytesIO()
     with zipfile.ZipFile(zip_buffer, "w") as zf:
-        # Add CSV results
         zf.writestr("simulation_results.csv", csv)
-        
-        # Create Scenario Configuration
-        scenario_config = {
-            "region": "ERCOT North",
-            "total_load_mwh": total_annual_load, # Explicitly add Load for PDF
-            "solar_capacity": solar_capacity,
-            "wind_capacity": wind_capacity,
-            "geo_capacity": geo_capacity,
-            "nuc_capacity": nuc_capacity,
-            "batt_capacity": batt_capacity,
-            "batt_duration": batt_duration,
-            "solar_price": solar_price,
-            "wind_price": wind_price,
-            "ccs_price": ccs_price,
-            "geo_price": geo_price,
-            "nuc_price": nuc_price,
-            "batt_base_rate": cvta_fixed_price if 'cvta_fixed_price' in locals() else 12000.0,
-            "batt_guar_avail": 0.98, # Hardcoded default
-            "batt_guar_rte": cvta_rte if 'cvta_rte' in locals() else 85.0,
-            "batt_vom": cvta_vom if 'cvta_vom' in locals() else 2.0,
-            "market_price": market_price,
-            "rec_price": rec_price,
-            # Extract participants from session state
-            "participants": st.session_state.participants,
-            # Store exclusions
-            "excluded_techs": st.session_state.get('excluded_techs', [])
-        }
-        
-        # Add JSON config
-        json_str = json.dumps(scenario_config, indent=4)
-        zf.writestr("scenario_config.json", json_str)
-        
-        # Collect Figures for PDF
-        figures = {}
-        if 'fig' in locals():
-            figures["Hourly Energy Balance"] = fig
-        if 'fig_bar' in locals():
-            figures["Monthly Analysis"] = fig_bar
-        if 'fig_heat' in locals():
-            figures["24/7 Heatmap"] = fig_heat
-        if 'fig_ppa' in locals():
-            figures["PPA Price vs Capture Value"] = fig_ppa
-        if 'fig_set' in locals():
-            figures["Net Settlement by Tech"] = fig_set
-            
-        # Generate PDF Report
-        pdf_bytes = generate_pdf_report(metrics, scenario_config, fin_metrics, figures=figures)
-        
+        zf.writestr("scenario_config.json", json_str_full)
+        zf.writestr("scenario_ai_config.json", json_str_ai)
+        zf.writestr("Portfolio_Report.pdf", pdf_bytes)
+
     # Remove the buttons from inside the tab
     
     # --- Tab 6: Scenario Manager (moved to end for data freshness) ---
@@ -2294,50 +2307,9 @@ else:
         st.subheader("📤 Save Scenario")
         st.markdown("Download your current configuration as a JSON file.")
 
-        # Re-generate Config for JSON (Duplicated for availability in this tab)
-        export_config_mgr = {
-            "region": "ERCOT North",
-            "total_load_mwh": float(st.session_state.get('total_load_mwh', 0)), 
-            "solar_capacity": float(st.session_state.get('solar_input', 0.0)),
-            "wind_capacity": float(st.session_state.get('wind_input', 0.0)),
-            "geo_capacity": float(st.session_state.get('geo_input', 0.0)),
-            "nuc_capacity": float(st.session_state.get('nuc_input', 0.0)),
-            "ccs_capacity": float(st.session_state.get('ccs_input', 0.0)),
-            "batt_capacity": float(st.session_state.get('batt_input', 0.0)),
-            "batt_duration": float(st.session_state.get('batt_duration_input', 0.0)),
-            "solar_price": float(st.session_state.get('solar_price_input', 0.0)),
-            "wind_price": float(st.session_state.get('wind_price_input', 0.0)),
-            "ccs_price": float(st.session_state.get('ccs_price_input', 0.0)),
-            "geo_price": float(st.session_state.get('geo_price_input', 0.0)),
-            "nuc_price": float(st.session_state.get('nuc_price_input', 0.0)),
-            "market_price": float(st.session_state.get('market_input', 35.0)), 
-            "rec_price": float(st.session_state.get('rec_input', 0.0)),
-            "batt_base_rate": float(st.session_state.get('cvta_fixed', 12000.0)),
-            "batt_guar_rte": float(st.session_state.get('cvta_rte', 85.0)),
-            "batt_vom": float(st.session_state.get('cvta_vom', 2.0)),
-            "participants": st.session_state.get('participants', []),
-            "excluded_techs": st.session_state.get('excluded_techs_input', []),
-            "market_year": int(st.session_state.get('market_year_input', 2024)),
-            "price_scaler": float(st.session_state.get('price_scaler_input', 1.0)),
-            "ppa_price_scaler": float(st.session_state.get('ppa_scaler_input', 1.0))
-        }
-        
-        if 'custom_solar_profile' in st.session_state:
-            export_config_mgr['custom_solar_profile'] = st.session_state['custom_solar_profile'].tolist()
-        
-        if 'custom_wind_profile' in st.session_state:
-            export_config_mgr['custom_wind_profile'] = st.session_state['custom_wind_profile'].tolist()
-            
-        if 'shared_market_prices' in st.session_state:
-            df_prices = st.session_state['shared_market_prices']
-            if 'Price' in df_prices.columns:
-                export_config_mgr['custom_battery_prices'] = df_prices['Price'].tolist()
-
-        json_export_mgr = json.dumps(export_config_mgr, indent=4)
-
         st.download_button(
             label="💾 Download Configuration (JSON)",
-            data=json_export_mgr,
+            data=json_str_full,
             file_name="scenario_config.json",
             mime="application/json",
             use_container_width=False,
@@ -2402,58 +2374,6 @@ else:
         st.header("💾 Download Results")
         st.markdown("Export your configuration and analysis reports.")
         
-        # --- Prepare JSON Data Properly ---
-        # 1. Full Config
-        export_config = {
-            "region": "ERCOT North",
-            "total_load_mwh": float(st.session_state.get('total_load_mwh', 0)), 
-            "solar_capacity": float(st.session_state.get('solar_input', 0.0)),
-            "wind_capacity": float(st.session_state.get('wind_input', 0.0)),
-            "geo_capacity": float(st.session_state.get('geo_input', 0.0)),
-            "nuc_capacity": float(st.session_state.get('nuc_input', 0.0)),
-            "ccs_capacity": float(st.session_state.get('ccs_input', 0.0)),
-            "batt_capacity": float(st.session_state.get('batt_input', 0.0)),
-            "batt_duration": float(st.session_state.get('batt_duration_input', 0.0)),
-            "solar_price": float(st.session_state.get('solar_price_input', 0.0)),
-            "wind_price": float(st.session_state.get('wind_price_input', 0.0)),
-            "ccs_price": float(st.session_state.get('ccs_price_input', 0.0)),
-            "geo_price": float(st.session_state.get('geo_price_input', 0.0)),
-            "nuc_price": float(st.session_state.get('nuc_price_input', 0.0)),
-            "market_price": float(st.session_state.get('market_input', 35.0)), 
-            "rec_price": float(st.session_state.get('rec_input', 0.0)),
-            "batt_base_rate": float(st.session_state.get('cvta_fixed', 12000.0)),
-            "batt_guar_rte": float(st.session_state.get('cvta_rte', 85.0)),
-            "batt_vom": float(st.session_state.get('cvta_vom', 2.0)),
-            "participants": st.session_state.get('participants', []),
-            "excluded_techs": st.session_state.get('excluded_techs_input', []),
-            "market_year": int(st.session_state.get('market_year_input', 2024)),
-            "price_scaler": float(st.session_state.get('price_scaler_input', 1.0)),
-            "ppa_price_scaler": float(st.session_state.get('ppa_scaler_input', 1.0))
-        }
-        
-        if 'custom_solar_profile' in st.session_state:
-            export_config['custom_solar_profile'] = st.session_state['custom_solar_profile'].tolist()
-        if 'custom_wind_profile' in st.session_state:
-            export_config['custom_wind_profile'] = st.session_state['custom_wind_profile'].tolist()
-        if 'shared_market_prices' in st.session_state:
-            df_prices = st.session_state['shared_market_prices']
-            if 'Price' in df_prices.columns:
-                export_config['custom_battery_prices'] = df_prices['Price'].tolist()
-
-        json_str_full = json.dumps(export_config, indent=4)
-
-        # 2. AI Config
-        ai_config = export_config.copy()
-        ai_config.pop('custom_solar_profile', None)
-        ai_config.pop('custom_wind_profile', None)
-        ai_config.pop('custom_battery_prices', None)
-        # Add AI-specific fields
-        ai_config['region'] = "ERCOT North"
-        ai_config['total_load_mwh'] = st.session_state.get('total_load_mwh', 0)
-        
-        json_str_ai = json.dumps(ai_config, indent=4)
-        
-        # --- Columns ---
         col_d1, col_d2 = st.columns(2)
         
         with col_d1:
