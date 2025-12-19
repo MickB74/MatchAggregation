@@ -628,33 +628,8 @@ with tab_load:
     st.markdown("#### 📥 Export Load Data")
     
     if st.session_state.participants:
-        # Create DataFrame from participants
-        export_df = pd.DataFrame(st.session_state.participants)
-        
-        # Reorder columns for clarity if they exist
-        desired_cols = ['name', 'type', 'load']
-        available_cols = [c for c in desired_cols if c in export_df.columns]
-        # Add any extra columns
-        extra_cols = [c for c in export_df.columns if c not in desired_cols]
-        final_cols = available_cols + extra_cols
-        
-        export_df = export_df[final_cols]
-        
-        with st.expander("View Data Preview"):
-            st.dataframe(export_df, use_container_width=True)
-            
-        # Convert to CSV
-        csv = export_df.to_csv(index=False).encode('utf-8')
-        
-        st.download_button(
-            label="Download Participants as CSV",
-            data=csv,
-            file_name="participant_load_data.csv",
-            mime="text/csv",
-        )
-        
         # --- Hourly Profile Export ---
-        st.markdown("###### Detailed Hourly Data")
+        # Get Market Year for Timestamps
         
         # Get Market Year for Timestamps
         m_year = st.session_state.get('market_year_input', 2024)
