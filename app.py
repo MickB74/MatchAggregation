@@ -1550,7 +1550,12 @@ else:
         elif net_set < 0 and abs(net_set) > 5000000:
             insight = "💰 **High Cost**: Review PPA Strike Prices or reduce expensive firm capacity."
             
-        ec3.success(insight) if "✅" in insight else ec3.info(insight) if "📈" in insight else ec3.warning(insight)
+        if "✅" in insight:
+            ec3.success(insight)
+        elif "📈" in insight:
+            ec3.info(insight)
+        else:
+            ec3.warning(insight)
         
     # --- Dashboard moved to Tabs ---
     
