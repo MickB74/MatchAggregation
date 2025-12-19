@@ -1823,21 +1823,23 @@ else:
                     
                     # 2. Calculate Portfolio Settlement (Techs)
                     # Net Settlement = Market Revenue - PPA Cost
-                    # PPA Cost is constant (Volume * Strike). Market Revenue changes.
                     
-                    year_settlement = 0.0
+                    net_solar = 0.0
+                    net_wind = 0.0
+                    net_firm = 0.0
+                    net_battery = 0.0
                     
                     # Solar
                     if solar_capacity > 0:
                         rev = np.sum(solar_profile.values * hist_price_series.values)
                         cost = np.sum(solar_profile.values * solar_price)
-                        year_settlement += (rev - cost)
+                        net_solar = (rev - cost)
                         
                     # Wind
                     if wind_capacity > 0:
                         rev = np.sum(wind_profile.values * hist_price_series.values)
                         cost = np.sum(wind_profile.values * wind_price)
-                        year_settlement += (rev - cost)
+                        net_wind = (rev - cost)
                         
                     # Firm (CCS/Geo/Nuc)
                     firm_specs = [(ccs_capacity, ccs_price, 'CCS'), (geo_capacity, geo_price, 'Geo'), (nuc_capacity, nuc_price, 'Nuc')]
@@ -1847,10 +1849,9 @@ else:
                              prof = np.full(8760, cap)
                              rev = np.sum(prof * hist_price_series.values)
                              cost = np.sum(prof * price)
-                             year_settlement += (rev - cost)
+                             net_firm += (rev - cost)
 
                     # 3. Battery Financials (CVTA)
-                    batt_net = 0.0
                     if batt_capacity > 0:
                         # Construct DF for function
                         ts = pd.date_range('2024-01-01', periods=8760, freq='h') # Dummy dates, prices matter
@@ -1865,17 +1866,18 @@ else:
                         if dr is not None:
                             mkt_rev = dr['Net_Revenue'].sum()
                             fixed_pymt = batt_capacity * cvta_fixed_price * 12
-                            # Net Settlement = Market Revenue - Fixed Payment (opposite of cost)
-                            # Actually global logic: Settlement = Value - Cost.
-                            # Value = Market Revenue. Cost = Fixed Payment.
-                            batt_net = mkt_rev - fixed_pymt
+                            # Net Settlement = Market Revenue - Fixed Payment
+                            net_battery = mkt_rev - fixed_pymt
                     
-                    year_settlement += batt_net
+                    total_settlement = net_solar + net_wind + net_firm + net_battery
                     
                     sensitivity_results.append({
                         'Year': str(year),
-                        'Net Settlement': year_settlement,
-                        'Battery Contribution': batt_net
+                        'Total Net Settlement': total_settlement,
+                        'Solar': net_solar,
+                        'Wind': net_wind,
+                        'Firm': net_firm,
+                        'Battery': net_battery
                     })
                     
                     progress_bar.progress((i + 1) / len(years_to_test))
@@ -1887,38 +1889,55 @@ else:
                 
                 col_s1, col_s2 = st.columns([1, 2])
                 with col_s1:
-                    st.dataframe(s_df.style.format({
-                        'Net Settlement': '${:,.0f}',
-                        'Battery Contribution': '${:,.0f}'
+                    # Format table
+                    display_cols = ['Year', 'Solar', 'Wind', 'Firm', 'Battery', 'Total Net Settlement']
+                    # Filter out columns that are all 0
+                    cols_to_show = ['Year']
+                    for c in ['Solar', 'Wind', 'Firm', 'Battery', 'Total Net Settlement']:
+                        if s_df[c].sum() != 0:
+                            cols_to_show.append(c)
+                            
+                    st.dataframe(s_df[cols_to_show].style.format({
+                        'Solar': '${:,.0f}',
+                        'Wind': '${:,.0f}',
+                        'Firm': '${:,.0f}',
+                        'Battery': '${:,.0f}',
+                        'Total Net Settlement': '${:,.0f}'
                     }), use_container_width=True)
                 
                 with col_s2:
                     fig_sens = go.Figure()
-                    fig_sens.add_trace(go.Bar(
-                        x=s_df['Year'],
-                        y=s_df['Net Settlement'],
-                        marker_color=['#2ca02c' if x >= 0 else '#d62728' for x in s_df['Net Settlement']],
-                        text=s_df['Net Settlement'],
-                        texttemplate='$%{text:,.0f}',
-                        textposition='auto',
-                        name='Total Net Settlement'
-                    ))
-                     # Optional: Add line for Battery
+                    
+                    # Stacked Bars
+                    if s_df['Solar'].abs().sum() > 0:
+                        fig_sens.add_trace(go.Bar(name='Solar', x=s_df['Year'], y=s_df['Solar'], marker_color='#FFA500'))
+                    if s_df['Wind'].abs().sum() > 0:
+                        fig_sens.add_trace(go.Bar(name='Wind', x=s_df['Year'], y=s_df['Wind'], marker_color='#1f77b4'))
+                    if s_df['Firm'].abs().sum() > 0:
+                        fig_sens.add_trace(go.Bar(name='Firm', x=s_df['Year'], y=s_df['Firm'], marker_color='grey'))
+                    if s_df['Battery'].abs().sum() > 0:
+                        fig_sens.add_trace(go.Bar(name='Battery', x=s_df['Year'], y=s_df['Battery'], marker_color='#2ca02c'))
+                    
+                    # Total Line
                     fig_sens.add_trace(go.Scatter(
-                        x=s_df['Year'],
-                        y=s_df['Battery Contribution'],
-                        mode='lines+markers',
-                        name='Battery Net Value',
-                        line=dict(color='#1f77b4', width=2)
+                        x=s_df['Year'], y=s_df['Total Net Settlement'],
+                        mode='lines+markers+text',
+                        name='Net Total',
+                        text=s_df['Total Net Settlement'],
+                        texttemplate='$%{text:,.2s}',
+                        textposition='top center',
+                        line=dict(color='white', width=3, dash='dot')
                     ))
                     
                     fig_sens.update_layout(
-                        title="Portfolio Financial Performance (2020-2024)",
+                        title="Portfolio Financial Performance by Source (2020-2024)",
                         yaxis_title="Net Settlement ($)",
+                        barmode='relative', # Stacked but allows negatives
                         template=chart_template,
                         paper_bgcolor=chart_bg,
                         plot_bgcolor=chart_bg,
-                        font=dict(color=chart_font_color)
+                        font=dict(color=chart_font_color),
+                        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
                     )
                     st.plotly_chart(fig_sens, use_container_width=True)
 
