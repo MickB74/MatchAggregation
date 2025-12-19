@@ -2044,14 +2044,8 @@ else:
                             pass
                     
                     if hist_prices is None:
-                        # Generate synthetic if file missing
-                        _, hist_prices = get_market_price_profile(30.0, year=year, return_base_avg=True) # Returns base_avg, series
-                        # Function returns (base, profile) if return_base_avg=True? 
-                        # Checking utils.py: def get_market_price_profile(base_price, shape='peaky', vol_scaler=1.0, year=2024, return_base_avg=False):
-                        # It returns profile only by default.
-                        # Wait, get_market_price_profile signature might be different. 
-                        # Let's rely on the simple call
-                        hist_prices = get_market_price_profile(get_market_price_profile(0, year=year).mean(), year=year)
+                        # Generate synthetic if file missing (use actual year from loop, NOT selected market_year)
+                        hist_prices = get_market_price_profile(30.0, year=year)
 
                     # Ensure series length matches profile (truncate or pad)
                     # Helper to align
