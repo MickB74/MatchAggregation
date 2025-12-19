@@ -698,8 +698,9 @@ with tab_load:
         # Get Market Year for Timestamps
         m_year = st.session_state.get('market_year_input', 2024)
         
-        # Create Datetime Index
-        dates = pd.date_range(start=f'{m_year}-01-01', periods=8760, freq='h')
+        # Create Datetime Index (use 2024 if Average selected)
+        year_for_dates = 2024 if m_year == 'Average' else m_year
+        dates = pd.date_range(start=f'{year_for_dates}-01-01', periods=8760, freq='h')
         
         # Initialize Data Dictionary with Timestamp
         hourly_data = {'Datetime': dates}
@@ -1445,7 +1446,9 @@ else:
             df_proxy_input = st.session_state['shared_market_prices']
         else:
             # Fallback (Should typically not happen if app renders top-down)
-            dates = pd.date_range(start=f'{market_year}-01-01', periods=8760, freq='h')
+            # Use 2024 for date generation if Average is selected
+            year_for_dates = 2024 if market_year == 'Average' else market_year
+            dates = pd.date_range(start=f'{year_for_dates}-01-01', periods=8760, freq='h')
             df_proxy_input = pd.DataFrame({'Price': market_price_profile_series.values}, index=dates)
         
         cvta_daily_results = calculate_proxy_battery_revenue(df_proxy_input, batt_capacity, batt_duration, cvta_rte, cvta_vom)
