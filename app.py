@@ -1750,6 +1750,178 @@ else:
                 
                 st.plotly_chart(fig_set, use_container_width=True)
 
+        # --- Historical Sensitivity Analysis ---
+        st.markdown("---")
+        with st.expander("📊 Historical Sensitivity (2020-2024)", expanded=False):
+            st.markdown("Run your current portfolio settings against historical ERCOT North Hub prices.")
+            
+            if st.button("Run Multi-Year Analysis"):
+                sensitivity_results = []
+                years_to_test = [2020, 2021, 2022, 2023, 2024]
+                
+                progress_bar = st.progress(0)
+                
+                for i, year in enumerate(years_to_test):
+                    # 1. Load Data
+                    current_dir = os.path.dirname(__file__)
+                    file_path = os.path.join(current_dir, f'ercot_rtm_{year}.parquet')
+                    
+                    hist_prices = None
+                    if os.path.exists(file_path):
+                        try:
+                            df_hist = pd.read_parquet(file_path)
+                            # Handle different column names or filter
+                            # Expect 'Price' or find Settlement Point
+                            # Simple logic: if 'Price' in cols use it, else try to find HB_NORTH
+                            found_price = False
+                            if 'Price' in df_hist.columns:
+                                hist_prices = df_hist['Price']
+                                found_price = True
+                            else:
+                                # Look for HB_NORTH
+                                for c in df_hist.columns:
+                                    if 'Settlement Point Name' in c or 'SettlementPoint' in c:
+                                        hb_rows = df_hist[df_hist[c].isin(['HB_NORTH', 'HB_BUSHLD'])] # Fallbacks
+                                        if not hb_rows.empty:
+                                            # Assuming sorted by time
+                                            if 'Price' in hb_rows.columns: hist_prices = hb_rows['Price']
+                                            elif 'LMP' in hb_rows.columns: hist_prices = hb_rows['LMP']
+                                            elif 'RTM_SPP' in hb_rows.columns: hist_prices = hb_rows['RTM_SPP']
+                                            
+                                            # Reindex to 8760 if needed? Timestamps match?
+                                            # For sensitivity, we just need a series of length 8760 or 8784
+                                            break
+                            
+                            # Fallback if specific column logic failed but file exists (e.g. from fetch script)
+                            if hist_prices is None and 'RTM SPP' in df_hist.columns:
+                                 hist_prices = df_hist['RTM SPP']
+                            elif hist_prices is None and len(df_hist.columns) > 1:
+                                # Try 2nd column?
+                                pass
+
+                        except Exception:
+                            pass
+                    
+                    if hist_prices is None:
+                        # Generate synthetic if file missing
+                        _, hist_prices = get_market_price_profile(30.0, year=year, return_base_avg=True) # Returns base_avg, series
+                        # Function returns (base, profile) if return_base_avg=True? 
+                        # Checking utils.py: def get_market_price_profile(base_price, shape='peaky', vol_scaler=1.0, year=2024, return_base_avg=False):
+                        # It returns profile only by default.
+                        # Wait, get_market_price_profile signature might be different. 
+                        # Let's rely on the simple call
+                        hist_prices = get_market_price_profile(get_market_price_profile(0, year=year).mean(), year=year)
+
+                    # Ensure series length matches profile (truncate or pad)
+                    # Helper to align
+                    h_vals = hist_prices.values
+                    if len(h_vals) > 8760: h_vals = h_vals[:8760]
+                    if len(h_vals) < 8760:
+                        h_vals = np.pad(h_vals, (0, 8760-len(h_vals)), 'edge')
+                    
+                    hist_price_series = pd.Series(h_vals) * price_scaler
+                    
+                    # 2. Calculate Portfolio Settlement (Techs)
+                    # Net Settlement = Market Revenue - PPA Cost
+                    # PPA Cost is constant (Volume * Strike). Market Revenue changes.
+                    
+                    year_settlement = 0.0
+                    
+                    # Solar
+                    if solar_capacity > 0:
+                        rev = np.sum(solar_profile.values * hist_price_series.values)
+                        cost = np.sum(solar_profile.values * solar_price)
+                        year_settlement += (rev - cost)
+                        
+                    # Wind
+                    if wind_capacity > 0:
+                        rev = np.sum(wind_profile.values * hist_price_series.values)
+                        cost = np.sum(wind_profile.values * wind_price)
+                        year_settlement += (rev - cost)
+                        
+                    # Firm (CCS/Geo/Nuc)
+                    firm_specs = [(ccs_capacity, ccs_price, 'CCS'), (geo_capacity, geo_price, 'Geo'), (nuc_capacity, nuc_price, 'Nuc')]
+                    for cap, price, name in firm_specs:
+                        if cap > 0:
+                             # Flat profile assumption for sensitivity
+                             prof = np.full(8760, cap)
+                             rev = np.sum(prof * hist_price_series.values)
+                             cost = np.sum(prof * price)
+                             year_settlement += (rev - cost)
+
+                    # 3. Battery Financials (CVTA)
+                    batt_net = 0.0
+                    if batt_capacity > 0:
+                        # Construct DF for function
+                        ts = pd.date_range('2024-01-01', periods=8760, freq='h') # Dummy dates, prices matter
+                        df_p = pd.DataFrame({'Price': hist_price_series.values}, index=ts)
+                        
+                        # Use defaults if not set in UI yet
+                        if 'cvta_rte' not in locals(): cvta_rte = 85.0
+                        if 'cvta_vom' not in locals(): cvta_vom = 2.0
+                        if 'cvta_fixed_price' not in locals(): cvta_fixed_price = 12000.0
+                        
+                        dr = calculate_proxy_battery_revenue(df_p, batt_capacity, batt_duration, cvta_rte, cvta_vom)
+                        if dr is not None:
+                            mkt_rev = dr['Net_Revenue'].sum()
+                            fixed_pymt = batt_capacity * cvta_fixed_price * 12
+                            # Net Settlement = Market Revenue - Fixed Payment (opposite of cost)
+                            # Actually global logic: Settlement = Value - Cost.
+                            # Value = Market Revenue. Cost = Fixed Payment.
+                            batt_net = mkt_rev - fixed_pymt
+                    
+                    year_settlement += batt_net
+                    
+                    sensitivity_results.append({
+                        'Year': str(year),
+                        'Net Settlement': year_settlement,
+                        'Battery Contribution': batt_net
+                    })
+                    
+                    progress_bar.progress((i + 1) / len(years_to_test))
+                
+                # Render Results
+                s_df = pd.DataFrame(sensitivity_results)
+                
+                st.write("### Multi-Year Results")
+                
+                col_s1, col_s2 = st.columns([1, 2])
+                with col_s1:
+                    st.dataframe(s_df.style.format({
+                        'Net Settlement': '${:,.0f}',
+                        'Battery Contribution': '${:,.0f}'
+                    }), use_container_width=True)
+                
+                with col_s2:
+                    fig_sens = go.Figure()
+                    fig_sens.add_trace(go.Bar(
+                        x=s_df['Year'],
+                        y=s_df['Net Settlement'],
+                        marker_color=['#2ca02c' if x >= 0 else '#d62728' for x in s_df['Net Settlement']],
+                        text=s_df['Net Settlement'],
+                        texttemplate='$%{text:,.0f}',
+                        textposition='auto',
+                        name='Total Net Settlement'
+                    ))
+                     # Optional: Add line for Battery
+                    fig_sens.add_trace(go.Scatter(
+                        x=s_df['Year'],
+                        y=s_df['Battery Contribution'],
+                        mode='lines+markers',
+                        name='Battery Net Value',
+                        line=dict(color='#1f77b4', width=2)
+                    ))
+                    
+                    fig_sens.update_layout(
+                        title="Portfolio Financial Performance (2020-2024)",
+                        yaxis_title="Net Settlement ($)",
+                        template=chart_template,
+                        paper_bgcolor=chart_bg,
+                        plot_bgcolor=chart_bg,
+                        font=dict(color=chart_font_color)
+                    )
+                    st.plotly_chart(fig_sens, use_container_width=True)
+
 
 
 
