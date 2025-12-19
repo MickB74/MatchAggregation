@@ -853,6 +853,62 @@ def get_market_price_profile(avg_price, return_base_avg=False, year=2024):
     base_average = avg_price  # Default for synthetic
     
     # 1. Try Loading Real Data
+    if year == 'Average':
+        # Composite Average Logic
+        try:
+            available_years = [2020, 2021, 2022, 2023, 2024]
+            profiles = []
+            
+            for y in available_years:
+                current_dir = os.path.dirname(__file__)
+                parquet_file = os.path.join(current_dir, f'ercot_rtm_{y}.parquet')
+                
+                if os.path.exists(parquet_file):
+                    df = pd.read_parquet(parquet_file)
+                    if 'Location' in df.columns and 'SPP' in df.columns:
+                         df_north = df[df['Location'] == 'HB_NORTH'].copy()
+                         if 'Time' in df_north.columns:
+                            df_north['Time'] = pd.to_datetime(df_north['Time'])
+                            df_north.set_index('Time', inplace=True)
+                            
+                            # Resample to Hourly Mean
+                            df_hourly = df_north['SPP'].resample('h').mean()
+                            df_hourly = df_hourly.interpolate(method='linear').bfill().ffill()
+                            
+                            # Normalize to 8760 (ignore leap days for averaging alignment)
+                            # Remove Feb 29
+                            df_hourly = df_hourly[~((df_hourly.index.month == 2) & (df_hourly.index.day == 29))]
+                            
+                            vals = df_hourly.values
+                            # Pad/Truncate
+                            if len(vals) > hours: vals = vals[:hours]
+                            elif len(vals) < hours: vals = np.pad(vals, (0, hours - len(vals)), 'constant', constant_values=vals.mean())
+                            
+                            profiles.append(vals)
+            
+            if profiles:
+                # Calculate mean across all loaded profiles
+                # Stack arrays vertically (rows = years, cols = hours)
+                stack = np.vstack(profiles)
+                # Average down the columns
+                avg_profile = np.mean(stack, axis=0)
+                
+                profile = avg_profile
+                base_average = np.mean(profile)
+                
+                 # Scaling: Scale to target avg_price if provided
+                current_avg = np.mean(profile)
+                if current_avg != 0:
+                    profile = profile * (avg_price / current_avg)
+                
+                if return_base_avg:
+                     return pd.Series(profile, name='Market Price ($/MWh)'), base_average
+                return pd.Series(profile, name='Market Price ($/MWh)')
+                
+        except Exception as e:
+            print(f"Failed to calculate Average Profile: {e}")
+            
+    # Single Year Logic
     current_dir = os.path.dirname(__file__)
     parquet_file = os.path.join(current_dir, f'ercot_rtm_{year}.parquet')
     
