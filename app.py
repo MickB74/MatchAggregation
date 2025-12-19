@@ -1254,7 +1254,7 @@ else:
         'market_price_profile': market_price_profile_series
     }
 
-    if total_discharge_mwh > 0:
+    if batt_capacity > 0:
         # Calculate Battery Financials Detailed
         if 'cvta_fixed_price' not in locals(): cvta_fixed_price = 12000.0
         if 'cvta_rte' not in locals(): cvta_rte = 85.0
@@ -1293,7 +1293,7 @@ else:
                 'market_revenue': annual_market_revenue
             }
         else:
-            batt_financials = {
+             batt_financials = {
                 'net_invoice': 0.0, 'capacity_payment': 0.0, 
                 'vom_payment': 0.0, 'rte_penalty': 0.0,
                 'actual_availability': 1.0, 'actual_rte': 0.0,
@@ -1301,14 +1301,17 @@ else:
             }
         
         # Effective Price for Global Financials logic (Net Cost / MWh)
-        effective_batt_price_mwh = batt_financials['net_invoice'] / total_discharge_mwh
+        # Avoid div by zero
+        effective_batt_price_mwh = batt_financials['net_invoice'] / total_discharge_mwh if total_discharge_mwh > 0 else 0.0
     else:
-        effective_batt_price_mwh = 0.0
+        # No Battery
         batt_financials = {
             'net_invoice': 0.0, 'capacity_payment': 0.0, 
             'vom_payment': 0.0, 'rte_penalty': 0.0,
-            'actual_availability': 1.0, 'actual_rte': 0.0
+            'actual_availability': 1.0, 'actual_rte': 0.0,
+            'financial_mwh': 0.0, 'market_revenue': 0.0
         }
+        effective_batt_price_mwh = 0.0
         
     tech_prices = {
         'Solar': solar_price,
