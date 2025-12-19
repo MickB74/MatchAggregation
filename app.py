@@ -1050,6 +1050,30 @@ with tab_fin:
                 c_mkt_4.caption(f"{yr}: **${pr:.2f}**")
     except Exception:
         pass
+    
+    # Download Market Price Data
+    st.markdown("---")
+    st.markdown("##### 📥 Download Market Price Data")
+    
+    # Generate the price profile for download
+    download_price_profile = get_market_price_profile(market_price, year=market_year) * price_scaler
+    
+    # Create DataFrame with timestamps
+    price_dates = pd.date_range(start='2024-01-01', periods=8760, freq='h')
+    price_df = pd.DataFrame({
+        'Datetime': price_dates,
+        'Price_USD_MWh': download_price_profile.values
+    })
+    
+    price_csv = price_df.to_csv(index=False)
+    
+    st.download_button(
+        label=f"📊 Download Hourly Prices ({market_year})",
+        data=price_csv,
+        file_name=f"ercot_prices_{market_year}_scaled_{price_scaler}x.csv",
+        mime="text/csv",
+        help=f"Hourly market prices for {market_year} (Base: ${base_market_avg:.2f}, Scaler: {price_scaler}x)"
+    )
 
 
 # --- Tab 4: Battery Financials (CVTA) ---
