@@ -276,7 +276,7 @@ st.caption("Click to instantly create a new load & portfolio configuration.")
 exec_summary_container = st.container()
 
 # --- Configuration Section (Top) ---
-tab_guide, tab_load, tab_gen, tab_fin, tab_offtake, tab_scenario, tab_comp = st.tabs(["User Guide", "1. Load Setup", "2. Generation Portfolio", "3. Financial Analysis", "4. Battery Financials", "5. Scenario Manager", "6. Scenario Comparison"])
+tab_guide, tab_load, tab_gen, tab_fin, tab_offtake, tab_scenario, tab_comp, tab_dl = st.tabs(["User Guide", "1. Load Setup", "2. Generation Portfolio", "3. Financial Analysis", "4. Battery Financials", "5. Scenario Manager", "6. Scenario Comparison", "7. Download Results"])
     
     # --- Tab 5: Scenario Comparison ---
 with tab_comp:
@@ -2312,94 +2312,16 @@ else:
         st.header("Scenario Management")
         st.caption("Save your current configuration to a JSON file or load a previously saved scenario.")
         
-        col_import, col_export = st.columns(2)
-        
-        with col_import:
-            st.subheader("📥 Load Scenario")
-            st.markdown("Upload a `scenario_config.json` file to restore settings.")
-            uploaded_scen = st.file_uploader(
-                "Select JSON File", 
-                type=['json', 'txt'], 
-                key='uploaded_scenario_tab', 
-                on_change=load_scenario
-            )
-            if uploaded_scen:
-                st.success("Scenario loaded successfully!")
-                
-        with col_export:
-            st.subheader("💾 Save Current Scenario")
-            st.markdown("Download your current configuration as a JSON file.")
-            
-            export_config = {
-                "region": "ERCOT North",
-                "total_load_mwh": float(st.session_state.get('total_load_mwh', 0)), 
-                "solar_capacity": float(st.session_state.get('solar_input', 0.0)),
-                "wind_capacity": float(st.session_state.get('wind_input', 0.0)),
-                "geo_capacity": float(st.session_state.get('geo_input', 0.0)),
-                "nuc_capacity": float(st.session_state.get('nuc_input', 0.0)),
-                "ccs_capacity": float(st.session_state.get('ccs_input', 0.0)),
-                "batt_capacity": float(st.session_state.get('batt_input', 0.0)),
-                "batt_duration": float(st.session_state.get('batt_duration_input', 0.0)),
-                "solar_price": float(st.session_state.get('solar_price_input', 0.0)),
-                "wind_price": float(st.session_state.get('wind_price_input', 0.0)),
-                "ccs_price": float(st.session_state.get('ccs_price_input', 0.0)),
-                "geo_price": float(st.session_state.get('geo_price_input', 0.0)),
-                "nuc_price": float(st.session_state.get('nuc_price_input', 0.0)),
-                "market_price": float(st.session_state.get('market_input', 35.0)), 
-                "rec_price": float(st.session_state.get('rec_input', 0.0)),
-                "batt_base_rate": float(st.session_state.get('cvta_fixed', 12000.0)),
-                "batt_guar_rte": float(st.session_state.get('cvta_rte', 85.0)),
-                "batt_vom": float(st.session_state.get('cvta_vom', 2.0)),
-                "participants": st.session_state.get('participants', []),
-                "excluded_techs": st.session_state.get('excluded_techs_input', []),
-                "market_year": int(st.session_state.get('market_year_input', 2024)),
-                "price_scaler": float(st.session_state.get('price_scaler_input', 1.0)),
-                "ppa_price_scaler": float(st.session_state.get('ppa_scaler_input', 1.0))
-            }
-            
-            if 'custom_solar_profile' in st.session_state:
-                 export_config['custom_solar_profile'] = st.session_state['custom_solar_profile'].tolist()
-            
-            if 'custom_wind_profile' in st.session_state:
-                 export_config['custom_wind_profile'] = st.session_state['custom_wind_profile'].tolist()
-                 
-            if 'shared_market_prices' in st.session_state:
-                 df_prices = st.session_state['shared_market_prices']
-                 if 'Price' in df_prices.columns:
-                     export_config['custom_battery_prices'] = df_prices['Price'].tolist()
-            
-            json_export = json.dumps(export_config, indent=4)
-            
-            st.download_button(
-                label="📥 Download JSON Configuration",
-                data=json_export,
-                file_name="scenario_config.json",
-                mime="application/json"
-            )
-
-            # Lightweight JSON for AI
-            ai_config = export_config.copy()
-            # Remove heavy arrays if they were added (though we are after the point where they might be added to export_config, 
-            # actually wait, export_config is modified in place above? Yes.
-            # So we should strip them or created copy BEFORE modifying export_config.
-            # But making copy before is harder with this chunk replacement.
-            # I will just pop them if they exist.
-            ai_config.pop('custom_solar_profile', None)
-            ai_config.pop('custom_wind_profile', None)
-            ai_config.pop('custom_battery_prices', None)
-            
-            # Add AI-specific fields
-            ai_config['region'] = "ERCOT North"
-            ai_config['total_load_mwh'] = st.session_state.get('total_load_mwh', 0)
-            
-            ai_json = json.dumps(ai_config, indent=4)
-            
-            st.download_button(
-                label="🤖 Download AI Analysis JSON",
-                data=ai_json,
-                file_name="scenario_ai_config.json",
-                mime="application/json"
-            )
+        st.subheader("📥 Load Scenario")
+        st.markdown("Upload a `scenario_config.json` file to restore settings.")
+        uploaded_scen = st.file_uploader(
+            "Select JSON File", 
+            type=['json', 'txt'], 
+            key='uploaded_scenario_tab', 
+            on_change=load_scenario
+        )
+        if uploaded_scen:
+            st.success("Scenario loaded successfully!")
 
             st.markdown("---")
             st.subheader("📸 Scenario Comparison Capture")
@@ -2441,30 +2363,105 @@ else:
                 st.toast(f"Captured {cap_name}")
                 st.rerun()
 
-    # --- Footer: Export Results (Visible on all pages) ---
-    st.markdown("---")
-    
-    # Styled Header matching the image (Orange background, White text)
-    st.markdown("""
-        <div style="background-color: #D35400; padding: 10px; border-radius: 5px; margin-bottom: 20px;">
-            <h3 style="color: white; margin: 0; padding: 0;">Export Results</h3>
-        </div>
-    """, unsafe_allow_html=True)
+    with tab_dl:
+        st.header("💾 Download Results")
+        st.markdown("Export your configuration and analysis reports.")
+        
+        col_d1, col_d2 = st.columns(2)
+        
+        with col_d1:
+            st.subheader("📄 Reports & Data")
+            st.download_button(
+                label="📄 Download PDF Report",
+                data=pdf_bytes,
+                file_name="Portfolio_Report.pdf",
+                mime="application/pdf",
+                use_container_width=True
+            )
+            st.download_button(
+                label="📊 Download Results CSV",
+                data=csv,
+                file_name="simulation_results.csv",
+                mime="text/csv",
+                use_container_width=True
+            )
+            st.download_button(
+                label="📦 Download Results & Scenario (ZIP)",
+                data=zip_buffer.getvalue(),
+                file_name="simulation_results.zip",
+                mime="application/zip",
+                use_container_width=True
+            )
+            
+        with col_d2:
+             st.subheader("🔧 Configuration (JSON)")
+             
+             # Re-generate Config for JSON
+             export_config = {
+                "region": "ERCOT North",
+                "total_load_mwh": float(st.session_state.get('total_load_mwh', 0)), 
+                "solar_capacity": float(st.session_state.get('solar_input', 0.0)),
+                "wind_capacity": float(st.session_state.get('wind_input', 0.0)),
+                "geo_capacity": float(st.session_state.get('geo_input', 0.0)),
+                "nuc_capacity": float(st.session_state.get('nuc_input', 0.0)),
+                "ccs_capacity": float(st.session_state.get('ccs_input', 0.0)),
+                "batt_capacity": float(st.session_state.get('batt_input', 0.0)),
+                "batt_duration": float(st.session_state.get('batt_duration_input', 0.0)),
+                "solar_price": float(st.session_state.get('solar_price_input', 0.0)),
+                "wind_price": float(st.session_state.get('wind_price_input', 0.0)),
+                "ccs_price": float(st.session_state.get('ccs_price_input', 0.0)),
+                "geo_price": float(st.session_state.get('geo_price_input', 0.0)),
+                "nuc_price": float(st.session_state.get('nuc_price_input', 0.0)),
+                "market_price": float(st.session_state.get('market_input', 35.0)), 
+                "rec_price": float(st.session_state.get('rec_input', 0.0)),
+                "batt_base_rate": float(st.session_state.get('cvta_fixed', 12000.0)),
+                "batt_guar_rte": float(st.session_state.get('cvta_rte', 85.0)),
+                "batt_vom": float(st.session_state.get('cvta_vom', 2.0)),
+                "participants": st.session_state.get('participants', []),
+                "excluded_techs": st.session_state.get('excluded_techs_input', []),
+                "market_year": int(st.session_state.get('market_year_input', 2024)),
+                "price_scaler": float(st.session_state.get('price_scaler_input', 1.0)),
+                "ppa_price_scaler": float(st.session_state.get('ppa_scaler_input', 1.0))
+            }
+            
+             if 'custom_solar_profile' in st.session_state:
+                 export_config['custom_solar_profile'] = st.session_state['custom_solar_profile'].tolist()
+            
+             if 'custom_wind_profile' in st.session_state:
+                 export_config['custom_wind_profile'] = st.session_state['custom_wind_profile'].tolist()
+                 
+             if 'shared_market_prices' in st.session_state:
+                 df_prices = st.session_state['shared_market_prices']
+                 if 'Price' in df_prices.columns:
+                     export_config['custom_battery_prices'] = df_prices['Price'].tolist()
+            
+             json_export = json.dumps(export_config, indent=4)
+            
+             st.download_button(
+                label="📥 Download JSON Configuration",
+                data=json_export,
+                file_name="scenario_config.json",
+                mime="application/json",
+                use_container_width=True
+             )
 
-    col_dl1, col_dl2 = st.columns(2)
-    with col_dl1:
-        st.download_button(
-            label="Download Results & Scenario (ZIP)",
-            data=zip_buffer.getvalue(),
-            file_name="simulation_results.zip",
-            mime="application/zip",
-            use_container_width=True
-        )
-    with col_dl2:
-        st.download_button(
-            label="📄 Download PDF Report",
-            data=pdf_bytes,
-            file_name="Portfolio_Report.pdf",
-            mime="application/pdf",
-            use_container_width=True
-        )
+             # Lightweight JSON for AI
+             ai_config = export_config.copy()
+             ai_config.pop('custom_solar_profile', None)
+             ai_config.pop('custom_wind_profile', None)
+             ai_config.pop('custom_battery_prices', None)
+            
+             # Add AI-specific fields
+             ai_config['region'] = "ERCOT North"
+             ai_config['total_load_mwh'] = st.session_state.get('total_load_mwh', 0)
+            
+             ai_json = json.dumps(ai_config, indent=4)
+            
+             st.download_button(
+                label="🤖 Download AI Analysis JSON",
+                data=ai_json,
+                file_name="scenario_ai_config.json",
+                mime="application/json",
+                use_container_width=True,
+                help="Simplified JSON optimized for AI context windows."
+             )
