@@ -2087,7 +2087,8 @@ else:
                     if len(h_vals) < 8760:
                         h_vals = np.pad(h_vals, (0, 8760-len(h_vals)), 'edge')
                     
-                    hist_price_series = pd.Series(h_vals) * price_scaler
+                    # Use ACTUAL historical prices (no scaler for multi-year comparison)
+                    hist_price_series = pd.Series(h_vals)
                     
                     # 2. Calculate Portfolio Settlement (Techs)
                     # Net Settlement = Market Revenue - PPA Cost
