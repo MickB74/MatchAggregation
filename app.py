@@ -9,13 +9,13 @@ import json
 import zipfile
 import io
 from utils import (
-    generate_dummy_load_profile, 
-    generate_dummy_generation_profile, 
-    calculate_cfe_score, 
-    simulate_battery_storage, 
-    recommend_portfolio, 
-    calculate_portfolio_metrics, 
-    calculate_financials, 
+    generate_dummy_load_profile,
+    generate_dummy_generation_profile,
+    calculate_cfe_score,
+    simulate_battery_storage,
+    recommend_portfolio,
+    calculate_portfolio_metrics,
+    calculate_financials,
     process_uploaded_profile,
     get_market_price_profile,
     generate_pdf_report,
@@ -23,6 +23,7 @@ from utils import (
     calculate_buyer_pl,
     calculate_proxy_battery_revenue
 )
+from excel_reporter import generate_excel_report
 import project_matcher
 
 
@@ -2289,13 +2290,20 @@ else:
         
     pdf_bytes = generate_pdf_report(metrics, export_config, fin_metrics, figures=figures)
 
-    # 4. Create ZIP Bundle
+    # 4. Create ZIP Bundle (Updated to include Excel)
     zip_buffer = io.BytesIO()
+    
+    # 5. Create Excel Report
+    excel_buffer = io.BytesIO()
+    generate_excel_report(excel_buffer, results_df, export_config, fin_metrics, monthly_stats=monthly_stats)
+    excel_data = excel_buffer.getvalue()
+    
     with zipfile.ZipFile(zip_buffer, "w") as zf:
         zf.writestr("simulation_results.csv", csv)
         zf.writestr("scenario_config.json", json_str_full)
         zf.writestr("scenario_ai_config.json", json_str_ai)
         zf.writestr("Portfolio_Report.pdf", pdf_bytes)
+        zf.writestr("Interactive_Report.xlsx", excel_data)
 
     # Remove the buttons from inside the tab
     
@@ -2383,6 +2391,13 @@ else:
                 data=pdf_bytes,
                 file_name="Portfolio_Report.pdf",
                 mime="application/pdf",
+                use_container_width=True
+            )
+            st.download_button(
+                label="📊 Download Interactive Excel Report",
+                data=excel_data,
+                file_name="Interactive_Report.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                 use_container_width=True
             )
             st.download_button(
