@@ -814,18 +814,31 @@ with tab_gen:
 # --- Tab 4: Financials ---
 with tab_fin:
     st.markdown("#### PPA Prices ($/MWh)")
+    st.markdown("#### PPA Prices ($/MWh)")
+    
+    # 1. Scaler First
+    ppa_price_scaler = st.number_input("PPA Price Scaler", min_value=0.1, max_value=5.0, value=1.0, step=0.1, key='ppa_scaler_input', help="Multiplier for all PPA Prices")
+    
     c_fin_1, c_fin_2, c_fin_3 = st.columns(3)
     with c_fin_1:
         solar_price = st.number_input("Solar PPA Price", min_value=0.0, value=48.5, step=0.5, key='solar_price_input', help="2025 Market Est: $45.00 - $52.00")
+        st.caption(f"Effective: ${solar_price * ppa_price_scaler:.2f}")
+        
         wind_price = st.number_input("Wind PPA Price", min_value=0.0, value=42.5, step=0.5, key='wind_price_input', help="2025 Market Est: $40.00 - $45.00")
+        st.caption(f"Effective: ${wind_price * ppa_price_scaler:.2f}")
+        
     with c_fin_2:
         ccs_price = st.number_input("CCS Gas PPA Price", min_value=0.0, value=65.0, step=1.0, key='ccs_price_input', help="2025 Market Est: $55.00 - $75.00 (w/ 45Q)")
+        st.caption(f"Effective: ${ccs_price * ppa_price_scaler:.2f}")
+        
         geo_price = st.number_input("Geothermal PPA Price", min_value=0.0, value=77.5, step=0.5, key='geo_price_input', help="2025 Market Est: $70.00 - $85.00")
+        st.caption(f"Effective: ${geo_price * ppa_price_scaler:.2f}")
+        
     with c_fin_3:
         nuc_price = st.number_input("Nuclear PPA Price", min_value=0.0, value=95.0, step=1.0, key='nuc_price_input', help="2025 Market Est: $90.00 - $100.00")
-        ppa_price_scaler = st.number_input("PPA Price Scaler", min_value=0.1, max_value=5.0, value=1.0, step=0.1, key='ppa_scaler_input', help="Multiplier for all PPA Prices")
+        st.caption(f"Effective: ${nuc_price * ppa_price_scaler:.2f}")
 
-    # Calculate Effective PPA Prices
+    # Calculate Effective PPA Prices (Global Vars)
     solar_price_eff = solar_price * ppa_price_scaler
     wind_price_eff = wind_price * ppa_price_scaler
     ccs_price_eff = ccs_price * ppa_price_scaler
