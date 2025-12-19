@@ -869,7 +869,7 @@ with tab_fin:
         help="Multiplier for 2024 prices"
     )
     
-    )
+
     
     # Show scaled price
     scaled_price = base_market_avg * price_scaler
