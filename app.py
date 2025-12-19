@@ -244,11 +244,6 @@ def generate_random_scenario():
     st.toast(f"🎲 Generated: {ind} (Optimized for 90% CFE)")
     st.toast("ℹ️ Go to 'Generation Portfolio' tab to tweak settings.")
 
-st.markdown("### 🎲 Explore")
-st.warning("⚠️ **Note**: Generating a random scenario will overwrite your current configuration.")
-if st.button("⚡ Generate Random Scenario (90% CFE)", type="primary"):
-    generate_random_scenario()
-st.caption("Click to instantly create a new load & portfolio configuration.")
 
 
 # --- Executive Summary Container (Placeholder) ---
@@ -433,6 +428,13 @@ with tab_comp:
 
 # --- Tab 1: User Guide (Moved to Top) ---
 with tab_guide:
+    st.markdown("### 🎲 Explore")
+    st.warning("⚠️ **Note**: Generating a random scenario will overwrite your current configuration.")
+    if st.button("⚡ Generate Random Scenario (90% CFE)", type="primary"):
+        generate_random_scenario()
+    st.caption("Click to instantly create a new load & portfolio configuration.")
+    st.divider()
+
     st.markdown("## 📘 User Guide & Methodology")
     
     st.markdown("### 🚀 How to Use This Tool")
