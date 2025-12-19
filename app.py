@@ -133,6 +133,7 @@ def load_scenario():
             # 5. Market Logic
             if 'market_year' in config: st.session_state.market_year_input = int(config['market_year'])
             if 'price_scaler' in config: st.session_state.price_scaler_input = float(config['price_scaler'])
+            if 'ppa_price_scaler' in config: st.session_state.ppa_scaler_input = float(config['ppa_price_scaler'])
             
             # 6. Custom Profiles (Large Arrays)
             # Restore Solar
@@ -300,16 +301,17 @@ with tab_scenario:
             "market_price": float(st.session_state.get('avg_price_input', 35.0)), 
             "rec_price": float(st.session_state.get('rec_price_input', 0.0)),
             # Battery Financials
-            "batt_base_rate": float(st.session_state.get('cvta_fixed_input', 12000.0)),
-            "batt_guar_rte": float(st.session_state.get('cvta_rte_input', 85.0)),
-            "batt_vom": float(st.session_state.get('cvta_vom_input', 2.0)),
+            "batt_base_rate": float(st.session_state.get('cvta_fixed', 12000.0)),
+            "batt_guar_rte": float(st.session_state.get('cvta_rte', 85.0)),
+            "batt_vom": float(st.session_state.get('cvta_vom', 2.0)),
             # Participants
             "participants": st.session_state.get('participants', []),
             # Exclusions
             "excluded_techs": st.session_state.get('excluded_techs_input', []),
             # Market Logic
             "market_year": int(st.session_state.get('market_year_input', 2024)),
-            "price_scaler": float(st.session_state.get('price_scaler_input', 1.0))
+            "price_scaler": float(st.session_state.get('price_scaler_input', 1.0)),
+            "ppa_price_scaler": float(st.session_state.get('ppa_scaler_input', 1.0))
         }
         
         # Add Custom Profiles if Available
