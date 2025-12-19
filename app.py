@@ -176,920 +176,919 @@ with st.sidebar:
     st.markdown("---")
 
 # --- Configuration Section (Top) ---
-with st.expander("Configuration & Setup", expanded=True):
-    tab_guide, tab_load, tab_gen, tab_fin, tab_offtake, tab_comp, tab_scenario = st.tabs(["User Guide", "1. Load Setup", "2. Generation Portfolio", "3. Financial Analysis", "4. Battery Financials", "5. Scenario Comparison", "6. Scenario Manager"])
+tab_guide, tab_load, tab_gen, tab_fin, tab_offtake, tab_comp, tab_scenario = st.tabs(["User Guide", "1. Load Setup", "2. Generation Portfolio", "3. Financial Analysis", "4. Battery Financials", "5. Scenario Comparison", "6. Scenario Manager"])
     
     # --- Tab 5: Scenario Comparison ---
-    with tab_comp:
-        st.header("⚖️ Scenario Comparison")
-        st.caption("Compare captured scenarios side-by-side to evaluate different strategies.")
+with tab_comp:
+    st.header("⚖️ Scenario Comparison")
+    st.caption("Compare captured scenarios side-by-side to evaluate different strategies.")
+    
+    if 'comparison_scenarios' not in st.session_state or not st.session_state.comparison_scenarios:
+        st.info("No scenarios captured yet. Go to '6. Scenario Manager' to capture your current configuration.")
+    else:
+        # Prepare data for comparison
+        comp_data = []
+        for name, data in st.session_state.comparison_scenarios.items():
+            comp_data.append({
+                "Scenario": name,
+                "Total Load (GWh)": data['metrics'].get('total_load_mwh', 0) / 1000,
+                "CFE Score": data['metrics'].get('cfe_score', 0) * 100,
+                "PPA Price ($/MWh)": data['metrics'].get('avg_ppa_price', 0),
+                "Net Settlement ($M)": data['metrics'].get('net_settlement', 0) / 1e6,
+                "Total Cost ($M)": data['metrics'].get('total_cost', 0) / 1e6,
+                "Solar (MW)": data['caps'].get('solar', 0),
+                "Wind (MW)": data['caps'].get('wind', 0),
+                "Firm (MW)": data['caps'].get('firm', 0),
+                "Battery (MW)": data['caps'].get('batt_mw', 0)
+            })
         
-        if 'comparison_scenarios' not in st.session_state or not st.session_state.comparison_scenarios:
-            st.info("No scenarios captured yet. Go to '6. Scenario Manager' to capture your current configuration.")
-        else:
-            # Prepare data for comparison
-            comp_data = []
-            for name, data in st.session_state.comparison_scenarios.items():
-                comp_data.append({
-                    "Scenario": name,
-                    "Total Load (GWh)": data['metrics'].get('total_load_mwh', 0) / 1000,
-                    "CFE Score": data['metrics'].get('cfe_score', 0) * 100,
-                    "PPA Price ($/MWh)": data['metrics'].get('avg_ppa_price', 0),
-                    "Net Settlement ($M)": data['metrics'].get('net_settlement', 0) / 1e6,
-                    "Total Cost ($M)": data['metrics'].get('total_cost', 0) / 1e6,
-                    "Solar (MW)": data['caps'].get('solar', 0),
-                    "Wind (MW)": data['caps'].get('wind', 0),
-                    "Firm (MW)": data['caps'].get('firm', 0),
-                    "Battery (MW)": data['caps'].get('batt_mw', 0)
+        comp_df = pd.DataFrame(comp_data)
+        
+        # Display Table
+        st.subheader("Summary Table")
+        st.dataframe(
+            comp_df.style.format({
+                "Total Load (GWh)": "{:,.1f}",
+                "CFE Score": "{:.1%}",
+                "PPA Price ($/MWh)": "${:.2f}",
+                "Net Settlement ($M)": "${:,.2f}",
+                "Total Cost ($M)": "${:,.2f}",
+                "Solar (MW)": "{:,.0f}",
+                "Wind (MW)": "{:,.0f}",
+                "Firm (MW)": "{:,.0f}",
+                "Battery (MW)": "{:,.0f}"
+            }),
+            hide_index=True,
+            use_container_width=True
+        )
+        
+        # Comparison Charts
+        st.subheader("Visual Comparison")
+        col_ch1, col_ch2 = st.columns(2)
+        
+        with col_ch1:
+            st.markdown("**CFE Score (%)**")
+            st.bar_chart(comp_df.set_index("Scenario")["CFE Score"])
+            
+        with col_ch2:
+            st.markdown("**Net Settlement ($M)**")
+            st.bar_chart(comp_df.set_index("Scenario")["Net Settlement ($M)"])
+            
+        if st.button("🗑️ Clear Comparison Scenarios"):
+            st.session_state.comparison_scenarios = {}
+            st.rerun()
+
+# --- Tab 6: Scenario Manager ---
+with tab_scenario:
+    st.header("Scenario Management")
+    st.caption("Save your current configuration to a JSON file or load a previously saved scenario.")
+    
+    col_import, col_export = st.columns(2)
+    
+    with col_import:
+        st.subheader("📥 Load Scenario")
+        st.markdown("Upload a `scenario_config.json` file to restore settings.")
+        uploaded_scen = st.file_uploader(
+            "Select JSON File", 
+            type=['json', 'txt'], 
+            key='uploaded_scenario_tab', 
+            on_change=load_scenario
+        )
+        if uploaded_scen:
+            st.success("Scenario loaded successfully!")
+            
+    with col_export:
+        st.subheader("💾 Save Current Scenario")
+        st.markdown("Download your current configuration as a JSON file.")
+        
+        # Reconstruct scenario_config for export (Duplicated logic for independence)
+        # Safe checking for variables that might not be defined if tabs haven't run? 
+        # Actually, Streamlit runs top-to-bottom. If we are here, we have access to the inputs defined in tabs 1-4?
+        # NO. Tabs are containers. The code inside `with tab:` runs linearly.
+        # But the inputs (st.number_input) are widgets. Their values are in st.session_state or returned by the function.
+        # We must access them via st.session_state for safety if they are defined in other tabs.
+        # However, standard variables like `solar_capacity` are local variables.
+        # This tab is defined BEFORE the variable assignment lines in the original tabs...
+        # WAIT. The original code defines tabs: `tab_load, ... = st.tabs(...)`
+        # Then `with tab_load:` block runs...
+        # Then `with tab_gen:` block runs...
+        # If I place `with tab_scenario:` at the top, the variables `solar_capacity` etc. are NOT YET DEFINED.
+        # CRITICAL: I must place the content of `tab_scenario` at the BOTTOM of the file, 
+        # OR I must read from `st.session_state` keys.
+        # The keys are like 'solar_cap_input', 'wind_cap_input', etc.
+        
+        # Let's rely on Session State for the "Save" button to ensure we capture current state.
+        # We need to ensure we map session state keys correctly.
+        
+        export_config = {
+            "region": "ERCOT North",
+            "total_load_mwh": float(st.session_state.get('total_load_mwh', 0)), 
+            # Capacities (Explicit conversions for JSON safety)
+            "solar_capacity": float(st.session_state.get('solar_input', 0.0)),
+            "wind_capacity": float(st.session_state.get('wind_input', 0.0)),
+            "geo_capacity": float(st.session_state.get('geo_input', 0.0)),
+            "nuc_capacity": float(st.session_state.get('nuc_input', 0.0)),
+            "ccs_capacity": float(st.session_state.get('ccs_input', 0.0)),
+            "batt_capacity": float(st.session_state.get('batt_input', 0.0)),
+            "batt_duration": float(st.session_state.get('batt_duration_input', 0.0)),
+            # Prices
+            "solar_price": float(st.session_state.get('solar_price_input', 0.0)),
+            "wind_price": float(st.session_state.get('wind_price_input', 0.0)),
+            "ccs_price": float(st.session_state.get('ccs_price_input', 0.0)),
+            "geo_price": float(st.session_state.get('geo_price_input', 0.0)),
+            "nuc_price": float(st.session_state.get('nuc_price_input', 0.0)),
+            "market_price": float(st.session_state.get('avg_price_input', 35.0)), 
+            "rec_price": float(st.session_state.get('rec_price_input', 0.0)),
+            # Battery Financials
+            "batt_base_rate": float(st.session_state.get('cvta_fixed_input', 12000.0)),
+            "batt_guar_rte": float(st.session_state.get('cvta_rte_input', 85.0)),
+            "batt_vom": float(st.session_state.get('cvta_vom_input', 2.0)),
+            # Participants
+            "participants": st.session_state.get('participants', []),
+            # Exclusions
+            "excluded_techs": st.session_state.get('excluded_techs_input', []),
+            # Market Logic
+            "market_year": int(st.session_state.get('market_year_input', 2024)),
+            "price_scaler": float(st.session_state.get('price_scaler_input', 1.0))
+        }
+        
+        # Add Custom Profiles if Available
+        if 'custom_solar_profile' in st.session_state:
+             # It's a Series, convert to list
+             export_config['custom_solar_profile'] = st.session_state['custom_solar_profile'].tolist()
+        
+        if 'custom_wind_profile' in st.session_state:
+             export_config['custom_wind_profile'] = st.session_state['custom_wind_profile'].tolist()
+             
+        if 'shared_market_prices' in st.session_state:
+             # It's a DataFrame, let's save the 'Price' column as list
+             df_prices = st.session_state['shared_market_prices']
+             if 'Price' in df_prices.columns:
+                 export_config['custom_battery_prices'] = df_prices['Price'].tolist()
+        
+        # Recalculate load if needed? 
+        # Total Load is derived. If we don't store it, we might export 0.
+        # But `participants` list is source of truth.
+        
+        json_export = json.dumps(export_config, indent=4)
+        
+        st.download_button(
+            label="📥 Download JSON Configuration",
+            data=json_export,
+            file_name="scenario_config.json",
+            mime="application/json"
+        )
+
+        st.markdown("---")
+        st.subheader("📸 Scenario Comparison Capture")
+        st.markdown("Capture current configuration and results for side-by-side comparison.")
+        
+        cap_name = st.text_input("Scenario Name", f"Scenario {len(st.session_state.get('comparison_scenarios', {})) + 1}")
+        
+        if st.button("Capture for Comparison"):
+            if 'comparison_scenarios' not in st.session_state:
+                st.session_state.comparison_scenarios = {}
+            
+            # Fetch current metrics from session state (they are calculated in main)
+            # Note: Main loop hasn't run yet for THIS specific rerun, 
+            # but we can grab what was there from the PREVIOUS run or calculate now.
+            # Actually, metrics are usually stored in session state by the main logic.
+            
+            current_metrics = {
+                'total_load_mwh': st.session_state.get('total_load_mwh', 0),
+                'cfe_score': st.session_state.get('cfe_score', 0),
+                'avg_ppa_price': st.session_state.get('avg_ppa_price', 0),
+                'net_settlement': st.session_state.get('net_settlement', 0),
+                'total_cost': st.session_state.get('total_cost', 0)
+            }
+            
+            current_caps = {
+                'solar': st.session_state.get('solar_input', 0),
+                'wind': st.session_state.get('wind_input', 0),
+                'firm': (st.session_state.get('geo_input', 0) + 
+                         st.session_state.get('nuc_input', 0) + 
+                         st.session_state.get('ccs_input', 0)),
+                'batt_mw': st.session_state.get('batt_input', 0)
+            }
+            
+            st.session_state.comparison_scenarios[cap_name] = {
+                'metrics': current_metrics,
+                'caps': current_caps
+            }
+            st.success(f"Scenario '{cap_name}' captured!")
+            st.toast(f"Captured {cap_name}")
+
+# --- Tab 1: User Guide (Moved to Top) ---
+with tab_guide:
+    st.markdown("## 📘 User Guide & Methodology")
+    
+    st.markdown("### 🚀 How to Use This Tool")
+    st.markdown("""
+    **Step 1: Define Load Profile (Tab 1)**
+
+    Choose how to build your hourly load (8760 hours):
+    
+    *   **Add Participants (No File Required)**
+        *   Use the *Add Participant* form to generate synthetic load profiles.
+        *   **Supported participant types include:**
+            *   Data Centers
+            *   Offices
+            *   Manufacturing
+            *   Other commercial profiles
+    *   **Upload CSV**
+        *   Upload a file containing hourly electricity demand data (8760 rows).
+
+    **Output:** A consolidated hourly load profile used across all subsequent analyses.
+
+    **Step 2: Design Generation Portfolio (Tab 2)**
+
+    Configure clean energy supply:
+
+    *   **Set Capacities (MW) for:**
+        *   Solar
+        *   Wind
+        *   Nuclear
+        *   Geothermal
+        *   CCS Gas
+        *   Battery Storage: Power (MW) and Duration (hours)
+    *   **✨ Smart Fill (Optional)**
+        *   Automatically recommends a portfolio designed to achieve a >95% Carbon-Free Energy (CFE) target.
+        *   Lock technologies you want to keep fixed while the optimizer adjusts the remaining resources.
+
+    **Output:** Hourly clean generation and storage dispatch aligned to your load profile.
+
+    **Step 3: Analyze Financials (Tab 3)**
+
+    **Inputs**
+    *   **PPA Prices:** Enter fixed contract prices ($/MWh) for each generation technology.
+    *   **Market Price Data:** Select a historical year (2023 or 2024), or Upload custom hourly market prices.
+
+    **Key Metrics**
+    *   PPA Costs
+    *   Market Value (Capture)
+    *   Net Settlement (PPA vs. Market)
+    *   Exports
+
+    **Download full simulation outputs:**
+    *   Hourly CSVs
+    *   JSON configuration files
+    *   Generate a professional PDF report for internal or external use.
+
+    **Step 4: Battery Financials (Tab 4)**
+
+    **CVTA Model (Corporate Virtual Tolling Agreement)**
+    
+    Configure battery monetization terms:
+    *   Fixed Capacity Payment
+    *   Market Revenue Sharing
+
+    **Outputs:** Battery-specific revenue, cost, and net value contributions.
+    """)
+    
+    st.markdown("---")
+    st.markdown("### 🧮 Methodology & Math")
+    
+    st.markdown("#### 1. Carbon Free Energy (CFE) Score")
+    st.latex(r"CFE = \frac{\sum \text{Matched Generation (MWh)}}{\sum \text{Total Load (MWh)}}")
+    st.info("The CFE Score represents the percentage of your total annual load that is matched by clean energy generation in the exact same hour.")
+    
+    st.markdown("#### 2. Productivity")
+    st.latex(r"Productivity = \frac{\sum \text{Matched Generation (MWh)}}{\text{Total Installed Capacity (MW)}}")
+    st.caption("Measures the efficiency of your portfolio: How many useful MWh you get per MW of capacity.")
+
+    st.markdown("#### 3. Financial Settlement (Fixed-Volume PPA)")
+    st.markdown("""
+    For each technology, the Buyer pays the PPA Price and receives the Market (Capture) Value for the generated energy.
+    """)
+    st.latex(r"\text{Cost}_{PPA} = \sum (\text{Gen}_{t} \times \text{Price}_{PPA})")
+    st.latex(r"\text{Value}_{Market} = \sum (\text{Gen}_{t} \times \text{Price}_{Market, t})")
+    st.latex(r"\text{Net Settlement} = \text{Value}_{Market} - \text{Cost}_{PPA}")
+    
+    st.markdown("**Weighted Average PPA Price:**")
+    st.latex(r"\text{Avg Price}_{PPA} = \frac{\sum \text{Total PPA Cost}}{\sum \text{Total Matched Generation (MWh)}}")
+    
+    st.markdown("**Excess REC Value:**")
+    st.latex(r"\text{Excess Value} = \sum (\text{Surplus Generation}_t) \times \text{REC Price}")
+
+    st.markdown("#### 4. Battery Proxy Model (CVTA)")
+    st.markdown("""
+    The Corporate Virtual Tolling Agreement (CVTA) is a financial swap for battery storage.
+    
+    **Fixed Leg (Buyer Pays):**
+    """)
+    st.latex(r"\text{Fixed Cost} = \text{Capacity (MW)} \times \text{Fixed Rate (\$/MW-mo)} \times 12")
+    
+    st.markdown("""
+    **Floating Leg (Buyer Receives):**
+    The model simulates "perfect foresight" arbitrage to maximize revenue against historical prices.
+    """)
+    st.latex(r"\text{Revenue} = \sum (\text{Discharge}_t \times \text{Price}_t) - \sum (\text{Charge}_t \times \text{Price}_t)")
+    st.latex(r"\text{Net Cost} = \text{Fixed Cost} - \text{Revenue}")
+    
+    st.markdown("**Battery Efficiency (RTE):**")
+    st.markdown("Energy is lost during charging based on the Round Trip Efficiency (RTE).")
+    st.latex(r"\text{Energy Stored} = \text{Energy Charged} \times \text{RTE \%}")
+    
+    st.markdown("**Battery Adder Price (Effective Net Cost):**")
+    st.markdown("Represents the effective premium paid per MWh of battery energy dispatched.")
+    st.latex(r"\text{Adder Price} = \frac{\text{Net Cost}}{\text{Total Discharged Energy (MWh)}}")
+    
+    st.markdown("#### 5. Synthetic Market Price Model (Duck Curve)")
+    st.markdown("""
+    When historical market data is not available, the tool generates a synthetic "Duck Curve" price addapted to the average price input.
+    """)
+    st.latex(r"\text{Price}_t = \text{Base}_t \times \text{Seasonal Factor}_t + \text{Noise}")
+    st.markdown("""
+    - **Base Shape**: Sinusoidal with a trough at midday (solar cannibalization) and peak at evening (17:00-21:00).
+    - **Seasonal Factor**: Higher prices in Summer (`cos` function peaking around day 172).
+    """)
+
+# --- Tab 2: Load Setup ---
+with tab_load:
+    col_load_1, col_load_2 = st.columns([1, 2])
+    
+    with col_load_1:
+        if st.button("🎲 Random Scenario (>500 GWh)"):
+            # Clear existing
+            st.session_state.participants = []
+            
+            # Logic to generate random scenario > 500k MWh
+            import random
+            current_total_load = 0
+            count = 1
+            
+            # Target at least 500k
+            while current_total_load < 500000:
+                # Randomly choose type
+                # Weighted towards Data Centers for higher load
+                p_type = random.choice(["Data Center", "Data Center", "Office", "Office", "Ammonia Plant"])
+                
+                if p_type == "Data Center":
+                    # Large load: 100k - 300k MWh
+                    load = random.randint(100000, 300000)
+                elif p_type == "Ammonia Plant":
+                     # Large constant load: 200k - 400k MWh (mapped to Flat/DataCenter profile logic usually, but we use 'Flat' for now)
+                     # We'll use 'Flat' profile type for Ammonia internally if 'Ammonia Plant' isn't in utils yet
+                     # Actually utils only has ['Flat', 'Data Center', 'Office']
+                     # Let's map Ammonia to 'Flat' effectively by just calling it 'Flat' in the backend, 
+                     # OR we stick to the selectbox types.
+                     # The user asked for "random scenarios", so diversity is good.
+                     # Let's stick to valid types for now to ensure profile generation works:
+                     # 'Data Center', 'Office', 'Flat'
+                     p_type = "Flat"
+                     load = random.randint(150000, 400000)
+                     p_name = f"Ind. Plant {count}" 
+                else: # Office
+                    # Medium load: 10k - 50k MWh
+                    load = random.randint(10000, 50000)
+                    
+                if p_type == "Data Center":
+                     p_name = f"Data Center {count}"
+                elif p_type == "Office":
+                     p_name = f"Office Park {count}"
+                elif p_type == "Flat":
+                     p_name = f"Industrial {count}"
+
+                st.session_state.participants.append({
+                    "name": p_name,
+                    "type": p_type,
+                    "load": load
                 })
+                
+                current_total_load += load
+                count += 1
             
-            comp_df = pd.DataFrame(comp_data)
+            st.success(f"Generated {count-1} participants with {current_total_load:,.0f} MWh total load!")
+            st.rerun()
+
+        if st.button("📄 Load Participants (PDF Scenario)"):
+            # Clear existing
+            st.session_state.participants = []
             
-            # Display Table
-            st.subheader("Summary Table")
+            pdf_participants = [
+                {"name": "Office Park 1", "type": "Office", "load": 42907},
+                {"name": "Office Park 2", "type": "Office", "load": 33250},
+                {"name": "Office Park 3", "type": "Office", "load": 38015},
+                {"name": "Office Park 4", "type": "Office", "load": 40397},
+                {"name": "Data Center 5", "type": "Data Center", "load": 151081},
+                {"name": "Industrial 6", "type": "Flat", "load": 366981},
+            ]
+            
+            st.session_state.participants = pdf_participants
+            st.success(f"Loaded {len(pdf_participants)} participants from PDF Scenario!")
+            st.rerun()
+
+        st.markdown("---")
+        st.markdown("#### Add Participant")
+        # Only show participant form if no file is uploaded (or allow both but prioritize file?)
+        # Logic: If 'uploaded_load_file' is present, we use it. But we can still build list.
+        
+        with st.form("add_participant"):
+            next_num = len(st.session_state.participants) + 1
+            p_name = st.text_input("Participant Name", f"Participant {next_num}")
+            p_type = st.selectbox("Building Type", ["Data Center", "Office", "Flat"])
+            p_load = st.number_input("Annual Consumption (MWh)", min_value=1000, value=50000, step=50000)
+            submitted = st.form_submit_button("Add Participant")
+            
+            if submitted:
+                st.session_state.participants.append({
+                    "name": p_name,
+                    "type": p_type,
+                    "load": p_load
+                })
+                st.success(f"Added {p_name}")
+
+        if st.session_state.participants:
+            if st.button("Clear Participants"):
+                st.session_state.participants = []
+                st.rerun()
+        
+
+
+    with col_load_2:
+        st.markdown("#### Current Participants")
+        if st.session_state.participants:
+            p_df = pd.DataFrame(st.session_state.participants)
             st.dataframe(
-                comp_df.style.format({
-                    "Total Load (GWh)": "{:,.1f}",
-                    "CFE Score": "{:.1%}",
-                    "PPA Price ($/MWh)": "${:.2f}",
-                    "Net Settlement ($M)": "${:,.2f}",
-                    "Total Cost ($M)": "${:,.2f}",
-                    "Solar (MW)": "{:,.0f}",
-                    "Wind (MW)": "{:,.0f}",
-                    "Firm (MW)": "{:,.0f}",
-                    "Battery (MW)": "{:,.0f}"
-                }),
-                hide_index=True,
+                p_df.style.format({"load": "{:,.0f}"}), 
+                hide_index=True, 
                 use_container_width=True
             )
-            
-            # Comparison Charts
-            st.subheader("Visual Comparison")
-            col_ch1, col_ch2 = st.columns(2)
-            
-            with col_ch1:
-                st.markdown("**CFE Score (%)**")
-                st.bar_chart(comp_df.set_index("Scenario")["CFE Score"])
-                
-            with col_ch2:
-                st.markdown("**Net Settlement ($M)**")
-                st.bar_chart(comp_df.set_index("Scenario")["Net Settlement ($M)"])
-                
-            if st.button("🗑️ Clear Comparison Scenarios"):
-                st.session_state.comparison_scenarios = {}
-                st.rerun()
-
-    # --- Tab 6: Scenario Manager ---
-    with tab_scenario:
-        st.header("Scenario Management")
-        st.caption("Save your current configuration to a JSON file or load a previously saved scenario.")
-        
-        col_import, col_export = st.columns(2)
-        
-        with col_import:
-            st.subheader("📥 Load Scenario")
-            st.markdown("Upload a `scenario_config.json` file to restore settings.")
-            uploaded_scen = st.file_uploader(
-                "Select JSON File", 
-                type=['json', 'txt'], 
-                key='uploaded_scenario_tab', 
-                on_change=load_scenario
-            )
-            if uploaded_scen:
-                st.success("Scenario loaded successfully!")
-                
-        with col_export:
-            st.subheader("💾 Save Current Scenario")
-            st.markdown("Download your current configuration as a JSON file.")
-            
-            # Reconstruct scenario_config for export (Duplicated logic for independence)
-            # Safe checking for variables that might not be defined if tabs haven't run? 
-            # Actually, Streamlit runs top-to-bottom. If we are here, we have access to the inputs defined in tabs 1-4?
-            # NO. Tabs are containers. The code inside `with tab:` runs linearly.
-            # But the inputs (st.number_input) are widgets. Their values are in st.session_state or returned by the function.
-            # We must access them via st.session_state for safety if they are defined in other tabs.
-            # However, standard variables like `solar_capacity` are local variables.
-            # This tab is defined BEFORE the variable assignment lines in the original tabs...
-            # WAIT. The original code defines tabs: `tab_load, ... = st.tabs(...)`
-            # Then `with tab_load:` block runs...
-            # Then `with tab_gen:` block runs...
-            # If I place `with tab_scenario:` at the top, the variables `solar_capacity` etc. are NOT YET DEFINED.
-            # CRITICAL: I must place the content of `tab_scenario` at the BOTTOM of the file, 
-            # OR I must read from `st.session_state` keys.
-            # The keys are like 'solar_cap_input', 'wind_cap_input', etc.
-            
-            # Let's rely on Session State for the "Save" button to ensure we capture current state.
-            # We need to ensure we map session state keys correctly.
-            
-            export_config = {
-                "region": "ERCOT North",
-                "total_load_mwh": float(st.session_state.get('total_load_mwh', 0)), 
-                # Capacities (Explicit conversions for JSON safety)
-                "solar_capacity": float(st.session_state.get('solar_input', 0.0)),
-                "wind_capacity": float(st.session_state.get('wind_input', 0.0)),
-                "geo_capacity": float(st.session_state.get('geo_input', 0.0)),
-                "nuc_capacity": float(st.session_state.get('nuc_input', 0.0)),
-                "ccs_capacity": float(st.session_state.get('ccs_input', 0.0)),
-                "batt_capacity": float(st.session_state.get('batt_input', 0.0)),
-                "batt_duration": float(st.session_state.get('batt_duration_input', 0.0)),
-                # Prices
-                "solar_price": float(st.session_state.get('solar_price_input', 0.0)),
-                "wind_price": float(st.session_state.get('wind_price_input', 0.0)),
-                "ccs_price": float(st.session_state.get('ccs_price_input', 0.0)),
-                "geo_price": float(st.session_state.get('geo_price_input', 0.0)),
-                "nuc_price": float(st.session_state.get('nuc_price_input', 0.0)),
-                "market_price": float(st.session_state.get('avg_price_input', 35.0)), 
-                "rec_price": float(st.session_state.get('rec_price_input', 0.0)),
-                # Battery Financials
-                "batt_base_rate": float(st.session_state.get('cvta_fixed_input', 12000.0)),
-                "batt_guar_rte": float(st.session_state.get('cvta_rte_input', 85.0)),
-                "batt_vom": float(st.session_state.get('cvta_vom_input', 2.0)),
-                # Participants
-                "participants": st.session_state.get('participants', []),
-                # Exclusions
-                "excluded_techs": st.session_state.get('excluded_techs_input', []),
-                # Market Logic
-                "market_year": int(st.session_state.get('market_year_input', 2024)),
-                "price_scaler": float(st.session_state.get('price_scaler_input', 1.0))
-            }
-            
-            # Add Custom Profiles if Available
-            if 'custom_solar_profile' in st.session_state:
-                 # It's a Series, convert to list
-                 export_config['custom_solar_profile'] = st.session_state['custom_solar_profile'].tolist()
-            
-            if 'custom_wind_profile' in st.session_state:
-                 export_config['custom_wind_profile'] = st.session_state['custom_wind_profile'].tolist()
-                 
-            if 'shared_market_prices' in st.session_state:
-                 # It's a DataFrame, let's save the 'Price' column as list
-                 df_prices = st.session_state['shared_market_prices']
-                 if 'Price' in df_prices.columns:
-                     export_config['custom_battery_prices'] = df_prices['Price'].tolist()
-            
-            # Recalculate load if needed? 
-            # Total Load is derived. If we don't store it, we might export 0.
-            # But `participants` list is source of truth.
-            
-            json_export = json.dumps(export_config, indent=4)
-            
-            st.download_button(
-                label="📥 Download JSON Configuration",
-                data=json_export,
-                file_name="scenario_config.json",
-                mime="application/json"
-            )
-
-            st.markdown("---")
-            st.subheader("📸 Scenario Comparison Capture")
-            st.markdown("Capture current configuration and results for side-by-side comparison.")
-            
-            cap_name = st.text_input("Scenario Name", f"Scenario {len(st.session_state.get('comparison_scenarios', {})) + 1}")
-            
-            if st.button("Capture for Comparison"):
-                if 'comparison_scenarios' not in st.session_state:
-                    st.session_state.comparison_scenarios = {}
-                
-                # Fetch current metrics from session state (they are calculated in main)
-                # Note: Main loop hasn't run yet for THIS specific rerun, 
-                # but we can grab what was there from the PREVIOUS run or calculate now.
-                # Actually, metrics are usually stored in session state by the main logic.
-                
-                current_metrics = {
-                    'total_load_mwh': st.session_state.get('total_load_mwh', 0),
-                    'cfe_score': st.session_state.get('cfe_score', 0),
-                    'avg_ppa_price': st.session_state.get('avg_ppa_price', 0),
-                    'net_settlement': st.session_state.get('net_settlement', 0),
-                    'total_cost': st.session_state.get('total_cost', 0)
-                }
-                
-                current_caps = {
-                    'solar': st.session_state.get('solar_input', 0),
-                    'wind': st.session_state.get('wind_input', 0),
-                    'firm': (st.session_state.get('geo_input', 0) + 
-                             st.session_state.get('nuc_input', 0) + 
-                             st.session_state.get('ccs_input', 0)),
-                    'batt_mw': st.session_state.get('batt_input', 0)
-                }
-                
-                st.session_state.comparison_scenarios[cap_name] = {
-                    'metrics': current_metrics,
-                    'caps': current_caps
-                }
-                st.success(f"Scenario '{cap_name}' captured!")
-                st.toast(f"Captured {cap_name}")
-
-    # --- Tab 1: User Guide (Moved to Top) ---
-    with tab_guide:
-        st.markdown("## 📘 User Guide & Methodology")
-        
-        st.markdown("### 🚀 How to Use This Tool")
-        st.markdown("""
-        **Step 1: Define Load Profile (Tab 1)**
-
-        Choose how to build your hourly load (8760 hours):
-        
-        *   **Add Participants (No File Required)**
-            *   Use the *Add Participant* form to generate synthetic load profiles.
-            *   **Supported participant types include:**
-                *   Data Centers
-                *   Offices
-                *   Manufacturing
-                *   Other commercial profiles
-        *   **Upload CSV**
-            *   Upload a file containing hourly electricity demand data (8760 rows).
-
-        **Output:** A consolidated hourly load profile used across all subsequent analyses.
-
-        **Step 2: Design Generation Portfolio (Tab 2)**
-
-        Configure clean energy supply:
-
-        *   **Set Capacities (MW) for:**
-            *   Solar
-            *   Wind
-            *   Nuclear
-            *   Geothermal
-            *   CCS Gas
-            *   Battery Storage: Power (MW) and Duration (hours)
-        *   **✨ Smart Fill (Optional)**
-            *   Automatically recommends a portfolio designed to achieve a >95% Carbon-Free Energy (CFE) target.
-            *   Lock technologies you want to keep fixed while the optimizer adjusts the remaining resources.
-
-        **Output:** Hourly clean generation and storage dispatch aligned to your load profile.
-
-        **Step 3: Analyze Financials (Tab 3)**
-
-        **Inputs**
-        *   **PPA Prices:** Enter fixed contract prices ($/MWh) for each generation technology.
-        *   **Market Price Data:** Select a historical year (2023 or 2024), or Upload custom hourly market prices.
-
-        **Key Metrics**
-        *   PPA Costs
-        *   Market Value (Capture)
-        *   Net Settlement (PPA vs. Market)
-        *   Exports
-
-        **Download full simulation outputs:**
-        *   Hourly CSVs
-        *   JSON configuration files
-        *   Generate a professional PDF report for internal or external use.
-
-        **Step 4: Battery Financials (Tab 4)**
-
-        **CVTA Model (Corporate Virtual Tolling Agreement)**
-        
-        Configure battery monetization terms:
-        *   Fixed Capacity Payment
-        *   Market Revenue Sharing
-
-        **Outputs:** Battery-specific revenue, cost, and net value contributions.
-        """)
-        
-        st.markdown("---")
-        st.markdown("### 🧮 Methodology & Math")
-        
-        st.markdown("#### 1. Carbon Free Energy (CFE) Score")
-        st.latex(r"CFE = \frac{\sum \text{Matched Generation (MWh)}}{\sum \text{Total Load (MWh)}}")
-        st.info("The CFE Score represents the percentage of your total annual load that is matched by clean energy generation in the exact same hour.")
-        
-        st.markdown("#### 2. Productivity")
-        st.latex(r"Productivity = \frac{\sum \text{Matched Generation (MWh)}}{\text{Total Installed Capacity (MW)}}")
-        st.caption("Measures the efficiency of your portfolio: How many useful MWh you get per MW of capacity.")
-
-        st.markdown("#### 3. Financial Settlement (Fixed-Volume PPA)")
-        st.markdown("""
-        For each technology, the Buyer pays the PPA Price and receives the Market (Capture) Value for the generated energy.
-        """)
-        st.latex(r"\text{Cost}_{PPA} = \sum (\text{Gen}_{t} \times \text{Price}_{PPA})")
-        st.latex(r"\text{Value}_{Market} = \sum (\text{Gen}_{t} \times \text{Price}_{Market, t})")
-        st.latex(r"\text{Net Settlement} = \text{Value}_{Market} - \text{Cost}_{PPA}")
-        
-        st.markdown("**Weighted Average PPA Price:**")
-        st.latex(r"\text{Avg Price}_{PPA} = \frac{\sum \text{Total PPA Cost}}{\sum \text{Total Matched Generation (MWh)}}")
-        
-        st.markdown("**Excess REC Value:**")
-        st.latex(r"\text{Excess Value} = \sum (\text{Surplus Generation}_t) \times \text{REC Price}")
-
-        st.markdown("#### 4. Battery Proxy Model (CVTA)")
-        st.markdown("""
-        The Corporate Virtual Tolling Agreement (CVTA) is a financial swap for battery storage.
-        
-        **Fixed Leg (Buyer Pays):**
-        """)
-        st.latex(r"\text{Fixed Cost} = \text{Capacity (MW)} \times \text{Fixed Rate (\$/MW-mo)} \times 12")
-        
-        st.markdown("""
-        **Floating Leg (Buyer Receives):**
-        The model simulates "perfect foresight" arbitrage to maximize revenue against historical prices.
-        """)
-        st.latex(r"\text{Revenue} = \sum (\text{Discharge}_t \times \text{Price}_t) - \sum (\text{Charge}_t \times \text{Price}_t)")
-        st.latex(r"\text{Net Cost} = \text{Fixed Cost} - \text{Revenue}")
-        
-        st.markdown("**Battery Efficiency (RTE):**")
-        st.markdown("Energy is lost during charging based on the Round Trip Efficiency (RTE).")
-        st.latex(r"\text{Energy Stored} = \text{Energy Charged} \times \text{RTE \%}")
-        
-        st.markdown("**Battery Adder Price (Effective Net Cost):**")
-        st.markdown("Represents the effective premium paid per MWh of battery energy dispatched.")
-        st.latex(r"\text{Adder Price} = \frac{\text{Net Cost}}{\text{Total Discharged Energy (MWh)}}")
-        
-        st.markdown("#### 5. Synthetic Market Price Model (Duck Curve)")
-        st.markdown("""
-        When historical market data is not available, the tool generates a synthetic "Duck Curve" price addapted to the average price input.
-        """)
-        st.latex(r"\text{Price}_t = \text{Base}_t \times \text{Seasonal Factor}_t + \text{Noise}")
-        st.markdown("""
-        - **Base Shape**: Sinusoidal with a trough at midday (solar cannibalization) and peak at evening (17:00-21:00).
-        - **Seasonal Factor**: Higher prices in Summer (`cos` function peaking around day 172).
-        """)
-    
-    # --- Tab 2: Load Setup ---
-    with tab_load:
-        col_load_1, col_load_2 = st.columns([1, 2])
-        
-        with col_load_1:
-            if st.button("🎲 Random Scenario (>500 GWh)"):
-                # Clear existing
-                st.session_state.participants = []
-                
-                # Logic to generate random scenario > 500k MWh
-                import random
-                current_total_load = 0
-                count = 1
-                
-                # Target at least 500k
-                while current_total_load < 500000:
-                    # Randomly choose type
-                    # Weighted towards Data Centers for higher load
-                    p_type = random.choice(["Data Center", "Data Center", "Office", "Office", "Ammonia Plant"])
-                    
-                    if p_type == "Data Center":
-                        # Large load: 100k - 300k MWh
-                        load = random.randint(100000, 300000)
-                    elif p_type == "Ammonia Plant":
-                         # Large constant load: 200k - 400k MWh (mapped to Flat/DataCenter profile logic usually, but we use 'Flat' for now)
-                         # We'll use 'Flat' profile type for Ammonia internally if 'Ammonia Plant' isn't in utils yet
-                         # Actually utils only has ['Flat', 'Data Center', 'Office']
-                         # Let's map Ammonia to 'Flat' effectively by just calling it 'Flat' in the backend, 
-                         # OR we stick to the selectbox types.
-                         # The user asked for "random scenarios", so diversity is good.
-                         # Let's stick to valid types for now to ensure profile generation works:
-                         # 'Data Center', 'Office', 'Flat'
-                         p_type = "Flat"
-                         load = random.randint(150000, 400000)
-                         p_name = f"Ind. Plant {count}" 
-                    else: # Office
-                        # Medium load: 10k - 50k MWh
-                        load = random.randint(10000, 50000)
-                        
-                    if p_type == "Data Center":
-                         p_name = f"Data Center {count}"
-                    elif p_type == "Office":
-                         p_name = f"Office Park {count}"
-                    elif p_type == "Flat":
-                         p_name = f"Industrial {count}"
-
-                    st.session_state.participants.append({
-                        "name": p_name,
-                        "type": p_type,
-                        "load": load
-                    })
-                    
-                    current_total_load += load
-                    count += 1
-                
-                st.success(f"Generated {count-1} participants with {current_total_load:,.0f} MWh total load!")
-                st.rerun()
-
-            if st.button("📄 Load Participants (PDF Scenario)"):
-                # Clear existing
-                st.session_state.participants = []
-                
-                pdf_participants = [
-                    {"name": "Office Park 1", "type": "Office", "load": 42907},
-                    {"name": "Office Park 2", "type": "Office", "load": 33250},
-                    {"name": "Office Park 3", "type": "Office", "load": 38015},
-                    {"name": "Office Park 4", "type": "Office", "load": 40397},
-                    {"name": "Data Center 5", "type": "Data Center", "load": 151081},
-                    {"name": "Industrial 6", "type": "Flat", "load": 366981},
-                ]
-                
-                st.session_state.participants = pdf_participants
-                st.success(f"Loaded {len(pdf_participants)} participants from PDF Scenario!")
-                st.rerun()
-
-            st.markdown("---")
-            st.markdown("#### Add Participant")
-            # Only show participant form if no file is uploaded (or allow both but prioritize file?)
-            # Logic: If 'uploaded_load_file' is present, we use it. But we can still build list.
-            
-            with st.form("add_participant"):
-                next_num = len(st.session_state.participants) + 1
-                p_name = st.text_input("Participant Name", f"Participant {next_num}")
-                p_type = st.selectbox("Building Type", ["Data Center", "Office", "Flat"])
-                p_load = st.number_input("Annual Consumption (MWh)", min_value=1000, value=50000, step=50000)
-                submitted = st.form_submit_button("Add Participant")
-                
-                if submitted:
-                    st.session_state.participants.append({
-                        "name": p_name,
-                        "type": p_type,
-                        "load": p_load
-                    })
-                    st.success(f"Added {p_name}")
-
-            if st.session_state.participants:
-                if st.button("Clear Participants"):
-                    st.session_state.participants = []
-                    st.rerun()
-            
-
-
-        with col_load_2:
-            st.markdown("#### Current Participants")
-            if st.session_state.participants:
-                p_df = pd.DataFrame(st.session_state.participants)
-                st.dataframe(
-                    p_df.style.format({"load": "{:,.0f}"}), 
-                    hide_index=True, 
-                    use_container_width=True
-                )
-            else:
-                st.info("No participants added yet.")
-                
-            st.markdown("---")
-            st.markdown("#### Or Upload Aggregate Load Profile")
-            uploaded_load_file = st.file_uploader("Upload CSV (Hourly load in MW)", type=['csv', 'txt'], key='uploaded_load_file')
-
-
-    # --- Tab 2: Generation Portfolio ---
-    with tab_gen:
-        # Define callback for clearing portfolio
-        def clear_portfolio():
-            st.session_state.solar_input = 0.0
-            st.session_state.wind_input = 0.0
-            st.session_state.ccs_input = 0.0
-            st.session_state.geo_input = 0.0
-            st.session_state.nuc_input = 0.0
-            st.session_state.batt_input = 0.0
-            st.session_state.batt_duration_input = 2.0
-            st.session_state.matched_projects = {}
-            st.session_state.portfolio_recommended = False
-
-        # Define callback for recommendation
-        def apply_recommendation():
-            # Calculate total load from participants
-            temp_load = pd.Series(0.0, index=range(8760))
-            if st.session_state.participants:
-                for p in st.session_state.participants:
-                    temp_load += generate_dummy_load_profile(p['load'], p['type'])
-                
-                if temp_load.sum() > 0:
-
-                    # Smart Fill: Always use existing values to build around them
-                    existing_capacities = {
-                        'Solar': st.session_state.get('solar_input', 0.0),
-                        'Wind': st.session_state.get('wind_input', 0.0),
-                        'CCS Gas': st.session_state.get('ccs_input', 0.0),
-                        'Geothermal': st.session_state.get('geo_input', 0.0),
-                        'Nuclear': st.session_state.get('nuc_input', 0.0),
-                        'Battery_MW': st.session_state.get('batt_input', 0.0)
-                    }
-                    
-                    # Pass excluded techs from session state (widget key='excluded_techs_input')
-                    rec = recommend_portfolio(
-                        temp_load, 
-                        target_cfe=1.0, 
-                        excluded_techs=st.session_state.get('excluded_techs_input', []),
-                        existing_capacities=existing_capacities,
-                        fixed_techs=st.session_state.get('fixed_techs_input', [])
-                    )
-                    st.session_state.solar_input = rec['Solar']
-                    st.session_state.wind_input = rec['Wind']
-                    st.session_state.ccs_input = rec['CCS Gas']
-                    st.session_state.geo_input = rec['Geothermal']
-                    st.session_state.nuc_input = rec['Nuclear']
-                    st.session_state.batt_input = rec['Battery_MW']
-                    st.session_state.batt_duration_input = rec['Battery_Hours']
-                    
-                    # Match projects from ERCOT queue
-                    matched_projects = project_matcher.match_projects_to_recommendation(rec, max_projects_per_tech=5)
-                    st.session_state.matched_projects = matched_projects
-                    
-                    st.session_state.portfolio_recommended = True
-                else:
-                    st.session_state.portfolio_error = "Participant load is zero."
-            else:
-                st.session_state.portfolio_error = "Add participants first."
-
-        col_gen_1, col_gen_2 = st.columns([1, 1])
-        
-        with col_gen_1:
-            st.markdown("#### Capacities")
-            
-
-            st.markdown("---")
-            
-            # Input Widgets (Keys mapped to session state)
-            solar_capacity = st.number_input("Solar Capacity (MW)", min_value=0.0, step=50.0, key='solar_input')
-            wind_capacity = st.number_input("Wind Capacity (MW)", min_value=0.0, step=50.0, key='wind_input')
-            geo_capacity = st.number_input("Geothermal Capacity (MW)", min_value=0.0, step=50.0, key='geo_input')
-            nuc_capacity = st.number_input("Nuclear Capacity (MW)", min_value=0.0, step=50.0, key='nuc_input')
-            ccs_capacity = st.number_input("CCS Gas Capacity (MW)", min_value=0.0, step=50.0, key='ccs_input')
-            
-            # Automatically update project suggestions when capacities change
-            # Build current recommendation from slider values
-            current_recommendation = {
-                'Solar': solar_capacity,
-                'Wind': wind_capacity,
-                'CCS Gas': ccs_capacity,
-                'Geothermal': geo_capacity,
-                'Nuclear': nuc_capacity,
-                'Battery_MW': st.session_state.get('batt_input', 0.0) # Use session state for batt_input as it's in col_gen_2
-            }
-            
-            # Check if any capacity is set (not all zeros)
-            has_capacity = any(v > 0 for v in current_recommendation.values())
-            
-            # Update matched projects dynamically
-            if has_capacity:
-                matched_projects = project_matcher.match_projects_to_recommendation(current_recommendation, max_projects_per_tech=5)
-                st.session_state.matched_projects = matched_projects
-            else:
-                # Clear matched projects if all capacities are zero
-                st.session_state.matched_projects = {}
-            
-            st.markdown("---")
-
-            # Battery Sizing (Physical)
-            # Battery Sizing (Physical)
-            st.markdown("**Battery Storage**")
-            
-            # Initialize session state to avoid "created with default value" warning
-            if 'batt_input' not in st.session_state:
-                st.session_state.batt_input = 0.0
-            batt_capacity = st.number_input("Battery Power (MW)", min_value=0.0, step=50.0, key='batt_input')
-
-            if 'batt_duration_input' not in st.session_state:
-                st.session_state.batt_duration_input = 2.0
-            elif st.session_state.batt_duration_input < 0.5:
-                st.session_state.batt_duration_input = 0.5
-                
-            batt_duration = st.number_input("Battery Duration (Hours)", min_value=0.5, step=0.5, key='batt_duration_input')
-
-
-        with col_gen_2:
-            st.markdown("#### Portfolio Recommendation")
-            
-            st.markdown("---")
-            
-            # Exclude Tech multiselect
-            # Exclude Tech multiselect
-            excluded_techs = st.multiselect(
-                "Exclude Technologies from Recommendation",
-                ['Solar', 'Wind', 'CCS Gas', 'Geothermal', 'Nuclear', 'Battery'],
-                key='excluded_techs_input'
-            )
-            
-            # Lock Tech multiselect (Smart Fill)
-            fixed_techs = st.multiselect(
-                "Lock Technologies (Support Smart Fill)",
-                ['Solar', 'Wind', 'CCS Gas', 'Geothermal', 'Nuclear', 'Battery'],
-                help="Select technologies to keep fixed at their current values. The solver will adjust the others.",
-                key='fixed_techs_input'
-            )
-
-            col_btn, col_chk = st.columns([1, 1])
-            col_btn.button("✨ Smart Fill / Recommend", on_click=apply_recommendation)
-            
-            # Show success/error messages after rerun
-            if st.session_state.get('portfolio_recommended', False):
-                st.success("Portfolio Recommended!")
-                st.session_state.portfolio_recommended = False # Reset flag
-            if st.session_state.get('portfolio_error', None):
-                st.warning(st.session_state.portfolio_error)
-                st.session_state.portfolio_error = None # Reset error
-
-            # Clear Portfolio Button (Moved from Left)
-            st.button("🗑️ Clear Portfolio (Reset to 0)", on_click=clear_portfolio)
-            
-            # Display matched projects if available
-            if st.session_state.get('matched_projects'):
-                st.markdown("---")
-                st.markdown("#### 📋 Suggested Projects from ERCOT Queue")
-                st.markdown("*Based on recommended portfolio capacities*")
-                
-                matched = st.session_state.matched_projects
-                
-                for tech, projects in matched.items():
-                    if projects:
-                        with st.expander(f"**{tech}** Projects ({len(projects)} suggested)", expanded=False):
-                            # Create DataFrame for display
-                            proj_data = []
-                            for proj in projects:
-                                proj_data.append({
-                                    'Project Name': proj['name'],
-                                    'Capacity (MW)': f"{proj['capacity_mw']:.1f}",
-                                    'County': proj['county'],
-                                    'Status': proj['status'],
-                                    'Proj. COD': str(proj['projected_cod'])[:10] if proj['projected_cod'] != 'Unknown' else 'TBD'
-                                })
-                            
-                            if proj_data:
-                                proj_df = pd.DataFrame(proj_data)
-                                st.dataframe(proj_df, hide_index=True, use_container_width=True)
-            
-
-        st.markdown("#### Custom Profiles (Upload Unit Profiles)")
-        c_prof_1, c_prof_2 = st.columns(2)
-        uploaded_solar_file = c_prof_1.file_uploader("Upload Solar Profile (CSV)", type=['csv', 'txt'])
-        uploaded_wind_file = c_prof_2.file_uploader("Upload Wind Profile (CSV)", type=['csv', 'txt'])
-
-
-
-        
-
-
-
-    # --- Tab 4: Financials ---
-    with tab_fin:
-        st.markdown("#### PPA Prices ($/MWh)")
-        c_fin_1, c_fin_2, c_fin_3 = st.columns(3)
-        with c_fin_1:
-            solar_price = st.number_input("Solar PPA Price", min_value=0.0, value=46.5, step=1.0, key='solar_price_input', help="Q4 2024 Market: $45-47. Adjusted down ~2% due to high saturation.")
-            wind_price = st.number_input("Wind PPA Price", min_value=0.0, value=54.0, step=1.0, key='wind_price_input', help="Q4 2024 Market: ~$54. Up ~3.3%. Trades at $8-10 premium over solar.")
-        with c_fin_2:
-            ccs_price = st.number_input("CCS Gas PPA Price", min_value=0.0, value=65.0, step=1.0, key='ccs_price_input', help="Updated 2025 Market est: $55-75 (w/ 45Q)")
-            geo_price = st.number_input("Geothermal PPA Price", min_value=0.0, value=77.5, step=1.0, key='geo_price_input', help="Updated 2025 Market est: $70-85")
-        with c_fin_3:
-            nuc_price = st.number_input("Nuclear PPA Price", min_value=0.0, value=90.0, step=1.0, key='nuc_price_input', help="Q4 2024 Market: ~$112 (Adjusted to $90). Based on recent Vistra data center deal. Firm clean power premium.")
-        
-
-
-
-
-        st.markdown("---")
-        st.markdown("#### Market Assumptions")
-        c_mkt_1, c_mkt_2, c_mkt_3, c_mkt_4 = st.columns(4)
-        
-        # Market Price Year Selection
-        market_year = c_mkt_1.selectbox("Market Year", [2024, 2023], help="Select historical price year", key='market_year_input')
-        
-        # UI Check for data availability
-        import os
-        current_dir = os.path.dirname(__file__)
-        file_path = os.path.join(current_dir, f'ercot_rtm_{market_year}.parquet')
-        
-        if os.path.exists(file_path):
-             c_mkt_1.success(f"Loaded {market_year} Data ✅")
         else:
-             c_mkt_1.warning(f"Missing Data (Using Synthetic)")
-        
-        # Get base average from actual data
-        _, base_market_avg = get_market_price_profile(32.0, return_base_avg=True, year=market_year)
-        market_price = base_market_avg  # Use the actual base average
-        
-        # Display base average (read-only)
-        # Using a new column/metric spot or reusing c_mkt_1 but we used it for selectbox.
-        # Let's shift metric to row below or just allow sharing? 
-        # c_mkt_1 has the selectbox now. Let's put the metric BELOW the selectbox or use a container.
-        c_mkt_1.metric(
-            f"Base Avg ({market_year})", 
-            f"${base_market_avg:.2f}",
-            help=f"Average from {market_year} ERCOT HB_NORTH data"
-        )
-        
-        price_scaler = c_mkt_2.number_input(
-            "Price Scaler", 
-            min_value=0.1, 
-            max_value=5.0, 
-            value=1.0, 
-            step=0.1, 
-            key='price_scaler_input',
-            help="Multiplier for 2024 prices"
-        )
-        
-        # Show scaled price
-        scaled_price = base_market_avg * price_scaler
-        c_mkt_3.metric(
-            "Scaled Avg",
-            f"${scaled_price:.2f}",
-            delta=f"{(price_scaler-1)*100:+.0f}%",
-            help="Base × Scaler = Effective market price"
-        )
-        
-        rec_price = c_mkt_4.number_input("REC Price ($/MWh)", min_value=0.0, value=3.50, step=0.5, key='rec_input', help="Market est: $2-4/MWh")
-        
-        
-        # Display Historical Averages
-        try:
-            if os.path.exists("ercot_rec_prices_est_2020_2024.csv"):
-                rec_df = pd.read_csv("ercot_rec_prices_est_2020_2024.csv")
-                rec_df['Date'] = pd.to_datetime(rec_df['Date'])
-                rec_avgs = rec_df.groupby(rec_df['Date'].dt.year)['Price_USD_MWh'].mean()
+            st.info("No participants added yet.")
+            
+        st.markdown("---")
+        st.markdown("#### Or Upload Aggregate Load Profile")
+        uploaded_load_file = st.file_uploader("Upload CSV (Hourly load in MW)", type=['csv', 'txt'], key='uploaded_load_file')
+
+
+# --- Tab 2: Generation Portfolio ---
+with tab_gen:
+    # Define callback for clearing portfolio
+    def clear_portfolio():
+        st.session_state.solar_input = 0.0
+        st.session_state.wind_input = 0.0
+        st.session_state.ccs_input = 0.0
+        st.session_state.geo_input = 0.0
+        st.session_state.nuc_input = 0.0
+        st.session_state.batt_input = 0.0
+        st.session_state.batt_duration_input = 2.0
+        st.session_state.matched_projects = {}
+        st.session_state.portfolio_recommended = False
+
+    # Define callback for recommendation
+    def apply_recommendation():
+        # Calculate total load from participants
+        temp_load = pd.Series(0.0, index=range(8760))
+        if st.session_state.participants:
+            for p in st.session_state.participants:
+                temp_load += generate_dummy_load_profile(p['load'], p['type'])
+            
+            if temp_load.sum() > 0:
+
+                # Smart Fill: Always use existing values to build around them
+                existing_capacities = {
+                    'Solar': st.session_state.get('solar_input', 0.0),
+                    'Wind': st.session_state.get('wind_input', 0.0),
+                    'CCS Gas': st.session_state.get('ccs_input', 0.0),
+                    'Geothermal': st.session_state.get('geo_input', 0.0),
+                    'Nuclear': st.session_state.get('nuc_input', 0.0),
+                    'Battery_MW': st.session_state.get('batt_input', 0.0)
+                }
                 
-                c_mkt_4.markdown("---")
-                c_mkt_4.caption("**Hist. Avg ($/MWh)**", help="⚠️ Data Source: Representative estimates based on public market trends (e.g. NREL/market reports). This is NOT official exchange data.")
-                for yr, pr in rec_avgs.items():
-                    c_mkt_4.caption(f"{yr}: **${pr:.2f}**")
-        except Exception:
-            pass
-
-
-    # --- Tab 4: Battery Financials (CVTA) ---
-    with tab_offtake:
-        st.markdown("#### 🔋 Corporate Virtual Tolling Agreement (CVTA)")
-        st.caption("Financial Battery PPA | Proxy Battery Model")
-        
-        col_cvta_inputs, col_cvta_charts = st.columns([1, 2])
-        
-        with col_cvta_inputs:
-            st.markdown("##### 1. Linked Battery Specs")
-            
-            # Link to Generation Portfolio Inputs
-            # Get values from session state or variables (batt_capacity is available in scope)
-            # Fallback to session state if standard run
-            
-            # Using st.session_state is safest if variable scope is tricky, but batt_capacity is in scope.
-            # Let's use the variable 'batt_capacity' and 'batt_duration' defined in Tab 2.
-            
-            cvta_cap = batt_capacity if 'batt_capacity' in locals() else 0.0
-            cvta_dur = batt_duration if 'batt_duration' in locals() else 0.0
-            
-            if cvta_cap > 0:
-                st.info(f"**Linked Portfolio Battery:**\n\n⚡ **{cvta_cap:,.0f} MW**\n\n⏳ **{cvta_dur:.1f} Hours**")
-
+                # Pass excluded techs from session state (widget key='excluded_techs_input')
+                rec = recommend_portfolio(
+                    temp_load, 
+                    target_cfe=1.0, 
+                    excluded_techs=st.session_state.get('excluded_techs_input', []),
+                    existing_capacities=existing_capacities,
+                    fixed_techs=st.session_state.get('fixed_techs_input', [])
+                )
+                st.session_state.solar_input = rec['Solar']
+                st.session_state.wind_input = rec['Wind']
+                st.session_state.ccs_input = rec['CCS Gas']
+                st.session_state.geo_input = rec['Geothermal']
+                st.session_state.nuc_input = rec['Nuclear']
+                st.session_state.batt_input = rec['Battery_MW']
+                st.session_state.batt_duration_input = rec['Battery_Hours']
+                
+                # Match projects from ERCOT queue
+                matched_projects = project_matcher.match_projects_to_recommendation(rec, max_projects_per_tech=5)
+                st.session_state.matched_projects = matched_projects
+                
+                st.session_state.portfolio_recommended = True
             else:
-                st.warning("⚠️ **No Battery Configured**\n\nGo to '2. Generation Portfolio' to size the battery.")
+                st.session_state.portfolio_error = "Participant load is zero."
+        else:
+            st.session_state.portfolio_error = "Add participants first."
 
-            cvta_rte = st.number_input("Round Trip Efficiency (%)", value=85.0, step=1.0, key='cvta_rte')
-            cvta_vom = st.number_input("Variable O&M ($/MWh)", value=2.0, step=0.1, key='cvta_vom')
-            
-            st.markdown("---")
-            st.markdown("##### 2. Contract Terms")
-            cvta_fixed_price = st.number_input("Fixed Capacity Price ($/MW-mo)", value=12000.0, step=250.0, help="Monthly fixed payment from Corporate to Developer per MW.", key='cvta_fixed')
-            
-            st.markdown("---")
-            st.markdown("##### 3. Market Data")
-            st.markdown("##### 3. Market Data")
-            # Linked to Financial Analysis Market Year
-            cvta_year = market_year
-            st.info(f"Using Market Year: **{cvta_year}** (See '3. Financial Analysis')")
-            
-            uploaded_lmp = st.file_uploader("Upload Hourly LMP CSV (Columns: Datetime, Price)", type=['csv'])
-            
-            # Data Loading
-            df_prices = None
-            if uploaded_lmp:
-                try:
-                    df_prices = pd.read_csv(uploaded_lmp)
-                    # Try to parse datetime
-                    if 'Datetime' in df_prices.columns:
-                        df_prices['Datetime'] = pd.to_datetime(df_prices['Datetime'])
-                        df_prices.set_index('Datetime', inplace=True)
-                    elif 'Time' in df_prices.columns:
-                        df_prices['Time'] = pd.to_datetime(df_prices['Time'])
-                        df_prices.set_index('Time', inplace=True)
-                    else:
-                        st.error("CSV must have 'Datetime' or 'Time' column.")
-                        df_prices = None
-                except Exception as e:
-                    st.error(f"Error parsing file: {e}")
-            
-            if df_prices is None and 'shared_market_prices' in st.session_state:
-                # Use restored custom prices from session state
-                df_prices = st.session_state['shared_market_prices']
-            
-            if df_prices is None:
-                # Default to Auto-Load ERCOT Data (Year Based)
-                try:
-                    # Apply Global Scaler if available
-                    scaler = st.session_state.get('price_scaler_input', 1.0)
-                    
-                    price_series = get_market_price_profile(30.0, year=cvta_year) * scaler
-                    # Create date range for the specific year
-                    dates = pd.date_range(start=f'{cvta_year}-01-01', periods=len(price_series), freq='h')
-                    df_prices = pd.DataFrame({'Price': price_series.values}, index=dates)
-                    
-                    if scaler != 1.0:
-                        st.success(f"✅ Using Default Data: **ERCOT HB_NORTH {cvta_year}** (Scaled x{scaler})")
-                    else:
-                        st.success(f"✅ Using Default Data: **ERCOT HB_NORTH {cvta_year}**")
-                    with st.expander("View Data Preview"):
-                         st.dataframe(df_prices.head(24), use_container_width=True)
-                         
-                except Exception as e:
-                    st.error(f"Failed to load default data: {e}")
-            
-            # STORE DATA FOR GLOBAL USE
-            if df_prices is not None:
-                st.session_state['shared_market_prices'] = df_prices
+    col_gen_1, col_gen_2 = st.columns([1, 1])
+    
+    with col_gen_1:
+        st.markdown("#### Capacities")
         
-        with col_cvta_charts:
-            if df_prices is not None:
-                # --- RUN MODEL ---
-                # 1. Fixed Leg (Debit)
-                # Cap MW * Price/MW-mo * 12 months (Annualized for comparison, but we do monthly)
-                # Updated: Removed * 1000 factor as input is now $/MW-mo
-                monthly_fixed_cost = cvta_cap * cvta_fixed_price
-                
-                # 2. Floating Leg (Credit) - Proxy Dispatch
-                daily_results = calculate_proxy_battery_revenue(df_prices, cvta_cap, cvta_dur, cvta_rte, cvta_vom)
-                
-                if not daily_results.empty:
-                    # Aggregate Monthly
-                    monthly_results = daily_results.resample('ME').sum()
-                    monthly_results['Fixed_Payment'] = monthly_fixed_cost
-                    monthly_results['Net_Settlement'] = monthly_fixed_cost - monthly_results['Net_Revenue'] 
-                    # Net Settlement > 0: Corporate PAYS (Fixed > Floating) -> Cost
-                    # Net Settlement < 0: Corporate RECEIVES (Floating > Fixed) -> Gain
-                    
-                    monthly_results['Month'] = monthly_results.index.strftime('%b')
-                    
-                    # --- VIZ 1: Monthly Settlement Bars ---
-                    # Stacked Bar: Fixed (Cost) vs Floating (Revenue)
-                    # Actually standard way to show this is "Net Cost" bar
-                    fig_settlement = go.Figure()
-                    
-                    fig_settlement.add_trace(go.Bar(
-                        x=monthly_results['Month'], 
-                        y=monthly_results['Fixed_Payment'],
-                        name='Fixed Payment (Cost)',
-                        marker_color='#d62728' # Red
-                    ))
-                    
-                    fig_settlement.add_trace(go.Bar(
-                        x=monthly_results['Month'], 
-                        y=monthly_results['Net_Revenue'], # This is the credit back
-                        name='Market Revenue (Credit)',
-                        marker_color='#2ca02c' # Green
-                    ))
-                    
-                    fig_settlement.update_layout(
-                        title='Monthly Settlement: Fixed Payment vs. Market Revenue',
-                        barmode='group',
-                        yaxis_title='Value ($)',
-                        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
-                        template=chart_template
-                    )
-                    st.plotly_chart(fig_settlement, use_container_width=True)
-                    
-                    # --- VIZ 2: Cumulative Cash Flow ---
-                    monthly_results['Cumulative_Cash_Flow'] = -monthly_results['Net_Settlement'].cumsum()
-                    
-                    fig_cum = go.Figure()
-                    fig_cum.add_trace(go.Scatter(
-                        x=monthly_results['Month'], 
-                        y=monthly_results['Cumulative_Cash_Flow'],
-                        mode='lines+markers',
-                        name='Cumulative Cash Flow',
-                        line=dict(width=3, color='#F63366'),
-                        fill='tozeroy'
-                    ))
-                    fig_cum.update_layout(
-                        title='Cumulative Net Cash Flow (Offtaker Perspective)',
-                        yaxis_title='Cumulative $ (Negative = Cost)',
-                        template=chart_template
-                    )
-                    st.plotly_chart(fig_cum, use_container_width=True)
-                    
-                    # --- VIZ 3: Arbitrage Spread Heatmap/Scatter ---
-                    # daily_results has 'Daily_Spread'
-                    fig_spread = go.Figure()
-                    fig_spread.add_trace(go.Scatter(
-                        x=daily_results.index,
-                        y=daily_results['Daily_Spread'],
-                        mode='markers',
-                        marker=dict(
-                            size=6,
-                            color=daily_results['Daily_Spread'], # Set color equal to value
-                            colorscale='Plasma', 
-                            showscale=True
-                        ),
-                        name='Daily Spread'
-                    ))
-                    fig_spread.update_layout(
-                        title='Daily Price Volatility (Avg High - Avg Low)',
-                        yaxis_title='Spread ($/MWh)',
-                        template=chart_template
-                    )
-                    st.plotly_chart(fig_spread, use_container_width=True)
-                    
-                    # Summary Metrics (Top of Col 2)
-                    total_fixed = monthly_results['Fixed_Payment'].sum()
-                    total_floating = monthly_results['Net_Revenue'].sum()
-                    net_outcome = monthly_results['Net_Settlement'].sum()
-                    
-                    m1, m2, m3 = st.columns(3)
-                    m1.metric("Annual Fixed Pmt", f"${total_fixed/1e6:.2f}M")
-                    m2.metric("Annual Market Rev", f"${total_floating/1e6:.2f}M")
-                    m3.metric("Net Cash Flow", f"${-net_outcome/1e6:.2f}M", 
-                              delta=f"{-net_outcome/1e6:.2f}M", delta_color="normal") # Normal: Positive (Green) is Good, Negative (Red) is Cost
+
+        st.markdown("---")
+        
+        # Input Widgets (Keys mapped to session state)
+        solar_capacity = st.number_input("Solar Capacity (MW)", min_value=0.0, step=50.0, key='solar_input')
+        wind_capacity = st.number_input("Wind Capacity (MW)", min_value=0.0, step=50.0, key='wind_input')
+        geo_capacity = st.number_input("Geothermal Capacity (MW)", min_value=0.0, step=50.0, key='geo_input')
+        nuc_capacity = st.number_input("Nuclear Capacity (MW)", min_value=0.0, step=50.0, key='nuc_input')
+        ccs_capacity = st.number_input("CCS Gas Capacity (MW)", min_value=0.0, step=50.0, key='ccs_input')
+        
+        # Automatically update project suggestions when capacities change
+        # Build current recommendation from slider values
+        current_recommendation = {
+            'Solar': solar_capacity,
+            'Wind': wind_capacity,
+            'CCS Gas': ccs_capacity,
+            'Geothermal': geo_capacity,
+            'Nuclear': nuc_capacity,
+            'Battery_MW': st.session_state.get('batt_input', 0.0) # Use session state for batt_input as it's in col_gen_2
+        }
+        
+        # Check if any capacity is set (not all zeros)
+        has_capacity = any(v > 0 for v in current_recommendation.values())
+        
+        # Update matched projects dynamically
+        if has_capacity:
+            matched_projects = project_matcher.match_projects_to_recommendation(current_recommendation, max_projects_per_tech=5)
+            st.session_state.matched_projects = matched_projects
+        else:
+            # Clear matched projects if all capacities are zero
+            st.session_state.matched_projects = {}
+        
+        st.markdown("---")
+
+        # Battery Sizing (Physical)
+        # Battery Sizing (Physical)
+        st.markdown("**Battery Storage**")
+        
+        # Initialize session state to avoid "created with default value" warning
+        if 'batt_input' not in st.session_state:
+            st.session_state.batt_input = 0.0
+        batt_capacity = st.number_input("Battery Power (MW)", min_value=0.0, step=50.0, key='batt_input')
+
+        if 'batt_duration_input' not in st.session_state:
+            st.session_state.batt_duration_input = 2.0
+        elif st.session_state.batt_duration_input < 0.5:
+            st.session_state.batt_duration_input = 0.5
+            
+        batt_duration = st.number_input("Battery Duration (Hours)", min_value=0.5, step=0.5, key='batt_duration_input')
+
+
+    with col_gen_2:
+        st.markdown("#### Portfolio Recommendation")
+        
+        st.markdown("---")
+        
+        # Exclude Tech multiselect
+        # Exclude Tech multiselect
+        excluded_techs = st.multiselect(
+            "Exclude Technologies from Recommendation",
+            ['Solar', 'Wind', 'CCS Gas', 'Geothermal', 'Nuclear', 'Battery'],
+            key='excluded_techs_input'
+        )
+        
+        # Lock Tech multiselect (Smart Fill)
+        fixed_techs = st.multiselect(
+            "Lock Technologies (Support Smart Fill)",
+            ['Solar', 'Wind', 'CCS Gas', 'Geothermal', 'Nuclear', 'Battery'],
+            help="Select technologies to keep fixed at their current values. The solver will adjust the others.",
+            key='fixed_techs_input'
+        )
+
+        col_btn, col_chk = st.columns([1, 1])
+        col_btn.button("✨ Smart Fill / Recommend", on_click=apply_recommendation)
+        
+        # Show success/error messages after rerun
+        if st.session_state.get('portfolio_recommended', False):
+            st.success("Portfolio Recommended!")
+            st.session_state.portfolio_recommended = False # Reset flag
+        if st.session_state.get('portfolio_error', None):
+            st.warning(st.session_state.portfolio_error)
+            st.session_state.portfolio_error = None # Reset error
+
+        # Clear Portfolio Button (Moved from Left)
+        st.button("🗑️ Clear Portfolio (Reset to 0)", on_click=clear_portfolio)
+        
+        # Display matched projects if available
+        if st.session_state.get('matched_projects'):
+            st.markdown("---")
+            st.markdown("#### 📋 Suggested Projects from ERCOT Queue")
+            st.markdown("*Based on recommended portfolio capacities*")
+            
+            matched = st.session_state.matched_projects
+            
+            for tech, projects in matched.items():
+                if projects:
+                    with st.expander(f"**{tech}** Projects ({len(projects)} suggested)", expanded=False):
+                        # Create DataFrame for display
+                        proj_data = []
+                        for proj in projects:
+                            proj_data.append({
+                                'Project Name': proj['name'],
+                                'Capacity (MW)': f"{proj['capacity_mw']:.1f}",
+                                'County': proj['county'],
+                                'Status': proj['status'],
+                                'Proj. COD': str(proj['projected_cod'])[:10] if proj['projected_cod'] != 'Unknown' else 'TBD'
+                            })
+                        
+                        if proj_data:
+                            proj_df = pd.DataFrame(proj_data)
+                            st.dataframe(proj_df, hide_index=True, use_container_width=True)
+        
+
+    st.markdown("#### Custom Profiles (Upload Unit Profiles)")
+    c_prof_1, c_prof_2 = st.columns(2)
+    uploaded_solar_file = c_prof_1.file_uploader("Upload Solar Profile (CSV)", type=['csv', 'txt'])
+    uploaded_wind_file = c_prof_2.file_uploader("Upload Wind Profile (CSV)", type=['csv', 'txt'])
+
+
+
+    
+
+
+
+# --- Tab 4: Financials ---
+with tab_fin:
+    st.markdown("#### PPA Prices ($/MWh)")
+    c_fin_1, c_fin_2, c_fin_3 = st.columns(3)
+    with c_fin_1:
+        solar_price = st.number_input("Solar PPA Price", min_value=0.0, value=46.5, step=1.0, key='solar_price_input', help="Q4 2024 Market: $45-47. Adjusted down ~2% due to high saturation.")
+        wind_price = st.number_input("Wind PPA Price", min_value=0.0, value=54.0, step=1.0, key='wind_price_input', help="Q4 2024 Market: ~$54. Up ~3.3%. Trades at $8-10 premium over solar.")
+    with c_fin_2:
+        ccs_price = st.number_input("CCS Gas PPA Price", min_value=0.0, value=65.0, step=1.0, key='ccs_price_input', help="Updated 2025 Market est: $55-75 (w/ 45Q)")
+        geo_price = st.number_input("Geothermal PPA Price", min_value=0.0, value=77.5, step=1.0, key='geo_price_input', help="Updated 2025 Market est: $70-85")
+    with c_fin_3:
+        nuc_price = st.number_input("Nuclear PPA Price", min_value=0.0, value=90.0, step=1.0, key='nuc_price_input', help="Q4 2024 Market: ~$112 (Adjusted to $90). Based on recent Vistra data center deal. Firm clean power premium.")
+    
+
+
+
+
+    st.markdown("---")
+    st.markdown("#### Market Assumptions")
+    c_mkt_1, c_mkt_2, c_mkt_3, c_mkt_4 = st.columns(4)
+    
+    # Market Price Year Selection
+    market_year = c_mkt_1.selectbox("Market Year", [2024, 2023], help="Select historical price year", key='market_year_input')
+    
+    # UI Check for data availability
+    import os
+    current_dir = os.path.dirname(__file__)
+    file_path = os.path.join(current_dir, f'ercot_rtm_{market_year}.parquet')
+    
+    if os.path.exists(file_path):
+         c_mkt_1.success(f"Loaded {market_year} Data ✅")
+    else:
+         c_mkt_1.warning(f"Missing Data (Using Synthetic)")
+    
+    # Get base average from actual data
+    _, base_market_avg = get_market_price_profile(32.0, return_base_avg=True, year=market_year)
+    market_price = base_market_avg  # Use the actual base average
+    
+    # Display base average (read-only)
+    # Using a new column/metric spot or reusing c_mkt_1 but we used it for selectbox.
+    # Let's shift metric to row below or just allow sharing? 
+    # c_mkt_1 has the selectbox now. Let's put the metric BELOW the selectbox or use a container.
+    c_mkt_1.metric(
+        f"Base Avg ({market_year})", 
+        f"${base_market_avg:.2f}",
+        help=f"Average from {market_year} ERCOT HB_NORTH data"
+    )
+    
+    price_scaler = c_mkt_2.number_input(
+        "Price Scaler", 
+        min_value=0.1, 
+        max_value=5.0, 
+        value=1.0, 
+        step=0.1, 
+        key='price_scaler_input',
+        help="Multiplier for 2024 prices"
+    )
+    
+    # Show scaled price
+    scaled_price = base_market_avg * price_scaler
+    c_mkt_3.metric(
+        "Scaled Avg",
+        f"${scaled_price:.2f}",
+        delta=f"{(price_scaler-1)*100:+.0f}%",
+        help="Base × Scaler = Effective market price"
+    )
+    
+    rec_price = c_mkt_4.number_input("REC Price ($/MWh)", min_value=0.0, value=3.50, step=0.5, key='rec_input', help="Market est: $2-4/MWh")
+    
+    
+    # Display Historical Averages
+    try:
+        if os.path.exists("ercot_rec_prices_est_2020_2024.csv"):
+            rec_df = pd.read_csv("ercot_rec_prices_est_2020_2024.csv")
+            rec_df['Date'] = pd.to_datetime(rec_df['Date'])
+            rec_avgs = rec_df.groupby(rec_df['Date'].dt.year)['Price_USD_MWh'].mean()
+            
+            c_mkt_4.markdown("---")
+            c_mkt_4.caption("**Hist. Avg ($/MWh)**", help="⚠️ Data Source: Representative estimates based on public market trends (e.g. NREL/market reports). This is NOT official exchange data.")
+            for yr, pr in rec_avgs.items():
+                c_mkt_4.caption(f"{yr}: **${pr:.2f}**")
+    except Exception:
+        pass
+
+
+# --- Tab 4: Battery Financials (CVTA) ---
+with tab_offtake:
+    st.markdown("#### 🔋 Corporate Virtual Tolling Agreement (CVTA)")
+    st.caption("Financial Battery PPA | Proxy Battery Model")
+    
+    col_cvta_inputs, col_cvta_charts = st.columns([1, 2])
+    
+    with col_cvta_inputs:
+        st.markdown("##### 1. Linked Battery Specs")
+        
+        # Link to Generation Portfolio Inputs
+        # Get values from session state or variables (batt_capacity is available in scope)
+        # Fallback to session state if standard run
+        
+        # Using st.session_state is safest if variable scope is tricky, but batt_capacity is in scope.
+        # Let's use the variable 'batt_capacity' and 'batt_duration' defined in Tab 2.
+        
+        cvta_cap = batt_capacity if 'batt_capacity' in locals() else 0.0
+        cvta_dur = batt_duration if 'batt_duration' in locals() else 0.0
+        
+        if cvta_cap > 0:
+            st.info(f"**Linked Portfolio Battery:**\n\n⚡ **{cvta_cap:,.0f} MW**\n\n⏳ **{cvta_dur:.1f} Hours**")
+
+        else:
+            st.warning("⚠️ **No Battery Configured**\n\nGo to '2. Generation Portfolio' to size the battery.")
+
+        cvta_rte = st.number_input("Round Trip Efficiency (%)", value=85.0, step=1.0, key='cvta_rte')
+        cvta_vom = st.number_input("Variable O&M ($/MWh)", value=2.0, step=0.1, key='cvta_vom')
+        
+        st.markdown("---")
+        st.markdown("##### 2. Contract Terms")
+        cvta_fixed_price = st.number_input("Fixed Capacity Price ($/MW-mo)", value=12000.0, step=250.0, help="Monthly fixed payment from Corporate to Developer per MW.", key='cvta_fixed')
+        
+        st.markdown("---")
+        st.markdown("##### 3. Market Data")
+        st.markdown("##### 3. Market Data")
+        # Linked to Financial Analysis Market Year
+        cvta_year = market_year
+        st.info(f"Using Market Year: **{cvta_year}** (See '3. Financial Analysis')")
+        
+        uploaded_lmp = st.file_uploader("Upload Hourly LMP CSV (Columns: Datetime, Price)", type=['csv'])
+        
+        # Data Loading
+        df_prices = None
+        if uploaded_lmp:
+            try:
+                df_prices = pd.read_csv(uploaded_lmp)
+                # Try to parse datetime
+                if 'Datetime' in df_prices.columns:
+                    df_prices['Datetime'] = pd.to_datetime(df_prices['Datetime'])
+                    df_prices.set_index('Datetime', inplace=True)
+                elif 'Time' in df_prices.columns:
+                    df_prices['Time'] = pd.to_datetime(df_prices['Time'])
+                    df_prices.set_index('Time', inplace=True)
                 else:
-                    st.warning("No valid daily dispatch results. Check data or params.")
+                    st.error("CSV must have 'Datetime' or 'Time' column.")
+                    df_prices = None
+            except Exception as e:
+                st.error(f"Error parsing file: {e}")
+        
+        if df_prices is None and 'shared_market_prices' in st.session_state:
+            # Use restored custom prices from session state
+            df_prices = st.session_state['shared_market_prices']
+        
+        if df_prices is None:
+            # Default to Auto-Load ERCOT Data (Year Based)
+            try:
+                # Apply Global Scaler if available
+                scaler = st.session_state.get('price_scaler_input', 1.0)
+                
+                price_series = get_market_price_profile(30.0, year=cvta_year) * scaler
+                # Create date range for the specific year
+                dates = pd.date_range(start=f'{cvta_year}-01-01', periods=len(price_series), freq='h')
+                df_prices = pd.DataFrame({'Price': price_series.values}, index=dates)
+                
+                if scaler != 1.0:
+                    st.success(f"✅ Using Default Data: **ERCOT HB_NORTH {cvta_year}** (Scaled x{scaler})")
+                else:
+                    st.success(f"✅ Using Default Data: **ERCOT HB_NORTH {cvta_year}**")
+                with st.expander("View Data Preview"):
+                     st.dataframe(df_prices.head(24), use_container_width=True)
+                     
+            except Exception as e:
+                st.error(f"Failed to load default data: {e}")
+        
+        # STORE DATA FOR GLOBAL USE
+        if df_prices is not None:
+            st.session_state['shared_market_prices'] = df_prices
+    
+    with col_cvta_charts:
+        if df_prices is not None:
+            # --- RUN MODEL ---
+            # 1. Fixed Leg (Debit)
+            # Cap MW * Price/MW-mo * 12 months (Annualized for comparison, but we do monthly)
+            # Updated: Removed * 1000 factor as input is now $/MW-mo
+            monthly_fixed_cost = cvta_cap * cvta_fixed_price
+            
+            # 2. Floating Leg (Credit) - Proxy Dispatch
+            daily_results = calculate_proxy_battery_revenue(df_prices, cvta_cap, cvta_dur, cvta_rte, cvta_vom)
+            
+            if not daily_results.empty:
+                # Aggregate Monthly
+                monthly_results = daily_results.resample('ME').sum()
+                monthly_results['Fixed_Payment'] = monthly_fixed_cost
+                monthly_results['Net_Settlement'] = monthly_fixed_cost - monthly_results['Net_Revenue'] 
+                # Net Settlement > 0: Corporate PAYS (Fixed > Floating) -> Cost
+                # Net Settlement < 0: Corporate RECEIVES (Floating > Fixed) -> Gain
+                
+                monthly_results['Month'] = monthly_results.index.strftime('%b')
+                
+                # --- VIZ 1: Monthly Settlement Bars ---
+                # Stacked Bar: Fixed (Cost) vs Floating (Revenue)
+                # Actually standard way to show this is "Net Cost" bar
+                fig_settlement = go.Figure()
+                
+                fig_settlement.add_trace(go.Bar(
+                    x=monthly_results['Month'], 
+                    y=monthly_results['Fixed_Payment'],
+                    name='Fixed Payment (Cost)',
+                    marker_color='#d62728' # Red
+                ))
+                
+                fig_settlement.add_trace(go.Bar(
+                    x=monthly_results['Month'], 
+                    y=monthly_results['Net_Revenue'], # This is the credit back
+                    name='Market Revenue (Credit)',
+                    marker_color='#2ca02c' # Green
+                ))
+                
+                fig_settlement.update_layout(
+                    title='Monthly Settlement: Fixed Payment vs. Market Revenue',
+                    barmode='group',
+                    yaxis_title='Value ($)',
+                    legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+                    template=chart_template
+                )
+                st.plotly_chart(fig_settlement, use_container_width=True)
+                
+                # --- VIZ 2: Cumulative Cash Flow ---
+                monthly_results['Cumulative_Cash_Flow'] = -monthly_results['Net_Settlement'].cumsum()
+                
+                fig_cum = go.Figure()
+                fig_cum.add_trace(go.Scatter(
+                    x=monthly_results['Month'], 
+                    y=monthly_results['Cumulative_Cash_Flow'],
+                    mode='lines+markers',
+                    name='Cumulative Cash Flow',
+                    line=dict(width=3, color='#F63366'),
+                    fill='tozeroy'
+                ))
+                fig_cum.update_layout(
+                    title='Cumulative Net Cash Flow (Offtaker Perspective)',
+                    yaxis_title='Cumulative $ (Negative = Cost)',
+                    template=chart_template
+                )
+                st.plotly_chart(fig_cum, use_container_width=True)
+                
+                # --- VIZ 3: Arbitrage Spread Heatmap/Scatter ---
+                # daily_results has 'Daily_Spread'
+                fig_spread = go.Figure()
+                fig_spread.add_trace(go.Scatter(
+                    x=daily_results.index,
+                    y=daily_results['Daily_Spread'],
+                    mode='markers',
+                    marker=dict(
+                        size=6,
+                        color=daily_results['Daily_Spread'], # Set color equal to value
+                        colorscale='Plasma', 
+                        showscale=True
+                    ),
+                    name='Daily Spread'
+                ))
+                fig_spread.update_layout(
+                    title='Daily Price Volatility (Avg High - Avg Low)',
+                    yaxis_title='Spread ($/MWh)',
+                    template=chart_template
+                )
+                st.plotly_chart(fig_spread, use_container_width=True)
+                
+                # Summary Metrics (Top of Col 2)
+                total_fixed = monthly_results['Fixed_Payment'].sum()
+                total_floating = monthly_results['Net_Revenue'].sum()
+                net_outcome = monthly_results['Net_Settlement'].sum()
+                
+                m1, m2, m3 = st.columns(3)
+                m1.metric("Annual Fixed Pmt", f"${total_fixed/1e6:.2f}M")
+                m2.metric("Annual Market Rev", f"${total_floating/1e6:.2f}M")
+                m3.metric("Net Cash Flow", f"${-net_outcome/1e6:.2f}M", 
+                          delta=f"{-net_outcome/1e6:.2f}M", delta_color="normal") # Normal: Positive (Green) is Good, Negative (Red) is Cost
             else:
-                 st.info("👈 Upload data or generates test data to see results.")
+                st.warning("No valid daily dispatch results. Check data or params.")
+        else:
+             st.info("👈 Upload data or generates test data to see results.")
 
 
 # --- Global Settings (Sidebar) ---
@@ -1097,28 +1096,28 @@ with st.expander("Configuration & Setup", expanded=True):
 
 # Forces Dark Mode Permanently
 st.markdown("""
-    <style>
-    [data-testid="stAppViewContainer"] {
-        background-color: #0E1117;
-        color: #FAFAFA;
-    }
-    [data-testid="stSidebar"] {
-        background-color: #262730;
-    }
-    [data-testid="stHeader"] {
-        background-color: rgba(0,0,0,0);
-    }
-    /* Force text color for common elements to ensure readability */
-    h1, h2, h3, p, label {
-        color: #FAFAFA !important;
-    }
-    /* Specific overrides for inputs to be visible */
-    .stTextInput input, .stNumberInput input, .stSelectbox div[role="combobox"] {
-        background-color: #262730; 
-        color: #FAFAFA;
-    }
-    </style>
-    """, unsafe_allow_html=True)
+<style>
+[data-testid="stAppViewContainer"] {
+    background-color: #0E1117;
+    color: #FAFAFA;
+}
+[data-testid="stSidebar"] {
+    background-color: #262730;
+}
+[data-testid="stHeader"] {
+    background-color: rgba(0,0,0,0);
+}
+/* Force text color for common elements to ensure readability */
+h1, h2, h3, p, label {
+    color: #FAFAFA !important;
+}
+/* Specific overrides for inputs to be visible */
+.stTextInput input, .stNumberInput input, .stSelectbox div[role="combobox"] {
+    background-color: #262730; 
+    color: #FAFAFA;
+}
+</style>
+""", unsafe_allow_html=True)
 
 chart_template = 'plotly_dark'
 chart_bg = '#0E1117'
@@ -1340,6 +1339,14 @@ else:
             'Market_Value': f_rev, # Financial Revenue
             'Settlement': f_rev - f_cost # Net Settlement (should be neg of Net Invoice)
         }
+        
+        # Recalculate Global Metrics to reflect override
+        new_total_ppa_cost = sum(d['Total_Cost'] for d in fin_metrics['tech_details'].values())
+        new_market_value_matched = sum(d['Market_Value'] for d in fin_metrics['tech_details'].values())
+        
+        fin_metrics['settlement_value'] = new_market_value_matched - new_total_ppa_cost
+        fin_metrics['net_cost'] = (total_annual_load - matched_profile.sum()) * (market_price * price_scaler) + new_total_ppa_cost + fin_metrics['rec_cost']
+        fin_metrics['weighted_ppa_price'] = new_total_ppa_cost / matched_profile.sum() if matched_profile.sum() > 0 else 0.0
     
     # Store metrics in session state for Scenario Capture
     st.session_state.cfe_score = cfe_score
