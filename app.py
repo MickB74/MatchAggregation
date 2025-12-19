@@ -223,50 +223,29 @@ def generate_random_scenario():
         "load": size
     })
     
-    # 3. Random Portfolio Strategy
-    # Strategy A: Solar Heavy
-    # Strategy B: Wind Heavy
-    # Strategy C: Balanced
-    # Strategy D: Firm Power Only
+    # 3. Optimize Portfolio for 90% CFE (Like Instant Demo)
+    # Generate temporary load profile for optimization
+    temp_load = pd.Series(0.0, index=range(8760))
+    for p in st.session_state.participants:
+        temp_load += generate_dummy_load_profile(p['load'], p['type'])
     
-    strategy = random.choice(["Solar Heavy", "Wind Heavy", "Balanced", "Firm Focus"])
+    # Run Optimizer
+    rec = recommend_portfolio(temp_load, target_cfe=0.90, excluded_techs=[])
     
-    load_mw_avg = size / 8760.0
-    
-    if strategy == "Solar Heavy":
-        st.session_state.solar_input = load_mw_avg * 3.5
-        st.session_state.wind_input = load_mw_avg * 0.5
-        st.session_state.batt_input = load_mw_avg * 1.0
-        st.session_state.batt_duration_input = 4.0
-        st.session_state.ccs_input = 0.0
+    st.session_state.solar_input = rec['Solar']
+    st.session_state.wind_input = rec['Wind']
+    st.session_state.ccs_input = rec['CCS Gas']
+    st.session_state.geo_input = rec['Geothermal']
+    st.session_state.nuc_input = rec['Nuclear']
+    st.session_state.batt_input = rec['Battery_MW']
+    st.session_state.batt_duration_input = rec['Battery_Hours']
         
-    elif strategy == "Wind Heavy":
-        st.session_state.solar_input = load_mw_avg * 0.5
-        st.session_state.wind_input = load_mw_avg * 2.5
-        st.session_state.batt_input = load_mw_avg * 0.5
-        st.session_state.batt_duration_input = 2.0
-        st.session_state.ccs_input = 0.0
-        
-    elif strategy == "Balanced":
-        st.session_state.solar_input = load_mw_avg * 1.5
-        st.session_state.wind_input = load_mw_avg * 1.5
-        st.session_state.batt_input = load_mw_avg * 0.8
-        st.session_state.batt_duration_input = 4.0
-        st.session_state.ccs_input = load_mw_avg * 0.2
-        
-    elif strategy == "Firm Focus":
-        st.session_state.solar_input = load_mw_avg * 0.5
-        st.session_state.wind_input = load_mw_avg * 0.5
-        st.session_state.ccs_input = load_mw_avg * 0.8
-        st.session_state.nuc_input = load_mw_avg * 0.1
-        st.session_state.batt_input = 0.0
-        
-    st.toast(f"🎲 Generated: {ind} ({strategy})")
+    st.toast(f"🎲 Generated: {ind} (Optimized for 90% CFE)")
     st.toast("ℹ️ Go to 'Generation Portfolio' tab to tweak settings.")
 
 st.markdown("### 🎲 Explore")
 st.warning("⚠️ **Note**: Generating a random scenario will overwrite your current configuration.")
-if st.button("Generate Random Scenario", type="primary"):
+if st.button("⚡ Generate Random Scenario (90% CFE)", type="primary"):
     generate_random_scenario()
 st.caption("Click to instantly create a new load & portfolio configuration.")
 
