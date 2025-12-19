@@ -1902,12 +1902,16 @@ else:
                 if s_df['Battery'].abs().sum() > 0:
                     fig_sens.add_trace(go.Bar(name='Battery', x=s_df['Year'], y=s_df['Battery'], marker_color='#2ca02c', hovertemplate='$%{y:,.0f}'))
                 
-                # Cumulative Net Total Bar
-                fig_sens.add_trace(go.Bar(
+                # Cumulative Net Total Line
+                fig_sens.add_trace(go.Scatter(
                     name='Cumulative Net Total', 
                     x=s_df['Year'], 
                     y=s_df['Cumulative Net Settlement'], 
-                    marker_color='#9467bd', # Purple
+                    mode='lines+markers+text',
+                    text=s_df['Cumulative Net Settlement'],
+                    texttemplate='$%{text:,.2s}',
+                    textposition='top center',
+                    line=dict(color='#9467bd', width=3), # Purple
                     hovertemplate='$%{y:,.0f}'
                 ))
                 
