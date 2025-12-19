@@ -43,6 +43,31 @@ if 'participants' not in st.session_state:
 
 # --- Global Settings (Sidebar - Load Scenario) ---
 # --- Global Settings (Sidebar - Load Scenario) ---
+# Callback to load demo
+def load_demo_scenario():
+    # Clear existing
+    st.session_state.participants = []
+    
+    # Add Demo Data Center
+    st.session_state.participants.append({
+        "name": "Hyperscale Graph DC",
+        "type": "Data Center",
+        "load": 250000 # 250 GWh/yr ~ 28 MW avg
+    })
+    
+    # Set Portfolio for ~95% CFE
+    st.session_state.solar_input = 85.0
+    st.session_state.wind_input = 60.0
+    st.session_state.ccs_input = 15.0
+    st.session_state.geo_input = 0.0
+    st.session_state.nuc_input = 0.0
+    st.session_state.batt_input = 30.0
+    st.session_state.batt_duration_input = 4.0
+    
+    st.session_state.market_year_input = 2024
+    st.session_state.portfolio_recommended = True # Trigger success message
+    st.toast("⚡ Instant Demo Loaded! (95% CFE Target)")
+
 # Callback to handle loading
 def load_scenario():
     uploaded_file = st.session_state.get('uploaded_scenario_tab')
@@ -172,9 +197,76 @@ def load_scenario():
 # MUST be defined BEFORE the widgets that use these session state values are instantiated.
 with st.sidebar:
     st.markdown("### Load Scenario")
+    st.button("⚡ Instant Demo (90% CFE)", on_click=load_demo_scenario, help="Load a sample Hyperscale Data Center scenario", type="primary")
 
 
     st.markdown("---")
+
+
+# --- Wizard Section (Onboarding) ---
+if 'wizard_expanded' not in st.session_state:
+    st.session_state.wizard_expanded = True
+
+def close_wizard():
+    st.session_state.wizard_expanded = False
+
+wiz_container = st.container()
+if st.session_state.wizard_expanded:
+    with wiz_container:
+        with st.expander("🚀 Start Here: 3-Step Setup", expanded=True):
+            w_col1, w_col2, w_col3 = st.columns(3)
+            
+            with w_col1:
+                st.markdown("#### 1. Define Load")
+                w_industry = st.selectbox("Industry Type", ["Data Center", "Manufacturing", "Office Campus"], key="wiz_industry")
+                w_size = st.select_slider("Annual Load Size", options=["Small (50 GWh)", "Medium (250 GWh)", "Large (1 TWh)"], value="Medium (250 GWh)")
+                
+                if st.button("Set Load Profile"):
+                    # Map Selection to participants
+                    st.session_state.participants = []
+                    load_map = {"Small (50 GWh)": 50000, "Medium (250 GWh)": 250000, "Large (1 TWh)": 1000000}
+                    type_map = w_industry
+                    
+                    st.session_state.participants.append({
+                        "name": f"New {w_industry}",
+                        "type": type_map,
+                        "load": load_map[w_size]
+                    })
+                    st.success(f"✅ Set Load: {w_size}")
+
+            with w_col2:
+                st.markdown("#### 2. Design Portfolio")
+                w_target = st.slider("Target CFE Score", 80, 100, 95, key="wiz_target")
+                
+                def run_wizard_recommendation():
+                    # Generate temporary load
+                    temp_load = pd.Series(0.0, index=range(8760))
+                    if st.session_state.participants:
+                        for p in st.session_state.participants:
+                            temp_load += generate_dummy_load_profile(p['load'], p['type'])
+                        
+                        rec = recommend_portfolio(temp_load, target_cfe=w_target/100.0, excluded_techs=[])
+                        st.session_state.solar_input = rec['Solar']
+                        st.session_state.wind_input = rec['Wind']
+                        st.session_state.ccs_input = rec['CCS Gas']
+                        st.session_state.geo_input = rec['Geothermal']
+                        st.session_state.nuc_input = rec['Nuclear']
+                        st.session_state.batt_input = rec['Battery_MW']
+                        st.session_state.batt_duration_input = rec['Battery_Hours']
+                        st.toast(f"✅ Portfolio Optimized for {w_target}% CFE")
+                    else:
+                        st.error("Set Load First!")
+
+                st.button("✨ Recommend Portfolio", on_click=run_wizard_recommendation)
+                
+            with w_col3:
+                st.markdown("#### 3. Analyze")
+                st.markdown("View detailed financial and operational analysis.")
+                st.button("Run Analysis 🚀", on_click=close_wizard, type="primary")
+
+# --- Executive Summary Container (Placeholder) ---
+# Populated at the end of the run
+exec_summary_container = st.container()
 
 # --- Configuration Section (Top) ---
 tab_guide, tab_load, tab_gen, tab_fin, tab_offtake, tab_comp, tab_scenario = st.tabs(["User Guide", "1. Load Setup", "2. Generation Portfolio", "3. Financial Analysis", "4. Battery Financials", "5. Scenario Comparison", "6. Scenario Manager"])
@@ -1187,7 +1279,7 @@ st.session_state.batt_cap = batt_capacity
 
 # 1. Calculate Aggregated Load
 if not st.session_state.participants and not uploaded_load_file:
-    st.info("Please add load participants in the sidebar OR upload a CSV to begin.")
+    st.info("👋 **Welcome!** Please use the **'Start Here' Wizard** above to create your first portfolio, or load a scenario from the sidebar.")
 else:
     # Aggregate Load
     if uploaded_load_file:
@@ -1423,6 +1515,43 @@ else:
     st.session_state.rec_cost = fin_metrics['rec_cost']
     st.session_state.deficit_cost = fin_metrics['net_cost'] - final_ppa_cost - fin_metrics['rec_cost']
     
+    # --- Populate Executive Summary Container ---
+    with exec_summary_container:
+        st.divider()
+        st.caption("EXECUTIVE SUMMARY (Live Results)")
+        ec1, ec2, ec3 = st.columns(3)
+        
+        # 1. CFE Score
+        safe_cfe = metrics['cfe_score'] # Local variable from above
+        cfe_delta = safe_cfe - 0.90 # Compare vs 90% benchmark
+        ec1.metric(
+            "CFE Score (24/7)", 
+            f"{safe_cfe:.1%}", 
+            delta=f"{cfe_delta:.1%} vs 90% Target", 
+            help="Carbon-Free Energy Score: The % of your hourly load matched by clean generation."
+        )
+        
+        # 2. Net Settlement
+        net_set = fin_metrics['settlement_value']
+        ec2.metric(
+            "Est. Annual Benefit/Cost", 
+            f"${net_set/1e6:,.2f}M", 
+            delta="Net Benefit" if net_set>=0 else "Net Cost",
+            delta_color="normal" if net_set>=0 else "inverse",
+            help="Total Market Value of Generation minus Fixed PPA Costs."
+        )
+        
+        # 3. Dynamic Insight
+        insight = "✅ Portfolio performing well."
+        if safe_cfe < 0.80:
+            insight = "⚠️ **Low CFE**: Consider increasing Firm Generation (Geothermal/Nuclear) or Battery Duration."
+        elif safe_cfe < 0.90:
+            insight = "📈 **Optimization Opportunity**: A 4-hour battery could help reach >90% CFE."
+        elif net_set < 0 and abs(net_set) > 5000000:
+            insight = "💰 **High Cost**: Review PPA Strike Prices or reduce expensive firm capacity."
+            
+        ec3.success(insight) if "✅" in insight else ec3.info(insight) if "📈" in insight else ec3.warning(insight)
+        
     # --- Dashboard moved to Tabs ---
     
     # --- Tab 2: Generation Portfolio (Results) ---
@@ -1533,6 +1662,7 @@ else:
             hoverlabel=dict(bgcolor="#333333", font_size=12, font_family="Arial", font=dict(color="white"))
         )
         st.plotly_chart(fig, use_container_width=True)
+        st.caption("ℹ️ **How to read this:** The Red line is your usage. Stacked colors are detailed generation. Any gap between the stack and the red line is a **Deficit** (Grid Power).")
         
         st.subheader("Monthly Analysis")
         
@@ -1658,6 +1788,7 @@ else:
             hoverlabel=dict(bgcolor="#333333", font_size=12, font_family="Arial", font=dict(color="white"))
         )
         st.plotly_chart(fig_heat, use_container_width=True)
+        st.caption("ℹ️ **Heatmap Guide:** Green areas = 100% Carbon Free. Red areas = Relying on Grid. Look for 'Red Bands' (e.g., Summer Evenings) to guide your battery strategy.")
     
     # --- PPA vs Capture Value Analysis (Last Chart) ---
     with tab_fin:

@@ -1,7 +1,9 @@
 # Utility functions for MatchAggregation App
 import pandas as pd
 import numpy as np
+import streamlit as st
 
+@st.cache_data
 def generate_dummy_load_profile(annual_consumption_mwh, profile_type='Flat'):
     """
     Generates a dummy hourly load profile for a year (8760 hours).
@@ -55,6 +57,7 @@ def generate_dummy_load_profile(annual_consumption_mwh, profile_type='Flat'):
         
     return pd.Series(profile, name='Load (MW)')
 
+@st.cache_data
 def generate_dummy_generation_profile(capacity_mw, resource_type='Solar', use_synthetic=False):
     """
     Generates a dummy hourly generation profile for a year.
@@ -740,12 +743,21 @@ def recommend_portfolio(load_profile, target_cfe=0.95, excluded_techs=None, exis
     current_cfe = 0.0
     
     for i in range(max_iterations):
-        # Generate Profiles based on current recommendation
-        solar_gen = generate_dummy_generation_profile(recommendation['Solar'], 'Solar')
-        wind_gen = generate_dummy_generation_profile(recommendation['Wind'], 'Wind')
-        geo_gen = generate_dummy_generation_profile(recommendation['Geothermal'], 'Geothermal')
-        nuc_gen = generate_dummy_generation_profile(recommendation['Nuclear'], 'Nuclear')
-        ccs_gen = generate_dummy_generation_profile(recommendation['CCS Gas'], 'CCS Gas')
+        # Generate Profiles based on current recommendation (Optimized: Use Unit Profiles)
+        # Using cached unit profiles (1MW) and scaling
+        if i == 0:
+            # Pre-fetch unit profiles once
+            solar_unit = generate_dummy_generation_profile(1.0, 'Solar')
+            wind_unit = generate_dummy_generation_profile(1.0, 'Wind')
+            geo_unit = generate_dummy_generation_profile(1.0, 'Geothermal')
+            nuc_unit = generate_dummy_generation_profile(1.0, 'Nuclear')
+            ccs_unit = generate_dummy_generation_profile(1.0, 'CCS Gas')
+
+        solar_gen = solar_unit * recommendation['Solar']
+        wind_gen = wind_unit * recommendation['Wind']
+        geo_gen = geo_unit * recommendation['Geothermal']
+        nuc_gen = nuc_unit * recommendation['Nuclear']
+        ccs_gen = ccs_unit * recommendation['CCS Gas']
         
         total_gen = solar_gen + wind_gen + geo_gen + nuc_gen + ccs_gen
         
@@ -815,6 +827,7 @@ def recommend_portfolio(load_profile, target_cfe=0.95, excluded_techs=None, exis
             
     return recommendation
 
+@st.cache_data
 def get_market_price_profile(avg_price, return_base_avg=False, year=2024):
     """
     Generates an hourly market price profile (8760 hours).
