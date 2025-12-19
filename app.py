@@ -859,26 +859,24 @@ with tab_fin:
         help=f"Average from {market_year} ERCOT HB_NORTH data"
     )
     
-    # Market Price Scaler
-    c_mkt_2.markdown("**Market Price Scalar**")
-    price_scaler_pct = c_mkt_2.slider("Scalar (%)", 50, 200, 100, 5, key='price_scaler_input')
-    price_scaler = price_scaler_pct / 100.0
+    price_scaler = c_mkt_2.number_input(
+        "Price Scaler", 
+        min_value=0.1, 
+        max_value=5.0, 
+        value=1.0, 
+        step=0.1, 
+        key='price_scaler_input',
+        help="Multiplier for 2024 prices"
+    )
     
-    # PPA Price Scaler
-    c_mkt_3.markdown("**PPA Price Scalar**")
-    ppa_scaler_pct = c_mkt_3.slider("Scalar (%)", 50, 200, 100, 5, key='ppa_scaler_input')
-    ppa_price_scaler = ppa_scaler_pct / 100.0
-    
-    # Show scaled base market price (informational)
+    # Show scaled price
     scaled_price = base_market_avg * price_scaler
-    c_mkt_4.metric("Effective Market Price", f"${scaled_price:.2f}")
-
-    # Calculate Effective PPA Prices
-    solar_price_eff = solar_price * ppa_price_scaler
-    wind_price_eff = wind_price * ppa_price_scaler
-    ccs_price_eff = ccs_price * ppa_price_scaler
-    geo_price_eff = geo_price * ppa_price_scaler
-    nuc_price_eff = nuc_price * ppa_price_scaler
+    c_mkt_3.metric(
+        "Scaled Avg",
+        f"${scaled_price:.2f}",
+        delta=f"{(price_scaler-1)*100:+.0f}%",
+        help="Base × Scaler = Effective market price"
+    )
     
     rec_price = c_mkt_4.number_input("REC Price ($/MWh)", min_value=0.0, value=3.50, step=0.5, key='rec_input', help="Market est: $2-4/MWh")
     
@@ -1313,11 +1311,11 @@ else:
         effective_batt_price_mwh = 0.0
         
     tech_prices = {
-        'Solar': solar_price_eff,
-        'Wind': wind_price_eff,
-        'CCS Gas': ccs_price_eff,
-        'Geothermal': geo_price_eff,
-        'Nuclear': nuc_price_eff,
+        'Solar': solar_price,
+        'Wind': wind_price,
+        'CCS Gas': ccs_price,
+        'Geothermal': geo_price,
+        'Nuclear': nuc_price,
         'Battery': effective_batt_price_mwh # Use calculated effective price
     }
     
@@ -1834,17 +1832,17 @@ else:
                     # Solar
                     if solar_capacity > 0:
                         rev = np.sum(solar_profile.values * hist_price_series.values)
-                        cost = np.sum(solar_profile.values * solar_price_eff)
+                        cost = np.sum(solar_profile.values * solar_price)
                         net_solar = (rev - cost)
                         
                     # Wind
                     if wind_capacity > 0:
                         rev = np.sum(wind_profile.values * hist_price_series.values)
-                        cost = np.sum(wind_profile.values * wind_price_eff)
+                        cost = np.sum(wind_profile.values * wind_price)
                         net_wind = (rev - cost)
                         
                     # Firm (CCS/Geo/Nuc)
-                    firm_specs = [(ccs_capacity, ccs_price_eff, 'CCS'), (geo_capacity, geo_price_eff, 'Geo'), (nuc_capacity, nuc_price_eff, 'Nuc')]
+                    firm_specs = [(ccs_capacity, ccs_price, 'CCS'), (geo_capacity, geo_price, 'Geo'), (nuc_capacity, nuc_price, 'Nuc')]
                     for cap, price, name in firm_specs:
                         if cap > 0:
                              # Flat profile assumption for sensitivity
