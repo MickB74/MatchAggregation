@@ -732,6 +732,40 @@ with tab_load:
         # Create Detailed DataFrame
         hourly_df = pd.DataFrame(hourly_data)
         
+        # --- Visual Validation ---
+        st.markdown("**Load Profile Visualization**")
+        fig_load = go.Figure()
+        
+        # Add traces for each participant
+        for col in hourly_df.columns:
+            if col not in ['Datetime', 'Total_Load_MW']:
+                fig_load.add_trace(go.Scatter(
+                    x=hourly_df['Datetime'],
+                    y=hourly_df[col],
+                    mode='lines',
+                    name=col,
+                    line=dict(width=1.5)
+                ))
+        
+        # Add Total Load as a separate, more visible trace
+        fig_load.add_trace(go.Scatter(
+            x=hourly_df['Datetime'],
+            y=hourly_df['Total_Load_MW'],
+            mode='lines',
+            name='Total Load',
+            line=dict(width=3, color='black', dash='dot')
+        ))
+
+        fig_load.update_layout(
+            xaxis_title="Time",
+            yaxis_title="Load (MW)",
+            template=chart_template,
+            legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+            height=450,
+            margin=dict(l=20, r=20, t=20, b=20)
+        )
+        st.plotly_chart(fig_load, use_container_width=True)
+
         # Preview
         with st.expander("View Hourly Data Preview"):
             st.dataframe(hourly_df.head(24), use_container_width=True)
