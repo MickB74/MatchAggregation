@@ -1095,48 +1095,86 @@ with tab_fin:
     st.markdown("##### 📥 Download Market Price Data")
 
     # --- Price Preview Chart ---
+    # --- Price Preview Chart ---
     with st.expander("📈 View Price Preview", expanded=True):
-        # Generate profiles for preview
-        # 1. Selected Year
-        preview_selected = get_market_price_profile_v2(market_price, year=market_year) * price_scaler
+        view_mode = st.radio("View By", ["Monthly", "Comparison (Annual)"], horizontal=True, label_visibility="collapsed")
         
-        # 2. Average (Composite)
-        preview_average = get_market_price_profile_v2(market_price, year='Average') * price_scaler
-        
-        # Create Chart
         fig_preview = go.Figure()
-        
-        # Plot Average first (background)
-        fig_preview.add_trace(go.Scatter(
-            x=pd.date_range(start='2024-01-01', periods=8760, freq='h'),
-            y=preview_average,
-            mode='lines',
-            name=f'Average Profile (Scaled)',
-            line=dict(color='gray', width=2, dash='dot')
-        ))
-        
-        # Plot Selected Year
-        fig_preview.add_trace(go.Scatter(
-            x=pd.date_range(start='2024-01-01', periods=8760, freq='h'),
-            y=preview_selected,
-            mode='lines',
-            name=f'{market_year} Profile (Scaled)',
-            line=dict(color='#1f77b4', width=2)
-        ))
-        
+
+        if view_mode == "Monthly":
+            # 1. Monthly View (Selected Year)
+            # Generate hourly profile
+            preview_selected = get_market_price_profile_v2(market_price, year=market_year) * price_scaler
+            
+            # Create DF to resample
+            df_preview = pd.DataFrame({'Price': preview_selected.values}, index=pd.date_range('2024-01-01', periods=8760, freq='h'))
+            monthly_avg = df_preview.resample('ME')['Price'].mean()
+            
+            fig_preview.add_trace(go.Bar(
+                x=monthly_avg.index.strftime('%b'),
+                y=monthly_avg.values,
+                name=f"{market_year}",
+                marker_color='#1f77b4'
+            ))
+            
+            fig_preview.update_layout(title=f"Monthly Average Prices ({market_year})")
+
+        else:
+            # 2. Annual Comparison
+            years = [2020, 2021, 2022, 2023, 2024, "Average"]
+            annual_data = []
+            colors = []
+            
+            for y in years:
+                # Use base function, apply current scaler to ALL for fair comparison? 
+                # Or just show raw historical? Usually people want to see raw historical vs their scaled scenario.
+                # Let's show raw historical, but highlight the current SCENARIO year with the scaler applied.
+                
+                # Actually, simplest is just show averages of the profiles.
+                prof, base_avg = get_market_price_profile_v2(market_price, return_base_avg=True, year=y, scale_hist=False)
+                
+                val = base_avg
+                # If this is the selected market_year, applies the scaler?
+                # The user might be confused if 2024 is shown as $25 (raw) but they selected 2024 and scaler 2.0 ($50).
+                # Let's apply scaler ONLY to the bar that represents the user's current selection.
+                
+                color = 'lightgrey'
+                if str(y) == str(market_year):
+                    val = val * price_scaler
+                    color = '#1f77b4' # Highlight selected
+                elif y == 'Average' and str(market_year) == 'Average':
+                     val = val * price_scaler
+                     color = '#1f77b4'
+
+                annual_data.append({'Year': str(y), 'Price': val, 'Color': color})
+
+            df_annual = pd.DataFrame(annual_data)
+            
+            fig_preview.add_trace(go.Bar(
+                x=df_annual['Year'],
+                y=df_annual['Price'],
+                marker_color=df_annual['Color'],
+                text=df_annual['Price'],
+                texttemplate='$%{text:.2f}',
+                textposition='auto'
+            ))
+            
+            fig_preview.update_layout(title="Annual Average Price Comparison (Selected Year Scaled)")
+
         fig_preview.update_layout(
-            title=f"Market Price Preview: {market_year} vs Average",
-            xaxis_title="Time",
             yaxis_title="Price ($/MWh)",
             template=chart_template,
-            legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
             height=350,
             margin=dict(l=20, r=20, t=20, b=20)
         )
         st.plotly_chart(fig_preview, use_container_width=True)
 
-        # Tabular Preview
-        st.markdown("**Data Preview**")
+        # Tabular Preview (Always useful to have raw hourly)
+        st.markdown("**Hourly Data Preview (CSV)**")
+        # Regenerate for table context
+        preview_selected = get_market_price_profile_v2(market_price, year=market_year) * price_scaler
+        preview_average = get_market_price_profile_v2(market_price, year='Average') * price_scaler
+        
         preview_df = pd.DataFrame({
             'Datetime': pd.date_range(start='2024-01-01', periods=8760, freq='h'),
             f'Price_{market_year}': preview_selected,
