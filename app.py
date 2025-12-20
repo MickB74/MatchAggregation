@@ -1134,17 +1134,11 @@ with tab_fin:
                 prof, base_avg = get_market_price_profile_v2(market_price, return_base_avg=True, year=y, scale_hist=False)
                 
                 val = base_avg
-                # If this is the selected market_year, applies the scaler?
-                # The user might be confused if 2024 is shown as $25 (raw) but they selected 2024 and scaler 2.0 ($50).
-                # Let's apply scaler ONLY to the bar that represents the user's current selection.
-                
                 color = 'lightgrey'
+                
+                # Highlight selected year
                 if str(y) == str(market_year):
-                    val = val * price_scaler
-                    color = '#1f77b4' # Highlight selected
-                elif y == 'Average' and str(market_year) == 'Average':
-                     val = val * price_scaler
-                     color = '#1f77b4'
+                    color = '#1f77b4' 
 
                 annual_data.append({'Year': str(y), 'Price': val, 'Color': color})
 
@@ -1159,7 +1153,7 @@ with tab_fin:
                 textposition='auto'
             ))
             
-            fig_preview.update_layout(title="Annual Average Price Comparison (Selected Year Scaled)")
+            fig_preview.update_layout(title="Annual Comparison (Selected vs Historical Raw)")
 
         fig_preview.update_layout(
             yaxis_title="Price ($/MWh)",
@@ -1173,13 +1167,18 @@ with tab_fin:
         st.markdown("**Hourly Data Preview (CSV)**")
         # Regenerate for table context
         preview_selected = get_market_price_profile_v2(market_price, year=market_year) * price_scaler
-        preview_average = get_market_price_profile_v2(market_price, year='Average') * price_scaler
         
-        preview_df = pd.DataFrame({
+        data_dict = {
             'Datetime': pd.date_range(start='2024-01-01', periods=8760, freq='h'),
-            f'Price_{market_year}': preview_selected,
-            'Price_Average': preview_average
-        })
+            f'Price_{market_year}': preview_selected
+        }
+        
+        # Only add comparison column if it's different
+        if str(market_year) != 'Average':
+             preview_average = get_market_price_profile_v2(market_price, year='Average') * price_scaler
+             data_dict['Price_Average_Composite'] = preview_average
+        
+        preview_df = pd.DataFrame(data_dict)
         st.dataframe(preview_df.head(100), use_container_width=True, height=200)
     
     col_dl1, col_dl2 = st.columns(2)
