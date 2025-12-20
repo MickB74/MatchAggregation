@@ -1142,7 +1142,7 @@ def process_uploaded_profile(uploaded_file, keywords=None):
 from fpdf import FPDF
 import datetime
 
-def generate_pdf_report(metrics, scenario_config, fin_metrics, figures=None):
+def generate_pdf_report(metrics, scenario_config, fin_metrics, figures=None, matched_projects=None):
     """
     Generates a professional PDF summary report using fpdf2.
     """
@@ -1313,10 +1313,51 @@ def generate_pdf_report(metrics, scenario_config, fin_metrics, figures=None):
         if " 0 " not in val_str and " 0.0 " not in val_str:
              pdf.add_table_row(row[0], row[1])
 
+    # --- Page 4: Recommended Projects ---
+    if matched_projects:
+        pdf.add_page()
+        pdf.chapter_title("4. Recommended Real-World Projects")
+        pdf.set_font("helvetica", 'I', 9)
+        pdf.multi_cell(0, 5, "The following projects from the ERCOT Interconnection Queue match your recommended portfolio capacities. These represent actual development opportunities in the ERCOT North region.", ln=True)
+        pdf.ln(5)
+
+        for tech, projects in matched_projects.items():
+            pdf.set_font("helvetica", 'B', 12)
+            pdf.set_text_color(0, 102, 204)
+            pdf.cell(0, 10, f"{tech} Projects", ln=True)
+            pdf.set_text_color(0, 0, 0)
+            
+            # Table Header
+            pdf.set_font("helvetica", 'B', 9)
+            pdf.set_fill_color(240, 240, 240)
+            p_cols = [60, 30, 60, 40]
+            p_headers = ["Project Name", "MW", "Status", "COD"]
+            for i, h in enumerate(p_headers):
+                pdf.cell(p_cols[i], 8, h, border=1, align='C', fill=True)
+            pdf.ln(8)
+            
+            pdf.set_font("helvetica", '', 8)
+            for p in projects:
+                # Truncate long names
+                p_name = p.get('name', 'Unknown')
+                if len(p_name) > 35: p_name = p_name[:32] + "..."
+                
+                pdf.cell(p_cols[0], 7, p_name, border=1)
+                pdf.cell(p_cols[1], 7, f"{p.get('capacity_mw', 0):,.1f}", border=1, align='R')
+                
+                p_status = p.get('status', 'Unknown')
+                if len(p_status) > 35: p_status = p_status[:32] + "..."
+                pdf.cell(p_cols[2], 7, p_status, border=1)
+                
+                pdf.cell(p_cols[3], 7, str(p.get('projected_cod', 'Unknown')), border=1, align='C')
+                pdf.ln(7)
+            
+            pdf.ln(5)
+
     # --- Charts ---
     if figures:
         pdf.ln(10)
-        pdf.chapter_title("4. Key Visualizations")
+        pdf.chapter_title("5. Key Visualizations")
         
         import tempfile
         import os

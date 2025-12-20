@@ -2315,7 +2315,9 @@ else:
     if 'fig_ppa' in locals(): figures["PPA Price vs Capture Value"] = fig_ppa
     if 'fig_set' in locals(): figures["Net Settlement by Tech"] = fig_set
         
-    pdf_bytes = generate_pdf_report(metrics, export_config, fin_metrics, figures=figures)
+    # Pass matched projects from session state
+    matched_projects = st.session_state.get('matched_projects', {})
+    pdf_bytes = generate_pdf_report(metrics, export_config, fin_metrics, figures=figures, matched_projects=matched_projects)
 
     # 4. Create ZIP Bundle (Updated to include Excel)
     zip_buffer = io.BytesIO()
