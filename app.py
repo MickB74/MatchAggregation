@@ -1174,7 +1174,11 @@ with tab_fin:
         }
         
         preview_df = pd.DataFrame(data_dict)
-        st.dataframe(preview_df.head(100), use_container_width=True, height=200)
+        
+        # Use columns to restrict width (half width)
+        col_tbl, _ = st.columns([1, 1])
+        with col_tbl:
+            st.dataframe(preview_df.head(100), use_container_width=True, height=200, hide_index=True)
     
     col_dl1, col_dl2 = st.columns(2)
     
