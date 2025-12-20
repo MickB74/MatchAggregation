@@ -753,7 +753,7 @@ with tab_load:
             y=hourly_df['Total_Load_MW'],
             mode='lines',
             name='Total Load',
-            line=dict(width=3, color='black', dash='dot')
+            line=dict(width=3, color='Navy', dash='dot')
         ))
 
         fig_load.update_layout(
@@ -1093,6 +1093,47 @@ with tab_fin:
     # Download Market Price Data
     st.markdown("---")
     st.markdown("##### 📥 Download Market Price Data")
+
+    # --- Price Preview Chart ---
+    with st.expander("📈 View Price Preview", expanded=True):
+        # Generate profiles for preview
+        # 1. Selected Year
+        preview_selected = get_market_price_profile_v2(market_price, year=market_year) * price_scaler
+        
+        # 2. Average (Composite)
+        preview_average = get_market_price_profile_v2(market_price, year='Average') * price_scaler
+        
+        # Create Chart
+        fig_preview = go.Figure()
+        
+        # Plot Average first (background)
+        fig_preview.add_trace(go.Scatter(
+            x=pd.date_range(start='2024-01-01', periods=8760, freq='h'),
+            y=preview_average,
+            mode='lines',
+            name=f'Average Profile (Scaled)',
+            line=dict(color='gray', width=2, dash='dot')
+        ))
+        
+        # Plot Selected Year
+        fig_preview.add_trace(go.Scatter(
+            x=pd.date_range(start='2024-01-01', periods=8760, freq='h'),
+            y=preview_selected,
+            mode='lines',
+            name=f'{market_year} Profile (Scaled)',
+            line=dict(color='#1f77b4', width=2)
+        ))
+        
+        fig_preview.update_layout(
+            title=f"Market Price Preview: {market_year} vs Average",
+            xaxis_title="Time",
+            yaxis_title="Price ($/MWh)",
+            template=chart_template,
+            legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+            height=350,
+            margin=dict(l=20, r=20, t=20, b=20)
+        )
+        st.plotly_chart(fig_preview, use_container_width=True)
     
     col_dl1, col_dl2 = st.columns(2)
     
