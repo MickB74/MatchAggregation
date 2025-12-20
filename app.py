@@ -17,7 +17,7 @@ from utils import (
     calculate_portfolio_metrics,
     calculate_financials,
     process_uploaded_profile,
-    get_market_price_profile,
+    get_market_price_profile_v2,
     generate_pdf_report,
     calculate_battery_financials,
     calculate_buyer_pl,
@@ -993,7 +993,7 @@ with tab_fin:
              c_mkt_1.warning(f"Missing Data (Using Synthetic)")
     
     # Get base average from actual data
-    _, base_market_avg = get_market_price_profile(32.0, return_base_avg=True, year=market_year)
+    _, base_market_avg = get_market_price_profile_v2(32.0, return_base_avg=True, year=market_year)
     
     # Toggle for Pricing Mode
     use_hist_avg = c_mkt_1.checkbox("Use Historical Mean", value=True, help="Use the actual average price from the selected year's data.")
@@ -1060,7 +1060,7 @@ with tab_fin:
     
     with col_dl1:
         # Single Year Download
-        download_price_profile = get_market_price_profile(market_price, year=market_year) * price_scaler
+        download_price_profile = get_market_price_profile_v2(market_price, year=market_year) * price_scaler
         
         price_dates = pd.date_range(start='2024-01-01', periods=8760, freq='h')
         price_df = pd.DataFrame({
@@ -1090,7 +1090,7 @@ with tab_fin:
             all_years = [2020, 2021, 2022, 2023, 2024, "Average"]
             
             for yr in all_years:
-                yr_profile = get_market_price_profile(30.0, year=yr) * price_scaler
+                yr_profile = get_market_price_profile_v2(30.0, year=yr) * price_scaler
                 yr_dates = pd.date_range(start='2024-01-01', periods=8760, freq='h')
                 yr_df = pd.DataFrame({
                     'Datetime': yr_dates,
@@ -1177,7 +1177,7 @@ with tab_offtake:
                 # Apply Global Scaler if available
                 scaler = st.session_state.get('price_scaler_input', 1.0)
                 
-                price_series = get_market_price_profile(30.0, year=cvta_year) * scaler
+                price_series = get_market_price_profile_v2(30.0, year=cvta_year) * scaler
                 # Create date range for the specific year
                 dates = pd.date_range(start=f'{cvta_year}-01-01', periods=len(price_series), freq='h')
                 df_prices = pd.DataFrame({'Price': price_series.values}, index=dates)
@@ -1456,7 +1456,7 @@ else:
     total_discharge_mwh = batt_discharge.sum()
     
     # Helper to generate market price series for the financial calc
-    market_price_profile_series = get_market_price_profile(market_price, year=market_year) * price_scaler
+    market_price_profile_series = get_market_price_profile_v2(market_price, year=market_year) * price_scaler
     
     batt_ops_data = {
         'available_mw_profile': availability_profile,
@@ -1888,7 +1888,7 @@ else:
         st.markdown("PPA prices vs market capture values for each technology")
         
         # Calculate capture value for each technology
-        market_price_profile = get_market_price_profile(market_price, year=market_year) * price_scaler
+        market_price_profile = get_market_price_profile_v2(market_price, year=market_year) * price_scaler
         
         tech_data = []
         if 'tech_details' in fin_metrics:
@@ -2037,7 +2037,7 @@ else:
                 
                 for i, year in enumerate(years_to_test):
                     # 1. Load Data using robust utility (skip scaling to get actual historical prices)
-                    hist_prices = get_market_price_profile(30.0, year=year, scale_to_target=False)
+                    hist_prices = get_market_price_profile_v2(30.0, year=year, scale_hist=False)
                     
                     # Ensure series length matches profile (truncate or pad if necessary, though utils handles it)
                     h_vals = hist_prices.values
@@ -2218,7 +2218,7 @@ else:
 
     # --- Financial Columns for CSV ---
     # 1. Market Price (Hourly)
-    market_price_profile = get_market_price_profile(market_price, year=market_year)
+    market_price_profile = get_market_price_profile_v2(market_price, year=market_year)
     results_df['Market_Capture_Price_$/MWh'] = market_price_profile
     
     # 2. Technology PPA Prices (Constant)
