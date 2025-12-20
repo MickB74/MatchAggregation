@@ -833,7 +833,7 @@ def recommend_portfolio(load_profile, target_cfe=0.95, excluded_techs=None, exis
             
     return recommendation
 
-@st.cache_data
+# @st.cache_data
 def get_market_price_profile(avg_price, return_base_avg=False, year=2024, scale_to_target=True):
     """
     Generates an hourly market price profile (8760 hours).
