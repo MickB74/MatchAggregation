@@ -1,7 +1,7 @@
 # Utility functions for MatchAggregation App
 import pandas as pd
 import numpy as np
-import streamlit as st
+import streamlit as st # Fresh build trigger v2
 
 @st.cache_data
 def generate_dummy_load_profile(annual_consumption_mwh, profile_type='Flat'):
