@@ -2036,58 +2036,15 @@ else:
                 progress_bar = st.progress(0)
                 
                 for i, year in enumerate(years_to_test):
-                    # 1. Load Data
-                    current_dir = os.path.dirname(__file__)
-                    file_path = os.path.join(current_dir, f'ercot_rtm_{year}.parquet')
+                    # 1. Load Data using robust utility (skip scaling to get actual historical prices)
+                    hist_prices = get_market_price_profile(30.0, year=year, scale_to_target=False)
                     
-                    hist_prices = None
-                    if os.path.exists(file_path):
-                        try:
-                            df_hist = pd.read_parquet(file_path)
-                            # Handle different column names or filter
-                            # Expect 'Price' or find Settlement Point
-                            # Simple logic: if 'Price' in cols use it, else try to find HB_NORTH
-                            found_price = False
-                            if 'Price' in df_hist.columns:
-                                hist_prices = df_hist['Price']
-                                found_price = True
-                            else:
-                                # Look for HB_NORTH
-                                for c in df_hist.columns:
-                                    if 'Settlement Point Name' in c or 'SettlementPoint' in c:
-                                        hb_rows = df_hist[df_hist[c].isin(['HB_NORTH', 'HB_BUSHLD'])] # Fallbacks
-                                        if not hb_rows.empty:
-                                            # Assuming sorted by time
-                                            if 'Price' in hb_rows.columns: hist_prices = hb_rows['Price']
-                                            elif 'LMP' in hb_rows.columns: hist_prices = hb_rows['LMP']
-                                            elif 'RTM_SPP' in hb_rows.columns: hist_prices = hb_rows['RTM_SPP']
-                                            
-                                            # Reindex to 8760 if needed? Timestamps match?
-                                            # For sensitivity, we just need a series of length 8760 or 8784
-                                            break
-                            
-                            # Fallback if specific column logic failed but file exists (e.g. from fetch script)
-                            if hist_prices is None and 'RTM SPP' in df_hist.columns:
-                                 hist_prices = df_hist['RTM SPP']
-                            elif hist_prices is None and len(df_hist.columns) > 1:
-                                # Try 2nd column?
-                                pass
-
-                        except Exception:
-                            pass
-                    
-                    if hist_prices is None:
-                        # Generate synthetic if file missing (use actual year from loop, NOT selected market_year)
-                        hist_prices = get_market_price_profile(30.0, year=year, scale_to_target=False)
-
-                    # Ensure series length matches profile (truncate or pad)
-                    # Helper to align
+                    # Ensure series length matches profile (truncate or pad if necessary, though utils handles it)
                     h_vals = hist_prices.values
                     if len(h_vals) > 8760: h_vals = h_vals[:8760]
                     if len(h_vals) < 8760:
                         h_vals = np.pad(h_vals, (0, 8760-len(h_vals)), 'edge')
                     
-                    # Use ACTUAL historical prices (no scaler for multi-year comparison)
                     hist_price_series = pd.Series(h_vals)
                     
                     # 2. Calculate Portfolio Settlement (Techs)
