@@ -620,7 +620,7 @@ with tab_load:
             st.success(f"Generated {count-1} participants with {current_total_load:,.0f} MWh total load!")
             st.rerun()
 
-        if st.button("📄 Load Participants (PDF Scenario)"):
+        if st.button("📄 Load Example"):
             # Clear existing
             st.session_state.participants = []
             
