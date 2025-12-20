@@ -1350,10 +1350,22 @@ st.session_state.batt_cap = batt_capacity
 
 # --- Main Content ---
 
+# Initialize variables for global availability (empty states)
+total_load_profile = pd.Series(0.0, index=range(8760))
+total_annual_load = 0.0
+metrics = {}
+fin_metrics = {}
+pdf_bytes = None
+excel_data = None
+csv = None
+zip_buffer = io.BytesIO()
+json_str_full = "{}"
+json_str_ai = "{}"
+
 # 1. Calculate Aggregated Load
-if not st.session_state.participants and not uploaded_load_file:
-    st.info("👋 **Welcome!** Please use the **'Start Here' Wizard** above to create your first portfolio, or load a scenario from the sidebar.")
-else:
+active_scenario = st.session_state.participants or uploaded_load_file
+
+if active_scenario:
     # Aggregate Load
     if uploaded_load_file:
         # Process Upload
@@ -2341,131 +2353,191 @@ else:
 
     # Remove the buttons from inside the tab
     
-    # --- Tab 6: Scenario Manager (moved to end for data freshness) ---
-    with tab_scenario:
-        st.header("Scenario Management")
-        st.caption("Save your current configuration to a JSON file or load a previously saved scenario.")
+# --- Global Configuration Generation (Runs every time) ---
+# Ensure export_config is always available (re-construct if needed)
+if 'export_config' not in locals():
+    # Helper for safe retrieval
+    def safe_get(var, default): return locals().get(var, st.session_state.get(var, default))
+    
+    export_config = {
+        "region": "ERCOT North",
+        "total_load_mwh": locals().get('total_annual_load', 0.0),
+        "solar_capacity": st.session_state.get('solar_input', 0.0),
+        "wind_capacity": st.session_state.get('wind_input', 0.0),
+        "geo_capacity": st.session_state.get('geo_input', 0.0),
+        "nuc_capacity": st.session_state.get('nuc_input', 0.0),
+        "batt_capacity": st.session_state.get('batt_input', 0.0),
+        "batt_duration": st.session_state.get('batt_duration_input', 2.0),
+        "solar_price": st.session_state.get('solar_price_input', 35.0),
+        "wind_price": st.session_state.get('wind_price_input', 25.0),
+        "ccs_price": st.session_state.get('ccs_price_input', 85.0),
+        "geo_price": st.session_state.get('geo_price_input', 75.0),
+        "nuc_price": st.session_state.get('nuc_price_input', 90.0),
+        # Battery Financials (defaults if not calculated)
+        "batt_base_rate": locals().get('cvta_fixed_price', 12000.0),
+        "batt_guar_avail": 0.98,
+        "batt_guar_rte": locals().get('cvta_rte', 85.0),
+        "batt_vom": locals().get('cvta_vom', 2.0),
+        "market_price": st.session_state.get('market_input', 30.0),
+        "rec_price": st.session_state.get('rec_input', 4.0),
+        "participants": st.session_state.participants,
+        "excluded_techs": st.session_state.get('excluded_techs', [])
+    }
+    # Add optional large arrays
+    if 'custom_solar_profile' in st.session_state:
+        export_config['custom_solar_profile'] = st.session_state['custom_solar_profile'].tolist()
+    if 'custom_wind_profile' in st.session_state:
+        export_config['custom_wind_profile'] = st.session_state['custom_wind_profile'].tolist()
+    if 'shared_market_prices' in st.session_state:
+        df_prices = st.session_state['shared_market_prices']
+        if 'Price' in df_prices.columns:
+            export_config['custom_battery_prices'] = df_prices['Price'].tolist()
 
-        st.subheader("📤 Save Scenario")
-        st.markdown("Download your current configuration as a JSON file.")
+json_str_full = json.dumps(export_config, indent=4)
 
+# AI Optimized Config
+ai_config = export_config.copy()
+ai_config.pop('custom_solar_profile', None)
+ai_config.pop('custom_wind_profile', None)
+ai_config.pop('custom_battery_prices', None)
+json_str_ai = json.dumps(ai_config, indent=4)
+
+# --- Tab 6: Scenario Manager (Global) ---
+with tab_scenario:
+    st.header("Scenario Management")
+    st.caption("Save your current configuration to a JSON file or load a previously saved scenario.")
+
+    st.subheader("📤 Save Scenario")
+    st.markdown("Download your current configuration as a JSON file.")
+
+    st.download_button(
+        label="💾 Download Configuration (JSON)",
+        data=json_str_full,
+        file_name="scenario_config.json",
+        mime="application/json",
+        use_container_width=False,
+        type="primary"
+    )
+    
+    st.markdown("---")
+    
+    st.subheader("📥 Load Scenario")
+    st.markdown("Upload a `scenario_config.json` file to restore settings.")
+    uploaded_scen = st.file_uploader(
+        "Select JSON File", 
+        type=['json', 'txt'], 
+        key='uploaded_scenario_tab', 
+        on_change=load_scenario
+    )
+    if uploaded_scen:
+        st.success("Scenario loaded successfully!")
+
+        st.markdown("---")
+        st.subheader("📸 Scenario Comparison Capture")
+        st.markdown("Capture current configuration and results for side-by-side comparison.")
+        
+        cap_name = st.text_input("Scenario Name", f"Scenario {len(st.session_state.get('comparison_scenarios', {})) + 1}")
+        
+        if st.button("Capture for Comparison"):
+            if 'comparison_scenarios' not in st.session_state:
+                st.session_state.comparison_scenarios = {}
+            
+            # Use safe accesses for metrics since calculation might not have run
+            current_metrics = {
+                'total_load_mwh': st.session_state.get('total_load_mwh', 0),
+                'cfe_score': st.session_state.get('cfe_score', 0),
+                'avg_ppa_price': st.session_state.get('avg_ppa_price', 0),
+                'net_settlement': st.session_state.get('net_settlement', 0),
+                'total_cost': st.session_state.get('total_cost', 0),
+                # Detailed Financials
+                'market_revenue': st.session_state.get('market_revenue', 0),
+                'gross_ppa_cost': st.session_state.get('gross_ppa_cost', 0),
+                'rec_cost': st.session_state.get('rec_cost', 0),
+                'deficit_cost': st.session_state.get('deficit_cost', 0)
+            }
+            
+            current_caps = {
+                'solar': st.session_state.get('solar_input', 0),
+                'wind': st.session_state.get('wind_input', 0),
+                'firm': (st.session_state.get('geo_input', 0) + 
+                         st.session_state.get('nuc_input', 0) + 
+                         st.session_state.get('ccs_input', 0)),
+                'batt_mw': st.session_state.get('batt_input', 0)
+            }
+            
+            st.session_state.comparison_scenarios[cap_name] = {
+                'metrics': current_metrics,
+                'caps': current_caps
+            }
+            st.success(f"Scenario '{cap_name}' captured!")
+            st.toast(f"Captured {cap_name}")
+            st.rerun()
+
+# --- Tab 7: Download Results Buttons ---
+with tab_dl:
+    st.header("💾 Download Results")
+    st.markdown("Export your configuration and analysis reports.")
+    
+    is_results_ready = active_scenario # Use the flag we defined earlier
+    if not is_results_ready:
+        st.warning("⚠️ **No Results Generated Yet.** Please add participants (Tab 1) or load a scenario to generate reports.")
+    
+    col_d1, col_d2 = st.columns(2)
+    
+    with col_d1:
+        st.subheader("📄 Reports & Data")
         st.download_button(
-            label="💾 Download Configuration (JSON)",
+            label="📄 Download PDF Report",
+            data=pdf_bytes if pdf_bytes else b"",
+            file_name="Portfolio_Report.pdf",
+            mime="application/pdf",
+            use_container_width=True,
+            disabled=(pdf_bytes is None)
+        )
+        st.download_button(
+            label="📊 Download Excel Report",
+            data=excel_data if excel_data else b"",
+            file_name="Interactive_Report.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            use_container_width=True,
+            disabled=(excel_data is None)
+        )
+        st.download_button(
+            label="📊 Download Results CSV",
+            data=csv if csv else "",
+            file_name="simulation_results.csv",
+            mime="text/csv",
+            use_container_width=True,
+            disabled=(csv is None)
+        )
+        # Handle zip buffer empty check
+        zip_val = zip_buffer.getvalue()
+        st.download_button(
+            label="📦 Download All Files (ZIP)",
+            data=zip_val if len(zip_val) > 0 else b"",
+            file_name="full_simulation_package.zip",
+            mime="application/zip",
+            use_container_width=True,
+            help="Includes: Results CSV, PDF Report, Full Config JSON, and AI Analysis JSON.",
+            disabled=(len(zip_val) == 0)
+        )
+        
+    with col_d2:
+         st.subheader("🔧 Configuration (JSON)")
+        
+         st.download_button(
+            label="📥 Download JSON Configuration",
             data=json_str_full,
             file_name="scenario_config.json",
             mime="application/json",
-            use_container_width=False,
-            type="primary"
-        )
+            use_container_width=True
+         )
         
-        st.markdown("---")
-        
-        st.subheader("📥 Load Scenario")
-        st.markdown("Upload a `scenario_config.json` file to restore settings.")
-        uploaded_scen = st.file_uploader(
-            "Select JSON File", 
-            type=['json', 'txt'], 
-            key='uploaded_scenario_tab', 
-            on_change=load_scenario
-        )
-        if uploaded_scen:
-            st.success("Scenario loaded successfully!")
-
-            st.markdown("---")
-            st.subheader("📸 Scenario Comparison Capture")
-            st.markdown("Capture current configuration and results for side-by-side comparison.")
-            
-            cap_name = st.text_input("Scenario Name", f"Scenario {len(st.session_state.get('comparison_scenarios', {})) + 1}")
-            
-            if st.button("Capture for Comparison"):
-                if 'comparison_scenarios' not in st.session_state:
-                    st.session_state.comparison_scenarios = {}
-                
-                current_metrics = {
-                    'total_load_mwh': st.session_state.get('total_load_mwh', 0),
-                    'cfe_score': st.session_state.get('cfe_score', 0),
-                    'avg_ppa_price': st.session_state.get('avg_ppa_price', 0),
-                    'net_settlement': st.session_state.get('net_settlement', 0),
-                    'total_cost': st.session_state.get('total_cost', 0),
-                    # Detailed Financials
-                    'market_revenue': st.session_state.get('market_revenue', 0),
-                    'gross_ppa_cost': st.session_state.get('gross_ppa_cost', 0),
-                    'rec_cost': st.session_state.get('rec_cost', 0),
-                    'deficit_cost': st.session_state.get('deficit_cost', 0)
-                }
-                
-                current_caps = {
-                    'solar': st.session_state.get('solar_input', 0),
-                    'wind': st.session_state.get('wind_input', 0),
-                    'firm': (st.session_state.get('geo_input', 0) + 
-                             st.session_state.get('nuc_input', 0) + 
-                             st.session_state.get('ccs_input', 0)),
-                    'batt_mw': st.session_state.get('batt_input', 0)
-                }
-                
-                st.session_state.comparison_scenarios[cap_name] = {
-                    'metrics': current_metrics,
-                    'caps': current_caps
-                }
-                st.success(f"Scenario '{cap_name}' captured!")
-                st.toast(f"Captured {cap_name}")
-                st.rerun()
-
-    # --- Tab 7: Download Results Buttons ---
-    with tab_dl:
-        st.header("💾 Download Results")
-        st.markdown("Export your configuration and analysis reports.")
-        
-        col_d1, col_d2 = st.columns(2)
-        
-        with col_d1:
-            st.subheader("📄 Reports & Data")
-            st.download_button(
-                label="📄 Download PDF Report",
-                data=pdf_bytes,
-                file_name="Portfolio_Report.pdf",
-                mime="application/pdf",
-                use_container_width=True
-            )
-            st.download_button(
-                label="📊 Download Excel Report",
-                data=excel_data,
-                file_name="Interactive_Report.xlsx",
-                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                use_container_width=True
-            )
-            st.download_button(
-                label="📊 Download Results CSV",
-                data=csv,
-                file_name="simulation_results.csv",
-                mime="text/csv",
-                use_container_width=True
-            )
-            st.download_button(
-                label="📦 Download All Files (ZIP)",
-                data=zip_buffer.getvalue(),
-                file_name="full_simulation_package.zip",
-                mime="application/zip",
-                use_container_width=True,
-                help="Includes: Results CSV, PDF Report, Full Config JSON, and AI Analysis JSON."
-            )
-            
-        with col_d2:
-             st.subheader("🔧 Configuration (JSON)")
-            
-             st.download_button(
-                label="📥 Download JSON Configuration",
-                data=json_str_full,
-                file_name="scenario_config.json",
-                mime="application/json",
-                use_container_width=True
-             )
-            
-             st.download_button(
-                label="🤖 Download AI Analysis JSON",
-                data=json_str_ai,
-                file_name="scenario_ai_config.json",
-                mime="application/json",
-                use_container_width=True,
-                help="Simplified JSON optimized for AI context windows."
-             )
+         st.download_button(
+            label="🤖 Download AI Analysis JSON",
+            data=json_str_ai,
+            file_name="scenario_ai_config.json",
+            mime="application/json",
+            use_container_width=True,
+            help="Simplified JSON optimized for AI context windows."
+         )
