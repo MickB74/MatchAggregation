@@ -1134,6 +1134,15 @@ with tab_fin:
             margin=dict(l=20, r=20, t=20, b=20)
         )
         st.plotly_chart(fig_preview, use_container_width=True)
+
+        # Tabular Preview
+        st.markdown("**Data Preview**")
+        preview_df = pd.DataFrame({
+            'Datetime': pd.date_range(start='2024-01-01', periods=8760, freq='h'),
+            f'Price_{market_year}': preview_selected,
+            'Price_Average': preview_average
+        })
+        st.dataframe(preview_df.head(100), use_container_width=True, height=200)
     
     col_dl1, col_dl2 = st.columns(2)
     
