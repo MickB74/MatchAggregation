@@ -157,7 +157,10 @@ def load_scenario():
             if 'excluded_techs' in config: st.session_state.excluded_techs_input = config['excluded_techs']
             
             # 5. Market Logic
-            if 'market_year' in config: st.session_state.market_year_input = int(config['market_year'])
+            if 'market_year' in config:
+                m_yr_val = config['market_year']
+                # Handle both int and string "Average"
+                st.session_state.market_year_input = str(m_yr_val) if m_yr_val == "Average" else int(m_yr_val)
             if 'price_scaler' in config: st.session_state.price_scaler_input = float(config['price_scaler'])
             if 'ppa_price_scaler' in config: st.session_state.ppa_scaler_input = float(config['ppa_price_scaler'])
             
@@ -185,8 +188,9 @@ def load_scenario():
                 if isinstance(price_data, list):
                      # Reconstruct simple index for current year
                      # We might need to know the year. Use market_year.
-                     year = st.session_state.get('market_year_input', 2024)
-                     dates = pd.date_range(start=f'{year}-01-01', periods=len(price_data), freq='h')
+                     year_val = st.session_state.get('market_year_input', 2024)
+                     year_for_dates = 2024 if year_val == 'Average' else year_val
+                     dates = pd.date_range(start=f'{year_for_dates}-01-01', periods=len(price_data), freq='h')
                      st.session_state['shared_market_prices'] = pd.DataFrame({'Price': price_data}, index=dates)
 
             st.toast("Scenario Loaded Successfully!")
@@ -1178,8 +1182,9 @@ with tab_offtake:
                 scaler = st.session_state.get('price_scaler_input', 1.0)
                 
                 price_series = get_market_price_profile_v2(30.0, year=cvta_year) * scaler
-                # Create date range for the specific year
-                dates = pd.date_range(start=f'{cvta_year}-01-01', periods=len(price_series), freq='h')
+                # Create date range for the specific year (use 2024 if Average)
+                cvta_year_for_dates = 2024 if cvta_year == 'Average' else cvta_year
+                dates = pd.date_range(start=f'{cvta_year_for_dates}-01-01', periods=len(price_series), freq='h')
                 df_prices = pd.DataFrame({'Price': price_series.values}, index=dates)
                 
                 if scaler != 1.0:
