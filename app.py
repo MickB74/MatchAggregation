@@ -1173,11 +1173,6 @@ with tab_fin:
             f'Price_{market_year}': preview_selected
         }
         
-        # Only add comparison column if it's different
-        if str(market_year) != 'Average':
-             preview_average = get_market_price_profile_v2(market_price, year='Average') * price_scaler
-             data_dict['Price_Average_Composite'] = preview_average
-        
         preview_df = pd.DataFrame(data_dict)
         st.dataframe(preview_df.head(100), use_container_width=True, height=200)
     
