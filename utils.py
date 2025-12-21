@@ -986,42 +986,80 @@ def calculate_financials(matched_profile, deficit_profile, tech_profiles, tech_p
     
     for tech, profile in tech_profiles.items():
         price = tech_prices.get(tech, 0.0)
-        # Matched MWh from this tech (Attributed)
-        matched_mwh_tech = profile * attribution_factors
         
-        # Calculate Metrics
-        total_gen_mwh = matched_mwh_tech.sum()
-        tech_cost = total_gen_mwh * price
-        tech_market_value = (matched_mwh_tech * market_price_profile).sum()
-        tech_settlement = tech_market_value - tech_cost
+        # 1. Matched Attribution (for "Cost to Serve Load")
+        matched_mwh_tech_profile = profile * attribution_factors
+        matched_mwh_tech_sum = matched_mwh_tech_profile.sum()
         
-        total_ppa_cost += tech_cost
+        # 2. Total Generation (for PPA Settlement)
+        total_gen_mwh = profile.sum()
+        
+        # PPA Cost = Total Gen * Price
+        # (Assuming Pay-As-Generated)
+        tech_ppa_cost = total_gen_mwh * price
+        
+        # Market Value of Total Gen
+        # (Revenue if we sold it all to the grid)
+        tech_market_value_total = (profile * market_price_profile).sum()
+        
+        # Financial Settlement = Market Revenue - Fixed Cost
+        # (The net check received or paid by the offtaker)
+        tech_settlement = tech_market_value_total - tech_ppa_cost
+        
+        # Add to aggregate PPA Cost? 
+        # Usually 'Net Energy Cost' includes the PPA Cost of the *used* energy plus the net settlement?
+        # Or simpler: Net Cost = (Deficit*Price) + (PPA_Fixed_Cost) - (Market_Rev_Surplus)
+        # Let's keep total_ppa_cost tracking the "Cost of Matched Energy" for the "Avg Cost to Serve" metric?
+        # No, Avg Cost usually implies "Total Cost of Portfolio / Total Load".
+        # Total Cost = Total PPA Spend + REC Spend + Deficit Spot Buy - Surplus Spot Sell
+        # Which is equivalent to: Total PPA Spend + REC Spend + Deficit Spot Buy - (Total Market Value - Matched Market Value)
+        # Simpler: Total PPA Spend + REC Spend + (Deficit * Spot) - (Total Gen * Spot) ?? No.
+        
+        # Let's count total_ppa_cost as the full contract cost.
+        total_ppa_cost += tech_ppa_cost
         
         tech_details[tech] = {
-            'Matched_MWh': total_gen_mwh,
+            'Matched_MWh': matched_mwh_tech_sum,
+            'Total_MWh': total_gen_mwh,
             'PPA_Price': price,
-            'Total_Cost': tech_cost,
-            'Market_Value': tech_market_value,
-            'Settlement': tech_settlement
+            'Total_Cost': tech_ppa_cost, # Fixed Cost
+            'Market_Value': tech_market_value_total, # Floating Revenue
+            'Settlement': tech_settlement # Net
         }
         
-    # 2. Market Value of Matched Energy (HOURLY)
-    # Value = Sum(Matched[h] * MarketPrice[h])
-    market_value_matched = (matched_profile * market_price_profile).sum()
-    
+    # 2. Market Value of Total Generation (Avg Market Price Capture)
+    # Value = Sum(TotalGen[h] * MarketPrice[h])
+    total_market_value_gen = 0.0
+    for profile in tech_profiles.values():
+         total_market_value_gen += (profile * market_price_profile).sum()
+
     # 3. Settlement Value
-    # PPA Settlement = Market Value - PPA Cost
-    settlement_value = market_value_matched - total_ppa_cost
+    # PPA Settlement = Market Revenue (Hypothetical) - PPA Cost
+    # High prices -> High Revenue -> Positive Settlement (Rebate to customer)
+    # Low prices -> Low Revenue -> Negative Settlement (Cost to customer)
+    settlement_value = total_market_value_gen - total_ppa_cost
     
     # 4. REC Cost
     total_matched_mwh = matched_profile.sum()
     rec_cost = total_matched_mwh * rec_price
     
     # 5. Net Energy Cost
-    # Cost to serve load = (Deficit * Market) + (Matched * PPA Price) + (Matched * REC)
+    # Cost = (Load * Spot) - Settlement + RECs
+    # Load * Spot = (Matched + Deficit) * Spot
+    # Since we passed matched and deficit, let's reconstruct Total Load cost
+    
+    # Cost of Deficit (Unhedged Load)
     market_cost_deficit = (deficit_profile * market_price_profile).sum()
     
-    net_cost = market_cost_deficit + total_ppa_cost + rec_cost
+    # Cost of Matched (Hedged Load... but we treat all load as floating first, then swap)
+    market_cost_matched = (matched_profile * market_price_profile).sum()
+    
+    total_load_market_cost = market_cost_deficit + market_cost_matched
+    
+    # Net Cost = Load_at_Spot - (Spot_Rev - PPA_Fixed) + RECs
+    #          = Load_at_Spot - Spot_Rev + PPA_Fixed + RECs
+    # (Spot_Rev is Revenue from Gen)
+    net_cost = total_load_market_cost - total_market_value_gen + total_ppa_cost + rec_cost
     
     total_deficit_mwh = deficit_profile.sum()
     total_load = total_matched_mwh + total_deficit_mwh
