@@ -1095,9 +1095,9 @@ with tab_fin:
             try:
                 # Capacity Lookup Helper
                 def get_cap(key, var_name):
-                    # Check local variable first (most recent from widget)
-                    if var_name in locals():
-                        return locals()[var_name]
+                    # Check GLOBAL scope for the variable (since we are inside a function/block)
+                    if var_name in globals():
+                        return globals()[var_name]
                     # Check Session State
                     return st.session_state.get(key, 0.0)
 
@@ -1161,7 +1161,7 @@ with tab_fin:
                 else:
                      # Inform user why line is missing
                      fig_preview.add_annotation(
-                        text="Add Generation (Tab 2) to see Blended PPA Price",
+                        text=f"No Gen Found: Sol={c_sol:.0f}, Win={c_win:.0f}, Bat={st.session_state.get('batt_input',0):.0f}",
                         xref="paper", yref="paper",
                         x=0.5, y=1.05, showarrow=False,
                         font=dict(color="red")
@@ -1170,7 +1170,8 @@ with tab_fin:
                 st.caption(f"⚠️ Could not calc PPA Price: {str(e)}")
                 pass
 
-            
+            # Debug Title
+            # fig_preview.update_layout(title=f"Monthly Average Prices ({market_year}) - Gen: {df_ppa_monthly['Gen'].sum()/1000:.0f} GWh")
             fig_preview.update_layout(title=f"Monthly Average Prices ({market_year})")
 
         else:
