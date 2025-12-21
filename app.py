@@ -2347,11 +2347,9 @@ if active_scenario:
         # Get raw profile for that year, scaled by the scenario's price scaler
         # We use the scenario 'market_price' input as base if year='Average', 
         # or just the historical shape scaled.
-        # Note: get_market_price_profile_v2(..., year=yr) returns the profile for that year.
-        # We apply the *same* scaler as the current scenario for consistency in "what-if" analysis across years.
-        # If the user wants raw historicals, they should set scaler to 1.0. 
-        # But usually 'Results' reflect the active scenario assumptions.
-        yr_profile = get_market_price_profile_v2(30.0, year=yr_hist) * price_scaler
+        # Use raw historical shape (scale_hist=False) so we don't normalize to 30.0.
+        # Then apply the price scaler.
+        yr_profile = get_market_price_profile_v2(0.0, year=yr_hist, scale_hist=False) * price_scaler
         
         # Column Name
         col_lbl = f"Price_{yr_hist} ($/MWh)"
