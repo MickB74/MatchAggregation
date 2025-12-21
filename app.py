@@ -1131,7 +1131,6 @@ with tab_fin:
                 )
                 
                 # Add Line Trace
-                # Only show if there is generation
                 if df_ppa_monthly['Gen'].sum() > 0:
                     fig_preview.add_trace(go.Scatter(
                         x=monthly_avg.index.strftime('%b'),
@@ -1142,13 +1141,20 @@ with tab_fin:
                         text=[f"${x:.2f}" for x in monthly_blended_ppa],
                         textposition="top center"
                     ))
+                else:
+                     # Inform user why line is missing
+                     fig_preview.add_annotation(
+                        text="Add Generation (Tab 2) to see Blended PPA Price",
+                        xref="paper", yref="paper",
+                        x=0.5, y=1.05, showarrow=False,
+                        font=dict(color="red")
+                     )
             except Exception as e:
-                # Fallback or ignore if inputs not ready
-                print(f"Blended PPA Calc Error: {e}")
+                st.caption(f"⚠️ Could not calc PPA Price: {str(e)}")
                 pass
 
             
-            fig_preview.update_layout(title=f"Monthly Average Prices ({market_year}) vs Blended PPA")
+            fig_preview.update_layout(title=f"Monthly Average Prices ({market_year})")
 
         else:
             # 2. Annual Comparison
