@@ -1152,7 +1152,7 @@ with tab_fin:
                     fig_preview.add_trace(go.Scatter(
                         x=monthly_avg.index.strftime('%b'),
                         y=monthly_blended_ppa,
-                        name="Blended PPA Price",
+                        name="Average Capture Price",
                         mode='lines+markers',
                         line=dict(color='#2ca02c', width=3, dash='dot'), # Green dotted
                         text=[f"${x:.2f}" for x in monthly_blended_ppa],
@@ -1167,7 +1167,7 @@ with tab_fin:
                         font=dict(color="red")
                      )
             except Exception as e:
-                st.caption(f"⚠️ Could not calc PPA Price: {str(e)}")
+                st.caption(f"⚠️ Could not calc Pricing: {str(e)}")
                 pass
 
             # Debug Title
