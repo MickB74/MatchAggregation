@@ -1018,24 +1018,12 @@ with tab_fin:
     # Get base average from actual data
     _, base_market_avg = get_market_price_profile_v2(32.0, return_base_avg=True, year=market_year)
     
-    # Toggle for Pricing Mode
-    use_hist_avg = c_mkt_1.checkbox("Use Historical Mean", value=True, help="Use the actual average price from the selected year's data.")
-    
-    if use_hist_avg:
-        market_price = base_market_avg
-        c_mkt_1.metric(
-            f"Base Avg ({market_year})", 
-            f"${base_market_avg:.2f}",
-            help=f"Actual average from {market_year} ERCOT HB_NORTH data"
-        )
-    else:
-        market_price = c_mkt_1.number_input(
-            "Target Annual Price ($/MWh)", 
-            value=float(base_market_avg), 
-            step=0.5, 
-            format="%.2f",
-            help="Scale the historical hourly shape to match this annual average price."
-        )
+    market_price = base_market_avg
+    c_mkt_1.metric(
+        f"Base Avg ({market_year})", 
+        f"${base_market_avg:.2f}",
+        help=f"Actual average from {market_year} ERCOT HB_NORTH data"
+    )
     
     price_scaler = c_mkt_2.number_input(
         "Price Scaler", 
