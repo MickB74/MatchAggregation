@@ -576,8 +576,8 @@ with tab_load:
             current_total_load = 0
             count = 1
             
-            # Target at least 500k
-            while current_total_load < 500000:
+            # Target at least 500k and at least 3 participants
+            while current_total_load < 500000 or len(st.session_state.participants) < 3:
                 # Randomly choose type
                 # Weighted towards Data Centers for higher load
                 p_type = random.choice(["Data Center", "Data Center", "Office", "Office", "Ammonia Plant"])
@@ -617,25 +617,10 @@ with tab_load:
                 current_total_load += load
                 count += 1
             
-            st.success(f"Generated {count-1} participants with {current_total_load:,.0f} MWh total load!")
+            st.success(f"Generated {len(st.session_state.participants)} participants with {current_total_load:,.0f} MWh total load!")
             st.rerun()
 
-        if st.button("📄 Load Example"):
-            # Clear existing
-            st.session_state.participants = []
-            
-            pdf_participants = [
-                {"name": "Office Park 1", "type": "Office", "load": 42907},
-                {"name": "Office Park 2", "type": "Office", "load": 33250},
-                {"name": "Office Park 3", "type": "Office", "load": 38015},
-                {"name": "Office Park 4", "type": "Office", "load": 40397},
-                {"name": "Data Center 5", "type": "Data Center", "load": 151081},
-                {"name": "Industrial 6", "type": "Flat", "load": 366981},
-            ]
-            
-            st.session_state.participants = pdf_participants
-            st.success(f"Loaded {len(pdf_participants)} participants from PDF Scenario!")
-            st.rerun()
+
 
         st.markdown("---")
         st.markdown("#### Add Participant")
@@ -1186,7 +1171,10 @@ with tab_fin:
         # Single Year Download
         download_price_profile = get_market_price_profile_v2(market_price, year=market_year) * price_scaler
         
-        price_dates = pd.date_range(start='2024-01-01', periods=8760, freq='h')
+        # Use correct year for Datetime (Default to 2024 for 'Average')
+        ts_year = 2024 if str(market_year) == 'Average' else market_year
+        price_dates = pd.date_range(start=f'{ts_year}-01-01', periods=8760, freq='h')
+        
         price_df = pd.DataFrame({
             'Datetime': price_dates,
             'Price_USD_MWh': download_price_profile.values
@@ -1215,7 +1203,11 @@ with tab_fin:
             
             for yr in all_years:
                 yr_profile = get_market_price_profile_v2(30.0, year=yr) * price_scaler
-                yr_dates = pd.date_range(start='2024-01-01', periods=8760, freq='h')
+                
+                # Dynamic Year
+                ts_yr = 2024 if str(yr) == 'Average' else yr
+                yr_dates = pd.date_range(start=f'{ts_yr}-01-01', periods=8760, freq='h')
+                
                 yr_df = pd.DataFrame({
                     'Datetime': yr_dates,
                     'Price_USD_MWh': yr_profile.values
