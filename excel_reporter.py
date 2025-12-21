@@ -252,11 +252,27 @@ def generate_excel_report(buffer, simulation_df, config, financial_metrics, mont
                     ws_fin.write(fin_row, 6, settlement, workbook.add_format({'num_format': '$#,##0', 'border': 1}))
                     fin_row += 1
             
+            # Calculate Totals
+            t_gen = 0
+            t_match = 0
+            t_cost = 0
+            t_value = 0
+            t_settle = 0
+            
+            for details in financial_metrics['tech_details'].values():
+                t_gen += details.get('Total_MWh', 0)
+                t_match += details.get('Matched_MWh', 0)
+                t_cost += details.get('Total_Cost', 0)
+                t_value += details.get('Market_Value', 0)
+                t_settle += details.get('Settlement', 0)
+
             # Add Total Row
             ws_fin.write(fin_row, 1, "Total", workbook.add_format({'bold': True, 'bg_color': '#D9D9D9', 'border': 1}))
-            ws_fin.write(fin_row, 4, financial_metrics.get('total_cost', 0), workbook.add_format({'bold': True, 'num_format': '$#,##0', 'bg_color': '#D9D9D9', 'border': 1})) 
-            ws_fin.write(fin_row, 5, "N/A", workbook.add_format({'bold': True, 'bg_color': '#D9D9D9', 'border': 1}))
-            ws_fin.write(fin_row, 6, financial_metrics.get('settlement_value', 0), workbook.add_format({'bold': True, 'num_format': '$#,##0', 'bg_color': '#D9D9D9', 'border': 1}))
+            ws_fin.write(fin_row, 2, t_gen, workbook.add_format({'bold': True, 'num_format': '#,##0', 'bg_color': '#D9D9D9', 'border': 1}))
+            ws_fin.write(fin_row, 3, t_match, workbook.add_format({'bold': True, 'num_format': '#,##0', 'bg_color': '#D9D9D9', 'border': 1}))
+            ws_fin.write(fin_row, 4, t_cost, workbook.add_format({'bold': True, 'num_format': '$#,##0', 'bg_color': '#D9D9D9', 'border': 1}))
+            ws_fin.write(fin_row, 5, t_value, workbook.add_format({'bold': True, 'num_format': '$#,##0', 'bg_color': '#D9D9D9', 'border': 1}))
+            ws_fin.write(fin_row, 6, t_settle, workbook.add_format({'bold': True, 'num_format': '$#,##0', 'bg_color': '#D9D9D9', 'border': 1}))
 
         # --- Sheet 5: Configuration Audit ---
                     
