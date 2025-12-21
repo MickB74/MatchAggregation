@@ -2123,7 +2123,8 @@ if active_scenario:
                         'Net Settlement ($)': '${:,.0f}',
                         'Value ($/MWh)': '${:,.2f}'
                     }),
-                    use_container_width=True
+                    use_container_width=True,
+                    hide_index=True
                 )
                 
                 # Simple Bar Chart for Settlement
