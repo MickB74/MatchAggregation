@@ -2349,8 +2349,9 @@ if active_scenario:
     # --- Financial Columns for CSV ---
     # --- Financial Columns for CSV / Excel ---
     # 1. Market Price (Hourly) - Current Scenario
-    market_price_profile = get_market_price_profile_v2(market_price, year=market_year)
-    results_df['Market_Capture_Price_$/MWh'] = market_price_profile
+    # Apply the price scaler to match Financial Analysis
+    market_price_profile = get_market_price_profile_v2(market_price, year=market_year) * price_scaler
+    results_df['Market_Price_$/MWh'] = market_price_profile
 
     # 1b. Market Prices (All Years) - For Excel Analysis
     all_years_hist = [2020, 2021, 2022, 2023, 2024, "Average"]
