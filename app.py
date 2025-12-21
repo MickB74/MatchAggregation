@@ -2361,6 +2361,38 @@ if active_scenario:
     results_df['PPA_Price_Geothermal'] = geo_price_eff
     results_df['PPA_Price_Nuclear'] = nuc_price_eff
     results_df['PPA_Price_CCS'] = ccs_price_eff
+    results_df['PPA_Price_Battery'] = effective_batt_price_mwh
+
+    # 3. Hourly Settlement by Technology
+    # Settlement = Generation * (Market Price - PPA Price)
+    
+    # Solar
+    results_df['Settlement_Solar_($)'] = solar_profile * (market_price_profile - solar_price_eff)
+    
+    # Wind
+    results_df['Settlement_Wind_($)'] = wind_profile * (market_price_profile - wind_price_eff)
+    
+    # Geothermal
+    results_df['Settlement_Geothermal_($)'] = geo_profile * (market_price_profile - geo_price_eff)
+    
+    # Nuclear
+    results_df['Settlement_Nuclear_($)'] = nuc_profile * (market_price_profile - nuc_price_eff)
+    
+    # CCS
+    results_df['Settlement_CCS_($)'] = ccs_profile * (market_price_profile - ccs_price_eff)
+    
+    # Battery (Discharge)
+    results_df['Settlement_Battery_($)'] = batt_discharge * (market_price_profile - effective_batt_price_mwh)
+    
+    # Total Hourly Settlement
+    results_df['Total_Hourly_Settlement_($)'] = (
+        results_df['Settlement_Solar_($)'] +
+        results_df['Settlement_Wind_($)'] +
+        results_df['Settlement_Geothermal_($)'] +
+        results_df['Settlement_Nuclear_($)'] +
+        results_df['Settlement_CCS_($)'] +
+        results_df['Settlement_Battery_($)']
+    )
     
     # Recalculate effective battery price for CSV if local variable not available in scope
     # (Though it should be available since defined above in main script flow)
