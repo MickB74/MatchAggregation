@@ -169,12 +169,60 @@ def generate_excel_report(buffer, simulation_df, config, financial_metrics, mont
         if 'excluded_techs' in audit_dict:
              audit_dict['excluded_techs'] = ", ".join(audit_dict['excluded_techs'])
              
+        # Label Mapping for nicer display
+        label_map = {
+            'region': 'Region',
+            'total_load_mwh': 'Total Loop Load (MWh)',
+            'solar_capacity': 'Solar Capacity (MW)',
+            'wind_capacity': 'Wind Capacity (MW)',
+            'geo_capacity': 'Geothermal Capacity (MW)',
+            'nuc_capacity': 'Nuclear Capacity (MW)',
+            'batt_capacity': 'Battery Power (MW)',
+            'batt_duration': 'Battery Duration (Hours)',
+            'solar_price': 'Solar PPA Price ($/MWh)',
+            'wind_price': 'Wind PPA Price ($/MWh)',
+            'ccs_price': 'CCS PPA Price ($/MWh)',
+            'geo_price': 'Geothermal PPA Price ($/MWh)',
+            'nuc_price': 'Nuclear PPA Price ($/MWh)',
+            'batt_base_rate': 'Battery Base Rate ($/MW-mo)',
+            'batt_guar_avail': 'Guaranteed Availability',
+            'batt_guar_rte': 'Guaranteed RTE',
+            'batt_vom': 'Battery VOM ($/MWh)',
+            'market_price': 'Base Market Price ($/MWh)',
+            'rec_price': 'REC Price ($/MWh)',
+            'participants': 'Participants',
+            'excluded_techs': 'Excluded Technologies'
+        }
+
         # Flatten dictionary slightly or just iterate top-level
         for k, v in audit_dict.items():
             if isinstance(v, (list, dict)):
                 continue # Skip massive arrays like profiles
-            ws_config.write(audit_row, 1, str(k).replace('_', ' ').title(), label_fmt)
-            ws_config.write(audit_row, 2, str(v), val_fmt)
+            
+            # Determine Label
+            if k in label_map:
+                nice_label = label_map[k]
+            else:
+                # Fallback formatter
+                nice_label = str(k).replace('_', ' ').title().replace('Mwh', 'MWh').replace('Ccs', 'CCS')
+
+            # Determine Format
+            cell_fmt = val_fmt # Default border only
+            
+            if isinstance(v, (int, float)):
+                if 'price' in k or 'rate' in k or 'vom' in k:
+                    cell_fmt = workbook.add_format({'num_format': '$#,##0.00', 'border': 1})
+                elif 'load' in k:
+                    cell_fmt = workbook.add_format({'num_format': '#,##0', 'border': 1})
+                elif 'capacity' in k:
+                    cell_fmt = workbook.add_format({'num_format': '#,##0.00', 'border': 1})
+                elif 'avail' in k:
+                    cell_fmt = workbook.add_format({'num_format': '0.0%', 'border': 1})
+                else:
+                    cell_fmt = workbook.add_format({'num_format': '#,##0.##', 'border': 1})
+            
+            ws_config.write(audit_row, 1, nice_label, label_fmt)
+            ws_config.write(audit_row, 2, v, cell_fmt)
             audit_row += 1
             
         # --- Sheet 4: Financials ---
