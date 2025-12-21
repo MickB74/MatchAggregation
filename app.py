@@ -1148,6 +1148,7 @@ with tab_fin:
                 )
                 
                 # Add Line Trace
+                # Only show if there is generation
                 if df_ppa_monthly['Gen'].sum() > 0:
                     fig_preview.add_trace(go.Scatter(
                         x=monthly_avg.index.strftime('%b'),
@@ -1158,20 +1159,11 @@ with tab_fin:
                         text=[f"${x:.2f}" for x in monthly_blended_ppa],
                         textposition="top center"
                     ))
-                else:
-                     # Inform user why line is missing
-                     fig_preview.add_annotation(
-                        text=f"No Gen Found: Sol={c_sol:.0f}, Win={c_win:.0f}, Bat={st.session_state.get('batt_input',0):.0f}",
-                        xref="paper", yref="paper",
-                        x=0.5, y=1.05, showarrow=False,
-                        font=dict(color="red")
-                     )
+            
             except Exception as e:
-                st.caption(f"⚠️ Could not calc Pricing: {str(e)}")
+                # st.caption(f"⚠️ Could not calc Pricing: {str(e)}")
                 pass
 
-            # Debug Title
-            # fig_preview.update_layout(title=f"Monthly Average Prices ({market_year}) - Gen: {df_ppa_monthly['Gen'].sum()/1000:.0f} GWh")
             fig_preview.update_layout(title=f"Monthly Average Prices ({market_year})")
 
         else:
