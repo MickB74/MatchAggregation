@@ -2347,21 +2347,38 @@ if active_scenario:
             results_df[col_name] = p_profile
 
     # --- Financial Columns for CSV ---
-    # 1. Market Price (Hourly)
+    # --- Financial Columns for CSV / Excel ---
+    # 1. Market Price (Hourly) - Current Scenario
     market_price_profile = get_market_price_profile_v2(market_price, year=market_year)
     results_df['Market_Capture_Price_$/MWh'] = market_price_profile
+
+    # 1b. Market Prices (All Years) - For Excel Analysis
+    all_years_hist = [2020, 2021, 2022, 2023, 2024, "Average"]
+    for yr_hist in all_years_hist:
+        # Get raw profile for that year, scaled by the scenario's price scaler
+        # We use the scenario 'market_price' input as base if year='Average', 
+        # or just the historical shape scaled.
+        # Note: get_market_price_profile_v2(..., year=yr) returns the profile for that year.
+        # We apply the *same* scaler as the current scenario for consistency in "what-if" analysis across years.
+        # If the user wants raw historicals, they should set scaler to 1.0. 
+        # But usually 'Results' reflect the active scenario assumptions.
+        yr_profile = get_market_price_profile_v2(30.0, year=yr_hist) * price_scaler
+        
+        # Column Name
+        col_lbl = f"Price_{yr_hist} ($/MWh)"
+        results_df[col_lbl] = yr_profile
     
     # 2. Technology PPA Prices (Constant)
-    results_df['Solar_PPA_Price'] = solar_price
-    results_df['Wind_PPA_Price'] = wind_price
-    results_df['Geothermal_PPA_Price'] = geo_price
-    results_df['Nuclear_PPA_Price'] = nuc_price
-    results_df['CCS_Gas_PPA_Price'] = ccs_price
+    results_df['PPA_Price_Solar'] = solar_price_eff
+    results_df['PPA_Price_Wind'] = wind_price_eff
+    results_df['PPA_Price_Geothermal'] = geo_price_eff
+    results_df['PPA_Price_Nuclear'] = nuc_price_eff
+    results_df['PPA_Price_CCS'] = ccs_price_eff
     
     # Recalculate effective battery price for CSV if local variable not available in scope
     # (Though it should be available since defined above in main script flow)
     # Using 'effective_batt_price_mwh' calculated earlier 
-    results_df['Battery_Adder_Price'] = effective_batt_price_mwh
+    results_df['PPA_Price_Battery'] = effective_batt_price_mwh
     
     # 3. Hourly Blended PPA Price
     # Cost = Sum(Gen_i * Price_i)
