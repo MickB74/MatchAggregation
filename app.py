@@ -1091,15 +1091,32 @@ with tab_fin:
             ))
             
             # --- Calculate Blended PPA Price (Weighted Average) ---
-            # Try to get capacities from session state (defined in Tab 2)
+            # Try to get capacities from session state or LOCALS (which is safer if defined in same run)
             try:
+                # Capacity Lookup Helper
+                def get_cap(key, var_name):
+                    # Check local variable first (most recent from widget)
+                    if var_name in locals():
+                        return locals()[var_name]
+                    # Check Session State
+                    return st.session_state.get(key, 0.0)
+
+                c_sol = get_cap('solar_input', 'solar_capacity')
+                c_win = get_cap('wind_input', 'wind_capacity')
+                c_geo = get_cap('geo_input', 'geo_capacity')
+                c_nuc = get_cap('nuc_input', 'nuc_capacity')
+                c_ccs = get_cap('ccs_input', 'ccs_capacity')
+                
+                # Debug Info
+                # st.write(f"Debug: Sol={c_sol}, Win={c_win}")
+
                 # Re-generate profiles locally for preview
                 # Note: These use 2024 shape by default in utils, which matches our analysis year approx
-                p_sol = generate_dummy_generation_profile(st.session_state.get('solar_input', 0.0), 'Solar', use_synthetic=False)
-                p_win = generate_dummy_generation_profile(st.session_state.get('wind_input', 0.0), 'Wind')
-                p_geo = generate_dummy_generation_profile(st.session_state.get('geo_input', 0.0), 'Geothermal')
-                p_nuc = generate_dummy_generation_profile(st.session_state.get('nuc_input', 0.0), 'Nuclear')
-                p_ccs = generate_dummy_generation_profile(st.session_state.get('ccs_input', 0.0), 'CCS Gas')
+                p_sol = generate_dummy_generation_profile(c_sol, 'Solar', use_synthetic=False)
+                p_win = generate_dummy_generation_profile(c_win, 'Wind')
+                p_geo = generate_dummy_generation_profile(c_geo, 'Geothermal')
+                p_nuc = generate_dummy_generation_profile(c_nuc, 'Nuclear')
+                p_ccs = generate_dummy_generation_profile(c_ccs, 'CCS Gas')
                 
                 # Prices (Defined locally in Tab 4 just above)
                 # Use default fallback if variable not bound yet (though it should be)
