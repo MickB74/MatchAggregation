@@ -1323,7 +1323,7 @@ with tab_offtake:
         
         st.markdown("---")
         st.markdown("##### 3. Market Data")
-        st.markdown("##### 3. Market Data")
+
         # Linked to Financial Analysis Market Year
         cvta_year = market_year
         st.info(f"Using Market Year: **{cvta_year}** (See '3. Financial Analysis')")
