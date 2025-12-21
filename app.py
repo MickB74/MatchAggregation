@@ -1076,7 +1076,7 @@ with tab_fin:
 
         if view_mode == "Monthly":
             # 1. Monthly View (Selected Year)
-            # Generate hourly profile
+            # Generate hourly profile for Market Price
             preview_selected = get_market_price_profile_v2(market_price, year=market_year) * price_scaler
             
             # Create DF to resample
@@ -1086,11 +1086,69 @@ with tab_fin:
             fig_preview.add_trace(go.Bar(
                 x=monthly_avg.index.strftime('%b'),
                 y=monthly_avg.values,
-                name=f"{market_year}",
+                name=f"{market_year} Market",
                 marker_color='#1f77b4'
             ))
             
-            fig_preview.update_layout(title=f"Monthly Average Prices ({market_year})")
+            # --- Calculate Blended PPA Price (Weighted Average) ---
+            # Try to get capacities from session state (defined in Tab 2)
+            try:
+                # Re-generate profiles locally for preview
+                # Note: These use 2024 shape by default in utils, which matches our analysis year approx
+                p_sol = generate_dummy_generation_profile(st.session_state.get('solar_input', 0.0), 'Solar', use_synthetic=False)
+                p_win = generate_dummy_generation_profile(st.session_state.get('wind_input', 0.0), 'Wind')
+                p_geo = generate_dummy_generation_profile(st.session_state.get('geo_input', 0.0), 'Geothermal')
+                p_nuc = generate_dummy_generation_profile(st.session_state.get('nuc_input', 0.0), 'Nuclear')
+                p_ccs = generate_dummy_generation_profile(st.session_state.get('ccs_input', 0.0), 'CCS Gas')
+                
+                # Prices (Defined locally in Tab 4 just above)
+                # Use default fallback if variable not bound yet (though it should be)
+                pr_sol = solar_price_eff if 'solar_price_eff' in locals() else 0.0
+                pr_win = wind_price_eff if 'wind_price_eff' in locals() else 0.0
+                pr_geo = geo_price_eff if 'geo_price_eff' in locals() else 0.0
+                pr_nuc = nuc_price_eff if 'nuc_price_eff' in locals() else 0.0
+                pr_ccs = ccs_price_eff if 'ccs_price_eff' in locals() else 0.0
+                
+                # Hourly Totals
+                total_gen_hourly = p_sol + p_win + p_geo + p_nuc + p_ccs
+                total_cost_hourly = (p_sol * pr_sol) + (p_win * pr_win) + (p_geo * pr_geo) + (p_nuc * pr_nuc) + (p_ccs * pr_ccs)
+                
+                # Monthly Weighted Average
+                # Resample Sums first
+                df_ppa = pd.DataFrame({
+                    'Cost': total_cost_hourly,
+                    'Gen': total_gen_hourly
+                }, index=pd.date_range('2024-01-01', periods=8760, freq='h'))
+                
+                df_ppa_monthly = df_ppa.resample('ME').sum()
+                
+                # Avoid div by zero
+                monthly_blended_ppa = np.divide(
+                    df_ppa_monthly['Cost'].values, 
+                    df_ppa_monthly['Gen'].values, 
+                    out=np.zeros_like(df_ppa_monthly['Cost'].values), 
+                    where=df_ppa_monthly['Gen'].values!=0
+                )
+                
+                # Add Line Trace
+                # Only show if there is generation
+                if df_ppa_monthly['Gen'].sum() > 0:
+                    fig_preview.add_trace(go.Scatter(
+                        x=monthly_avg.index.strftime('%b'),
+                        y=monthly_blended_ppa,
+                        name="Blended PPA Price",
+                        mode='lines+markers',
+                        line=dict(color='#2ca02c', width=3, dash='dot'), # Green dotted
+                        text=[f"${x:.2f}" for x in monthly_blended_ppa],
+                        textposition="top center"
+                    ))
+            except Exception as e:
+                # Fallback or ignore if inputs not ready
+                print(f"Blended PPA Calc Error: {e}")
+                pass
+
+            
+            fig_preview.update_layout(title=f"Monthly Average Prices ({market_year}) vs Blended PPA")
 
         else:
             # 2. Annual Comparison
