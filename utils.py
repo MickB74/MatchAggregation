@@ -2,6 +2,7 @@
 import pandas as pd
 import numpy as np
 import streamlit as st # Fresh build trigger v2
+import os
 
 @st.cache_data
 def generate_dummy_load_profile(annual_consumption_mwh, profile_type='Flat'):
