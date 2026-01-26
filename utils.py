@@ -65,7 +65,7 @@ def generate_dummy_load_profile(annual_consumption_mwh, profile_type='Flat'):
     return pd.Series(profile, name='Load (MW)')
 
 @st.cache_data
-def generate_dummy_generation_profile(capacity_mw, resource_type='Solar', use_synthetic=False):
+def generate_dummy_generation_profile(capacity_mw, resource_type='Solar', use_synthetic=False, year=2024):
     """
     Generates a dummy hourly generation profile for a year.
     Refined for ERCOT North characteristics (approximate).
