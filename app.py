@@ -976,7 +976,7 @@ with tab_gen:
 with tab_fin:
     st.header("4. Financial Analysis")
     st.markdown("#### PPA Prices ($/MWh)")
-    st.markdown("#### PPA Prices ($/MWh)")
+
     
     # 1. Scaler First
     col_sc_1, col_sc_2 = st.columns([1, 2])
