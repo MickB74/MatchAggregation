@@ -255,7 +255,7 @@ def generate_random_scenario():
 exec_summary_container = st.container()
 
 # --- Configuration Section (Top) ---
-tab_guide, tab_load, tab_gen, tab_fin, tab_offtake, tab_scenario, tab_comp, tab_dl = st.tabs(["1. Start Here", "2. Load Setup", "3. Generation Profile", "4. Financial Analysis", "5. Battery Financials", "6. Scenario Manager", "7. Scenario Comparison", "8. Download Results"])
+tab_guide, tab_load, tab_gen, tab_fin, tab_offtake, tab_scenario, tab_comp, tab_dl = st.tabs(["1\\. Start Here", "2\\. Load Setup", "3\\. Generation Profile", "4\\. Financial Analysis", "5\\. Battery Financials", "6\\. Scenario Manager", "7\\. Scenario Comparison", "8\\. Download Results"])
     
     # --- Tab 5: Scenario Comparison ---
 with tab_comp:
