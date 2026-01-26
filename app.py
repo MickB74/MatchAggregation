@@ -27,6 +27,18 @@ from excel_reporter import generate_excel_report
 import project_matcher
 
 
+class NumpyEncoder(json.JSONEncoder):
+    """ Custom encoder for NumPy data types """
+    def default(self, obj):
+        if isinstance(obj, np.integer):
+            return int(obj)
+        elif isinstance(obj, np.floating):
+            return float(obj)
+        elif isinstance(obj, np.ndarray):
+            return obj.tolist()
+        return super(NumpyEncoder, self).default(obj)
+
+
 st.set_page_config(page_title="ERCOT North Aggregation", layout="wide")
 
 # Global Chart Settings
@@ -2550,7 +2562,7 @@ if active_scenario:
         if 'Price' in df_prices.columns:
             export_config['custom_battery_prices'] = df_prices['Price'].tolist()
             
-    json_str_full = json.dumps(export_config, indent=4)
+    json_str_full = json.dumps(export_config, indent=4, cls=NumpyEncoder)
 
     # 2. AI-Optimized Configuration
     ai_config = export_config.copy()
@@ -2560,7 +2572,7 @@ if active_scenario:
     ai_config['region'] = "ERCOT North"
     ai_config['total_load_mwh'] = total_annual_load
     
-    json_str_ai = json.dumps(ai_config, indent=4)
+    json_str_ai = json.dumps(ai_config, indent=4, cls=NumpyEncoder)
 
     # 3. PDF Report
     figures = {}
@@ -2631,14 +2643,14 @@ if 'export_config' not in locals():
         if 'Price' in df_prices.columns:
             export_config['custom_battery_prices'] = df_prices['Price'].tolist()
 
-json_str_full = json.dumps(export_config, indent=4)
+json_str_full = json.dumps(export_config, indent=4, cls=NumpyEncoder)
 
 # AI Optimized Config
 ai_config = export_config.copy()
 ai_config.pop('custom_solar_profile', None)
 ai_config.pop('custom_wind_profile', None)
 ai_config.pop('custom_battery_prices', None)
-json_str_ai = json.dumps(ai_config, indent=4)
+json_str_ai = json.dumps(ai_config, indent=4, cls=NumpyEncoder)
 
 # --- Tab 6: Scenario Manager (Global) ---
 with tab_scenario:
