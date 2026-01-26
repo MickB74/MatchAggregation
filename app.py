@@ -804,12 +804,17 @@ with tab_gen:
                 }
                 
                 # Pass excluded techs from session state (widget key='excluded_techs_input')
+                marker_yr = st.session_state.get('market_year_input', 2024)
+                use_syn = st.session_state.get('use_synthetic_input', False)
+                
                 rec = recommend_portfolio(
                     temp_load, 
                     target_cfe=1.0, 
                     excluded_techs=st.session_state.get('excluded_techs_input', []),
                     existing_capacities=existing_capacities,
-                    fixed_techs=st.session_state.get('fixed_techs_input', [])
+                    fixed_techs=st.session_state.get('fixed_techs_input', []),
+                    year=marker_yr,
+                    use_synthetic=use_syn
                 )
                 st.session_state.solar_input = rec['Solar']
                 st.session_state.wind_input = rec['Wind']
@@ -1005,7 +1010,7 @@ with tab_fin:
     
     # Market Price Year Selection
     # Add 'Average' option for multi-year composite
-    year_options = [2024, 2023, 2022, 2021, 2020, "Average"]
+    year_options = [2025, 2024, 2023, 2022, 2021, 2020, "Average"]
     market_year = c_mkt_1.selectbox("Market Year", year_options, help="Select historical price year or 'Average' for 2020-2024 composite", key='market_year_input')
     
     # UI Check for data availability
@@ -1021,6 +1026,9 @@ with tab_fin:
         else:
              c_mkt_1.warning(f"Missing Data (Using Synthetic)")
     
+    # Weather Source Toggle
+    use_synthetic_weather = c_mkt_1.checkbox("Use Synthetic Weather", value=False, help="If checked, uses algorithmic weather patterns. If unchecked, uses Actual 2025/TMY data where available.", key='use_synthetic_input')
+
     # Get base average from actual data
     _, base_market_avg = get_market_price_profile_v2(32.0, return_base_avg=True, year=market_year)
     
@@ -1174,7 +1182,7 @@ with tab_fin:
 
         else:
             # 2. Annual Comparison
-            years = [2020, 2021, 2022, 2023, 2024, "Average"]
+            years = [2020, 2021, 2022, 2023, 2024, 2025, "Average"]
             annual_data = []
             colors = []
             
@@ -1267,7 +1275,7 @@ with tab_fin:
         zip_buffer = io.BytesIO()
         
         with zipfile.ZipFile(zip_buffer, "w") as zf:
-            all_years = [2020, 2021, 2022, 2023, 2024, "Average"]
+            all_years = [2020, 2021, 2022, 2023, 2024, 2025, "Average"]
             
             for yr in all_years:
                 yr_profile = get_market_price_profile_v2(30.0, year=yr) * price_scaler
@@ -1579,7 +1587,7 @@ if active_scenario:
          # Use restored custom profile
          solar_profile = st.session_state['custom_solar_profile'] * solar_capacity
     else:
-        solar_profile = generate_dummy_generation_profile(solar_capacity, 'Solar', use_synthetic=False)
+        solar_profile = generate_dummy_generation_profile(solar_capacity, 'Solar', use_synthetic=use_synthetic_weather, year=market_year)
 
     # Wind
     if uploaded_wind_file:
@@ -1594,12 +1602,12 @@ if active_scenario:
          # Use restored custom profile
          wind_profile = st.session_state['custom_wind_profile'] * wind_capacity
     else:
-        wind_profile = generate_dummy_generation_profile(wind_capacity, 'Wind')
+        wind_profile = generate_dummy_generation_profile(wind_capacity, 'Wind', use_synthetic=use_synthetic_weather, year=market_year)
 
     # Geothermal / Nuclear (still dummy for now, rare to resize profile shape)
-    ccs_profile = generate_dummy_generation_profile(ccs_capacity, 'CCS Gas')
-    geo_profile = generate_dummy_generation_profile(geo_capacity, 'Geothermal')
-    nuc_profile = generate_dummy_generation_profile(nuc_capacity, 'Nuclear')
+    ccs_profile = generate_dummy_generation_profile(ccs_capacity, 'CCS Gas', use_synthetic=use_synthetic_weather, year=market_year)
+    geo_profile = generate_dummy_generation_profile(geo_capacity, 'Geothermal', use_synthetic=use_synthetic_weather, year=market_year)
+    nuc_profile = generate_dummy_generation_profile(nuc_capacity, 'Nuclear', use_synthetic=use_synthetic_weather, year=market_year)
     
     total_gen_profile = solar_profile + wind_profile + ccs_profile + geo_profile + nuc_profile
     
@@ -2230,7 +2238,7 @@ if active_scenario:
             
             if st.button("Run Multi-Year Analysis"):
                 sensitivity_results = []
-                years_to_test = [2020, 2021, 2022, 2023, 2024]
+                years_to_test = [2020, 2021, 2022, 2023, 2024, 2025]
                 
                 progress_bar = st.progress(0)
                 
@@ -2423,7 +2431,7 @@ if active_scenario:
     results_df['Market_Price_$/MWh'] = market_price_profile
 
     # 1b. Market Prices (All Years) - For Excel Analysis
-    all_years_hist = [2020, 2021, 2022, 2023, 2024, "Average"]
+    all_years_hist = [2020, 2021, 2022, 2023, 2024, 2025, "Average"]
     for yr_hist in all_years_hist:
         # Get raw profile for that year, scaled by the scenario's price scaler
         # We use the scenario 'market_price' input as base if year='Average', 

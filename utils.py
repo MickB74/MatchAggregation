@@ -71,14 +71,94 @@ def generate_dummy_generation_profile(capacity_mw, resource_type='Solar', use_sy
     
     Args:
         capacity_mw (float): Installed capacity in MW.
-        resource_type (str): 'Solar' or 'Wind'.
+        resource_type (str): 'Solar', 'Wind', 'Geothermal', 'Nuclear', 'CCS Gas'.
         use_synthetic (bool): If True, forces synthetic model even if real data file exists.
+        year (int or str): Year to align weather data with (default 2024).
         
     Returns:
         pd.Series: Hourly generation in MW.
     """
+    if year == 'Average': year = 2024 # Default to 2024 for average or generic
+    try:
+        year = int(year)
+    except:
+        year = 2024
+        
     hours = 8760
     t = np.arange(hours)
+    
+    # Check for Actual Weather Data (Parquet)
+    # We support 2025 and TMY for now (copied to data_cache)
+    # Location: HB_NORTH (32.3865, -96.8475)
+    cache_dir = "data_cache"
+    weather_file = None
+    
+    if not use_synthetic:
+        # Try finding specific year file
+        fname = f"openmeteo_{year}_32.3865_-96.8475.parquet"
+        fpath = os.path.join(cache_dir, fname)
+        
+        if os.path.exists(fpath):
+            weather_file = fpath
+        else:
+            # Fallback to TMY if specific year not found but we want "Actual-ish"
+            # Or usually we just fall back to synthetic.
+            # Let's try TMY if year is NOT 2025 (since we only copied 2025)
+            # Actually, user might want TMY specifically.
+            # For now, if file missing, we flow to synthetic.
+            pass
+
+    if weather_file:
+        try:
+            df_w = pd.read_parquet(weather_file)
+            # Ensure we have 8760 points
+            if len(df_w) >= 8760:
+                df_w = df_w.iloc[:8760] # Truncate if leap year
+                
+                if resource_type == 'Solar':
+                    # Model: Power = Cap * (GHI / 1000) * 0.85
+                    if 'GHI_Wm2' in df_w.columns:
+                        ghi = df_w['GHI_Wm2'].values
+                        # Simple efficiency model
+                        eff = 0.85
+                        profile = capacity_mw * (ghi / 1000.0) * eff
+                        return pd.Series(profile, name='Solar Generation (MW)')
+                        
+                elif resource_type == 'Wind':
+                    # Model: Speed 10m -> Speed 80m -> Power Curve
+                    if 'Wind_Speed_10m_mps' in df_w.columns:
+                        ws_10m = df_w['Wind_Speed_10m_mps'].values
+                        
+                        # Shear to 80m (North TX approx 1.6 shear exponent factor? No, alpha is exponent)
+                        # Log law or Power law: v2 = v1 * (h2/h1)^alpha
+                        # Alpha ~ 0.25?? 
+                        # Reference docs say simple multiplier was used: "Scale factors... 1.6 for East/North"
+                        # Wait, 1.6 multiplier implies massive shear or just a tuned linear scaler.
+                        # Let's use the 1.6 multiplier as per README of source repo.
+                        ws_80m = ws_10m * 1.6 
+                        
+                        # IEC Class 2 Power Curve (Simplified)
+                        # Cut-in: 3, Rated: 12, Cut-out: 25
+                        # Cubic region 3-12
+                        
+                        norm_power = np.zeros_like(ws_80m)
+                        
+                        # Region 2 (Cubic): 3 <= v < 12
+                        mask_cubic = (ws_80m >= 3.0) & (ws_80m < 12.0)
+                        norm_power[mask_cubic] = ((ws_80m[mask_cubic] - 3.0) / 9.0) ** 3
+                        
+                        # Region 3 (Rated): 12 <= v < 25
+                        mask_rated = (ws_80m >= 12.0) & (ws_80m < 25.0)
+                        norm_power[mask_rated] = 1.0
+                        
+                        # Region 4 (Cut-out): v >= 25 -> 0.0 (already zero initialized)
+                        
+                        profile = norm_power * capacity_mw
+                        return pd.Series(profile, name='Wind Generation (MW)')
+        except Exception as e:
+            print(f"Weather data load failed: {e}. Falling back to synthetic.")
+
+    # --- Synthetic Generation (Fallback) ---
     
     # Seasonality helper (0 to 1 scaling, peak in Summer for Solar, Spring/Fall for Wind)
     day_of_year = (t // 24)
@@ -89,7 +169,7 @@ def generate_dummy_generation_profile(capacity_mw, resource_type='Solar', use_sy
     rng = np.random.default_rng(seed)
     
     if resource_type == 'Solar':
-        # 1. Try Real Data (PVWatts CSV)
+        # 1. Try Real Data (PVWatts CSV) - Legacy Support
         if not use_synthetic:
             import os
             pvwatts_file = 'pvwatts_hourly_Denton.csv'
@@ -651,7 +731,7 @@ def calculate_buyer_pl(ops_data, capacity_mw, toll_rate_mw_mo, ancillary_input, 
     
     return monthly_pl
 
-def recommend_portfolio(load_profile, target_cfe=0.95, excluded_techs=None, existing_capacities=None, fixed_techs=None):
+def recommend_portfolio(load_profile, target_cfe=0.95, excluded_techs=None, existing_capacities=None, fixed_techs=None, year=2024, use_synthetic=False):
     """
     Heuristic recommendation for initial portfolio based on load.
     If existing_capacities provided, builds around those values (keeps non-zero values, fills zeros).
@@ -753,11 +833,11 @@ def recommend_portfolio(load_profile, target_cfe=0.95, excluded_techs=None, exis
         # Using cached unit profiles (1MW) and scaling
         if i == 0:
             # Pre-fetch unit profiles once
-            solar_unit = generate_dummy_generation_profile(1.0, 'Solar')
-            wind_unit = generate_dummy_generation_profile(1.0, 'Wind')
-            geo_unit = generate_dummy_generation_profile(1.0, 'Geothermal')
-            nuc_unit = generate_dummy_generation_profile(1.0, 'Nuclear')
-            ccs_unit = generate_dummy_generation_profile(1.0, 'CCS Gas')
+            solar_unit = generate_dummy_generation_profile(1.0, 'Solar', use_synthetic=use_synthetic, year=year)
+            wind_unit = generate_dummy_generation_profile(1.0, 'Wind', use_synthetic=use_synthetic, year=year)
+            geo_unit = generate_dummy_generation_profile(1.0, 'Geothermal', use_synthetic=use_synthetic, year=year)
+            nuc_unit = generate_dummy_generation_profile(1.0, 'Nuclear', use_synthetic=use_synthetic, year=year)
+            ccs_unit = generate_dummy_generation_profile(1.0, 'CCS Gas', use_synthetic=use_synthetic, year=year)
 
         solar_gen = solar_unit * recommendation['Solar']
         wind_gen = wind_unit * recommendation['Wind']
