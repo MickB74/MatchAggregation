@@ -172,7 +172,7 @@ def generate_dummy_generation_profile(capacity_mw, resource_type='Solar', use_sy
     if resource_type == 'Solar':
         # 1. Try Real Data (PVWatts CSV) - Legacy Support
         if not use_synthetic:
-            import os
+            # import os # Loop removed
             pvwatts_file = 'pvwatts_hourly_Denton.csv'
             
             if os.path.exists(pvwatts_file):
