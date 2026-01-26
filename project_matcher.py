@@ -3,6 +3,7 @@ import pandas as pd
 import numpy as np
 import os
 import random
+import json
 
 def load_projects(csv_path='projects_in_queue_all_generators.csv'):
     """
@@ -33,6 +34,52 @@ def load_projects(csv_path='projects_in_queue_all_generators.csv'):
         print(f"Error loading projects: {e}")
         return pd.DataFrame()
 
+def load_asset_registry(json_path='ercot_assets.json'):
+    """Load the master asset registry with Lat/Lon data."""
+    if not os.path.exists(json_path):
+        return {}
+    try:
+        with open(json_path, 'r') as f:
+            return json.load(f)
+    except:
+        return {}
+
+def infer_hub(lat, lon):
+    """Infer ERCOT Hub based on Latitude/Longitude."""
+    if not lat or not lon: return "North"
+    if lon < -101: return "West"
+    if lat < 30: return "South"
+    if lon > -96: return "Houston"
+    return "North"
+
+def get_location_metadata(project_name, county, registry):
+    """
+    Enrich project with Location data (Lat, Lon, Hub) using the registry.
+    Priority:
+    1. Exact Project Name match in Registry
+    2. County match in Registry (Average Lat/Lon of projects in that county)
+    """
+    # 1. Exact Name Match
+    if project_name in registry:
+        asset = registry[project_name]
+        return asset.get('lat'), asset.get('lon'), asset.get('hub')
+    
+    # 2. Approximate Name Match
+    # (Simple containment check)
+    for key, asset in registry.items():
+        if project_name.lower() in key.lower() or key.lower() in project_name.lower():
+             return asset.get('lat'), asset.get('lon'), asset.get('hub')
+
+    # 3. County Location (Fallback)
+    # Find any asset in the same county to get "Representative" coordinates
+    if county:
+        county_clean = str(county).replace(" County", "").strip().lower()
+        for asset in registry.values():
+            if str(asset.get('county')).lower() == county_clean:
+                # Found a project in this county, use its location as proxy
+                return asset.get('lat'), asset.get('lon'), infer_hub(asset.get('lat'), asset.get('lon'))
+    
+    return None, None, "North" # Default
 
 def filter_projects_by_technology(df, tech_type):
     """
@@ -155,6 +202,9 @@ def match_projects_to_recommendation(recommendation, max_projects_per_tech=5):
     # Load projects
     df = load_projects()
     
+    # Load Registry for enrichment
+    registry = load_asset_registry()
+    
     if df.empty:
         return {}
     
@@ -197,13 +247,22 @@ def match_projects_to_recommendation(recommendation, max_projects_per_tech=5):
             # Extract relevant fields
             project_list = []
             for _, row in top_projects.iterrows():
+                p_name = row.get('Project Name', 'Unknown')
+                p_county = row.get('County', 'Unknown')
+                
+                # Enrich with Lat/Lon/Hub
+                lat, lon, hub = get_location_metadata(p_name, p_county, registry)
+                
                 project_info = {
-                    'name': row.get('Project Name', 'Unknown'),
+                    'name': p_name,
                     'capacity_mw': row.get('Capacity (MW)', 0),
-                    'county': row.get('County', 'Unknown'),
+                    'county': p_county,
                     'status': row.get('GIM Study Phase', 'Unknown'),
                     'projected_cod': row.get('Projected COD', 'Unknown'),
-                    'owner': row.get('Interconnecting Entity', 'Unknown')
+                    'owner': row.get('Interconnecting Entity', 'Unknown'),
+                    'lat': lat,
+                    'lon': lon,
+                    'hub': hub
                 }
                 project_list.append(project_info)
             

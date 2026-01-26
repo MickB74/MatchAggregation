@@ -201,7 +201,7 @@ def load_scenario():
 
 # MUST be defined BEFORE the widgets that use these session state values are instantiated.
 with st.sidebar:
-    st.markdown("### Load Scenario")
+    st.markdown("### 0. Load Scenario")
     st.button("⚡ Instant Demo (90% CFE)", on_click=load_demo_scenario, help="Load a sample Hyperscale Data Center scenario", type="primary")
 
 
@@ -255,11 +255,11 @@ def generate_random_scenario():
 exec_summary_container = st.container()
 
 # --- Configuration Section (Top) ---
-tab_guide, tab_load, tab_gen, tab_fin, tab_offtake, tab_scenario, tab_comp, tab_dl = st.tabs(["User Guide", "1. Load Setup", "2. Generation Portfolio", "3. Financial Analysis", "4. Battery Financials", "5. Scenario Manager", "6. Scenario Comparison", "7. Download Results"])
+tab_guide, tab_load, tab_gen, tab_fin, tab_offtake, tab_scenario, tab_comp, tab_dl = st.tabs(["0. Start Here", "1. Load Setup", "2. Generation Portfolio", "3. Financial Analysis", "4. Battery Financials", "5. Scenario Manager", "6. Scenario Comparison", "7. Download Results"])
     
     # --- Tab 5: Scenario Comparison ---
 with tab_comp:
-    st.header("⚖️ Scenario Comparison")
+    st.header("6. ⚖️ Scenario Comparison")
     st.caption("Compare captured scenarios side-by-side to evaluate different strategies.")
     
     if 'comparison_scenarios' not in st.session_state or not st.session_state.comparison_scenarios:
@@ -432,6 +432,7 @@ with tab_comp:
 
 # --- Tab 1: User Guide (Moved to Top) ---
 with tab_guide:
+    st.header("0. Start Here")
     st.markdown("### 🎲 Explore")
     st.warning("⚠️ **Note**: Generating a random scenario will overwrite your current configuration.")
     if st.button("⚡ Generate Random Scenario (90% CFE)", type="primary"):
@@ -564,6 +565,7 @@ with tab_guide:
 
 # --- Tab 2: Load Setup ---
 with tab_load:
+    st.header("1. Load Setup")
     col_load_1, col_load_2 = st.columns([1, 2])
     
     with col_load_1:
@@ -768,6 +770,7 @@ with tab_load:
         st.info("Add participants above to enable export.")
 # --- Tab 2: Generation Portfolio ---
 with tab_gen:
+    st.header("2. Generation Portfolio")
     # Define callback for clearing portfolio
     def clear_portfolio():
         st.session_state.solar_input = 0.0
@@ -934,7 +937,9 @@ with tab_gen:
                             proj_data.append({
                                 'Project Name': proj['name'],
                                 'Capacity (MW)': f"{proj['capacity_mw']:.1f}",
+                                'Hub': proj.get('hub', 'North'),
                                 'County': proj['county'],
+                                'Coordinates': f"{proj.get('lat', 0):.3f}, {proj.get('lon', 0):.3f}" if proj.get('lat') else "-",
                                 'Status': proj['status'],
                                 'Proj. COD': str(proj['projected_cod'])[:10] if proj['projected_cod'] != 'Unknown' else 'TBD'
                             })
@@ -957,6 +962,7 @@ with tab_gen:
 
 # --- Tab 4: Financials ---
 with tab_fin:
+    st.header("3. Financial Analysis")
     st.markdown("#### PPA Prices ($/MWh)")
     st.markdown("#### PPA Prices ($/MWh)")
     
@@ -1290,6 +1296,7 @@ with tab_fin:
 
 # --- Tab 4: Battery Financials (CVTA) ---
 with tab_offtake:
+    st.header("4. Battery Financials")
     st.markdown("#### 🔋 Corporate Virtual Tolling Agreement (CVTA)")
     st.caption("Financial Battery PPA | Proxy Battery Model")
     
@@ -2627,7 +2634,7 @@ json_str_ai = json.dumps(ai_config, indent=4)
 
 # --- Tab 6: Scenario Manager (Global) ---
 with tab_scenario:
-    st.header("Scenario Management")
+    st.header("5. Scenario Management")
     st.caption("Save your current configuration to a JSON file or load a previously saved scenario.")
 
     st.subheader("📤 Save Scenario")
@@ -2698,7 +2705,7 @@ with tab_scenario:
 
 # --- Tab 7: Download Results Buttons ---
 with tab_dl:
-    st.header("💾 Download Results")
+    st.header("7. 💾 Download Results")
     st.markdown("Export your configuration and analysis reports.")
     
     is_results_ready = active_scenario # Use the flag we defined earlier
