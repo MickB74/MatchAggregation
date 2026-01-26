@@ -2067,6 +2067,8 @@ if active_scenario:
             x=dates_x,
             y=times_y,
             colorscale='RdYlGn', # Red to Green
+            zmin=0,
+            zmax=1,
             hovertemplate='Date: %{x|%b %d}<br>Time: %{y}<br>Matched: %{z:.1%}<extra></extra>'
         ))
         
