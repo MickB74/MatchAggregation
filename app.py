@@ -445,12 +445,7 @@ with tab_comp:
 # --- Tab 1: User Guide (Moved to Top) ---
 with tab_guide:
     st.header("1. Start Here")
-    st.markdown("### 🎲 Explore")
-    st.warning("⚠️ **Note**: Generating a random scenario will overwrite your current configuration.")
-    if st.button("⚡ Generate Random Scenario (90% CFE)", type="primary"):
-        generate_random_scenario()
-    st.caption("Click to instantly create a new load & portfolio configuration.")
-    st.divider()
+
 
     st.markdown("## 📘 User Guide & Methodology")
     
