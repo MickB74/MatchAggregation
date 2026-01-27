@@ -2319,14 +2319,20 @@ if active_scenario:
                     
                     # Solar
                     if solar_capacity > 0:
-                        rev = np.sum(solar_profile.values * hist_price_series.values)
-                        cost = np.sum(solar_profile.values * solar_price_eff)
+                        # Regenerate profile for this specific historical year
+                        sens_solar_profile = generate_dummy_generation_profile(solar_capacity, 'Solar', use_synthetic=False, year=year)
+                        
+                        rev = np.sum(sens_solar_profile.values * hist_price_series.values)
+                        cost = np.sum(sens_solar_profile.values * solar_price_eff)
                         net_solar = (rev - cost)
                         
                     # Wind
                     if wind_capacity > 0:
-                        rev = np.sum(wind_profile.values * hist_price_series.values)
-                        cost = np.sum(wind_profile.values * wind_price_eff)
+                        # Regenerate profile for this specific historical year
+                        sens_wind_profile = generate_dummy_generation_profile(wind_capacity, 'Wind', use_synthetic=False, year=year)
+                        
+                        rev = np.sum(sens_wind_profile.values * hist_price_series.values)
+                        cost = np.sum(sens_wind_profile.values * wind_price_eff)
                         net_wind = (rev - cost)
                         
                     # Firm (CCS/Geo/Nuc)
