@@ -267,12 +267,14 @@ def generate_random_scenario():
 exec_summary_container = st.container()
 
 # --- Configuration Section (Top) ---
-tab_guide, tab_load, tab_gen, tab_fin, tab_offtake, tab_scenario, tab_comp, tab_dl = st.tabs(["1\\. Start Here", "2\\. Load Setup", "3\\. Generation Profile", "4\\. Financial Analysis", "5\\. Battery Financials", "6\\. Scenario Manager", "7\\. Scenario Comparison", "8\\. Download Results"])
+tab_guide, tab_load, tab_gen, tab_fin, tab_offtake, tab_scenario, tab_dl = st.tabs(["1\\. Start Here", "2\\. Load Setup", "3\\. Generation Profile", "4\\. Financial Analysis", "5\\. Battery Financials", "6\\. Scenario Manager", "7\\. Download Results"])
+# tab_comp removed
+
     
-    # --- Tab 5: Scenario Comparison ---
-with tab_comp:
-    st.header("7. Scenario Comparison")
-    st.caption("Compare captured scenarios side-by-side to evaluate different strategies.")
+    # --- Tab 5: Scenario Comparison (HIDDEN) ---
+    '''
+# with tab_comp:
+#     st.header("7. Scenario Comparison")
     
     if 'comparison_scenarios' not in st.session_state or not st.session_state.comparison_scenarios:
         st.info("No scenarios captured yet. Go to '6. Scenario Manager' to capture your current configuration.")
@@ -440,6 +442,7 @@ with tab_comp:
         if st.button("🗑️ Clear Comparison Scenarios"):
             st.session_state.comparison_scenarios = {}
             st.rerun()
+    '''
 
 
 # --- Tab 1: User Guide (Moved to Top) ---
