@@ -1060,14 +1060,14 @@ with tab_fin:
     # Market Price Year Selection
     # Add 'Average' option for multi-year composite
     year_options = [2025, 2024, 2023, 2022, 2021, 2020, "Average"]
-    market_year = c_mkt_1.selectbox("Market Year", year_options, help="Select historical price year or 'Average' for 2020-2024 composite", key='market_year_input')
+    market_year = c_mkt_1.selectbox("Market Year", year_options, help="Select historical price year or 'Average' for 2020-2025 composite", key='market_year_input')
     
     # UI Check for data availability
     import os
     current_dir = os.path.dirname(__file__)
     
     if market_year == "Average":
-         c_mkt_1.success(f"Composite: 2020-2024 ✅")
+         c_mkt_1.success(f"Composite: 2020-2025 ✅")
     else:
         file_path = os.path.join(current_dir, f'ercot_rtm_{market_year}.parquet')
         if os.path.exists(file_path):
@@ -1346,7 +1346,7 @@ with tab_fin:
             data=zip_buffer.getvalue(),
             file_name=f"ercot_prices_all_years_scaled_{price_scaler}x.zip",
             mime="application/zip",
-            help=f"Includes 2020-2024 and Average composite (Scaler: {price_scaler}x)",
+            help=f"Includes 2020-2025 and Average composite (Scaler: {price_scaler}x)",
             use_container_width=True
         )
 
@@ -2284,7 +2284,7 @@ if active_scenario:
 
         # --- Historical Sensitivity Analysis ---
         st.markdown("---")
-        with st.expander("📊 Historical Sensitivity (2020-2024)", expanded=False):
+        with st.expander("📊 Historical Sensitivity (2020-2025)", expanded=False):
             st.markdown("Run your current portfolio settings against historical ERCOT North Hub prices.")
             
             if st.button("Run Multi-Year Analysis"):
@@ -2400,7 +2400,7 @@ if active_scenario:
                 ))
                 
                 fig_sens.update_layout(
-                    title="Portfolio Financial Performance by Source (2020-2024)",
+                    title="Portfolio Financial Performance by Source (2020-2025)",
                     yaxis_title="Net Settlement ($)",
                     barmode='group', # Grouped bars next to each other
                     template=chart_template,
