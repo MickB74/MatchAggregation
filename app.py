@@ -1026,10 +1026,10 @@ with tab_fin:
     
     c_fin_1, c_fin_2, c_fin_3 = st.columns(3)
     with c_fin_1:
-        solar_price = st.number_input("Solar PPA Price", min_value=0.0, value=48.5, step=0.5, key='solar_price_input', help="2025 Market Est: $45.00 - $52.00")
+        solar_price = st.number_input("Solar PPA Price", min_value=0.0, value=50.0, step=0.5, key='solar_price_input', help="2025 Market Est: $45.00 - $52.00")
         st.markdown(f"**Scaled PPA Price: ${solar_price * ppa_price_scaler:.2f}**")
         
-        wind_price = st.number_input("Wind PPA Price", min_value=0.0, value=42.5, step=0.5, key='wind_price_input', help="2025 Market Est: $40.00 - $45.00")
+        wind_price = st.number_input("Wind PPA Price", min_value=0.0, value=50.0, step=0.5, key='wind_price_input', help="2025 Market Est: $40.00 - $45.00")
         st.markdown(f"**Scaled PPA Price: ${wind_price * ppa_price_scaler:.2f}**")
         
     with c_fin_2:
@@ -2132,7 +2132,7 @@ if active_scenario:
         col9, col10, col11, col12, col13 = st.columns(5)
         col9.metric("Annual PPA Settlement Value", f"${fin_metrics['settlement_value']:,.0f}", help="Annual Revenue (or Cost) from PPA Settlement: (Market - Strike) * Matched Vol")
         col10.metric("Weighted Avg PPA Price", f"${fin_metrics['weighted_ppa_price']:.2f}/MWh", help="Average cost of matched energy based on technology mix")
-        col11.metric("Capture Value (2024 Base)", f"${fin_metrics['weighted_market_price']:.2f}/MWh", help="Average market value of matched energy (2024 ERCOT prices × scaler)")
+        col11.metric(f"Capture Value ({market_year} Base)", f"${fin_metrics['weighted_market_price']:.2f}/MWh", help=f"Average market value of matched energy ({market_year} ERCOT prices × scaler)")
         col12.metric("REC Value", f"${fin_metrics['rec_cost']:,.0f}", help="Value of RECs (Matched)")
         
         # Calculate Value of Excess RECs
