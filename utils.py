@@ -80,7 +80,11 @@ def generate_dummy_generation_profile(capacity_mw, resource_type='Solar', use_sy
     Returns:
         pd.Series: Hourly generation in MW.
     """
-    if year == 'Average': year = 2024
+    force_avg_tmy = False
+    if year == 'Average': 
+        year = 2024
+        force_avg_tmy = True
+        
     try:
         year_int = int(year)
     except:
@@ -111,7 +115,7 @@ def generate_dummy_generation_profile(capacity_mw, resource_type='Solar', use_sy
                 capacity_mw=capacity_mw,
                 lat=lat,
                 lon=lon,
-                force_tmy=use_synthetic, # Checkbox labeled "Force TMY"
+                force_tmy=use_synthetic or force_avg_tmy, # Checkbox labeled "Force TMY" OR "Average" year selected
                 turbine_type=turbine
             )
             
