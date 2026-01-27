@@ -272,7 +272,7 @@ tab_guide, tab_load, tab_gen, tab_fin, tab_offtake, tab_scenario, tab_dl = st.ta
 
     
     # --- Tab 5: Scenario Comparison (HIDDEN) ---
-    if False:
+if False:
 
 # with tab_comp:
 #     st.header("7. Scenario Comparison")
