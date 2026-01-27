@@ -2810,23 +2810,3 @@ with tab_dl:
             help="Includes: Results CSV, PDF Report, Full Config JSON, and AI Analysis JSON.",
             disabled=(len(zip_val) == 0)
         )
-        
-    with col_d2:
-         st.subheader("🔧 Configuration (JSON)")
-        
-         st.download_button(
-            label="📥 Download JSON Configuration",
-            data=json_str_full,
-            file_name="scenario_config.json",
-            mime="application/json",
-            use_container_width=True
-         )
-        
-         st.download_button(
-            label="🤖 Download AI Analysis JSON",
-            data=json_str_ai,
-            file_name="scenario_ai_config.json",
-            mime="application/json",
-            use_container_width=True,
-            help="Simplified JSON optimized for AI context windows."
-         )
