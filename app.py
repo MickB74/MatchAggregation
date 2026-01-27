@@ -451,7 +451,7 @@ with tab_guide:
     
     st.markdown("### 🚀 How to Use This Tool")
     st.markdown("""
-    **Step 1: Define Load Profile (Tab 1)**
+    **Step 1: Define Load Profile (Tab 2)**
 
     Choose how to build your hourly load (8760 hours):
     
@@ -467,7 +467,7 @@ with tab_guide:
 
     **Output:** A consolidated hourly load profile used across all subsequent analyses.
 
-    **Step 2: Design Generation Portfolio (Tab 2)**
+    **Step 2: Design Generation Portfolio (Tab 3)**
 
     Configure clean energy supply:
 
@@ -484,7 +484,7 @@ with tab_guide:
 
     **Output:** Hourly clean generation and storage dispatch aligned to your load profile.
 
-    **Step 3: Analyze Financials (Tab 3)**
+    **Step 3: Analyze Financials (Tab 4)**
 
     **Inputs**
     *   **PPA Prices:** Enter fixed contract prices ($/MWh) for each generation technology.
@@ -501,7 +501,7 @@ with tab_guide:
     *   JSON configuration files
     *   Generate a professional PDF report for internal or external use.
 
-    **Step 4: Battery Financials (Tab 4)**
+    **Step 4: Battery Financials (Tab 5)**
 
     **CVTA Model (Corporate Virtual Tolling Agreement)**
     
