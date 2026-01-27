@@ -68,85 +68,60 @@ def generate_dummy_load_profile(annual_consumption_mwh, profile_type='Flat'):
 def generate_dummy_generation_profile(capacity_mw, resource_type='Solar', use_synthetic=False, year=2024):
     """
     Generates a dummy hourly generation profile for a year.
-    Refined for ERCOT North characteristics (approximate).
+    Delegates to advanced_weather module for Real/TMY data.
+    Falls back to synthetic/algorithmic profile if generation fails.
     
     Args:
         capacity_mw (float): Installed capacity in MW.
         resource_type (str): 'Solar', 'Wind', 'Geothermal', 'Nuclear', 'CCS Gas'.
-        use_synthetic (bool): If True, forces synthetic model even if real data file exists.
-        year (int or str): Year to align weather data with (default 2024).
+        use_synthetic (bool): If True, forces TMY/Synthetic data (passed as force_tmy).
+        year (int or str): Market Year (e.g. 2024, 2020).
         
     Returns:
         pd.Series: Hourly generation in MW.
     """
-    if year == 'Average': year = 2024 # Default to 2024 for average or generic
+    if year == 'Average': year = 2024
     try:
-        year = int(year)
+        year_int = int(year)
     except:
-        year = 2024
+        year_int = 2024
         
-    # --- Advanced Weather Module Integration ---
+    # --- 1. Try Advanced Weather (Real/TMY) ---
     try:
         import advanced_weather
         
-        # Map internal resource type to advanced_weather tech type
         tech_map = {'Solar': 'Solar', 'Wind': 'Wind'}
         
         if resource_type in tech_map:
-            # Determine Location
-            # Solar: Graham, TX (33.1070, -98.5895)
-            # Wind: Wichita Falls, TX (33.9137, -98.4934)
-            # Default: Denton, TX (32.3865, -96.8475)
+            # Determine Location (North TX optimized)
             if resource_type == 'Solar':
-                lat, lon = 33.1070, -98.5895
+                lat, lon = 33.1070, -98.5895 # Graham (Solar-rich)
+                turbine = 'GENERIC'
             elif resource_type == 'Wind':
-                lat, lon = 33.9137, -98.4934
+                lat, lon = 33.9137, -98.4934 # Wichita Falls (Wind-rich)
+                turbine = 'GE_2X' # Modern turbine curve
             else:
                 lat, lon = 32.3865, -96.8475
+                turbine = 'GENERIC'
                 
-            # Call Advanced Module
-            # This handles:
-            # 1. 2005-2023 Actuals (PVGIS)
-            # 2. 2024+ Actuals (OpenMeteo)
-            # 3. Falls back to TMY if needed (or if forced)
-            # 4. Supports Power Curves (Vestas/GE/Nordex)
-            
-            # Use specific turbine for Wind if desired (e.g. V163 or GE_2X) 
-            # For now default to 'GENERIC' (IEC Class 2) or upgraded 'GE_2X'
-            turbine = 'GE_2X' if resource_type == 'Wind' else 'GENERIC'
-            
+            # Fetch Profile
             profile_series = advanced_weather.get_profile_for_year(
-                year=year,
+                year=year_int,
                 tech=tech_map[resource_type],
                 capacity_mw=capacity_mw,
                 lat=lat,
                 lon=lon,
-                force_tmy=use_synthetic, # Pass the checkbox value here
+                force_tmy=use_synthetic, # Checkbox labeled "Force TMY"
                 turbine_type=turbine
             )
             
             if not profile_series.empty:
-                # Convert Index to implied hourly array if needed, but app expects 8760/8784 array?
-                # Actually, app mostly uses arrays. utils.py returns pd.Series.
-                # Just return the values!
-                # Wait, the app might expect strictly 8760 length for simple array ops?
-                # advanced_weather returns US/Central aligned 15-min series (35040 points).
-                # The old function returned HOURLY 8760 points.
-                # WE MUST DOWN-SAMPLE if the app expects hourly 8760.
-                
-                # Check app usage: 
-                # generate_dummy_generation_profile returns pd.Series(profile, name=...) 
-                # where profile was np.zeros(8760).
-                
-                # We need to return an 8760-length Series to match existing interface.
-                # advanced_weather does high-res 15-min.
-                
-                # Resample back to Hourly
+                # Resample to Hourly (8760/8784) for app compatibility
                 profile_hourly = profile_series.resample('h').mean()
                 
-                # Ensure 8760 (truncate leap year 8784 if needed for compatibility, or keep)
-                # The old code used hours=8760 hardcoded.
-                # Let's standardize to 8760 to avoid breaking downstream shape assumptions.
+                # Standardize length to 8760 (truncate/pad) if strictly needed
+                # App visuals generally handle leap years, but simple arrays might expect 8760.
+                # Let's standardize to 8760 to match legacy 'hours=8760' assumption.
                 values = profile_hourly.values
                 if len(values) > 8760:
                      values = values[:8760]
@@ -154,138 +129,68 @@ def generate_dummy_generation_profile(capacity_mw, resource_type='Solar', use_sy
                      values = np.pad(values, (0, 8760 - len(values)), 'edge')
                      
                 return pd.Series(values, name=f'{resource_type} Generation (MW)')
-
+                
     except ImportError:
-        print("Warning: advanced_weather module not found. Using fallback.")
+        print("Advanced weather module missing. Using synthetic fallback.")
     except Exception as e:
-        print(f"Error in advanced weather generation: {e}. Falling back.")
+        print(f"Error in advanced generation: {e}. Using synthetic fallback.")
 
-    # FALLBACK (Old Logic - Synthetic)
-    hours = 8760
-    t = np.arange(hours)
+
+    # --- 2. Synthetic Fallback (Old Logic) ---
+    # Used if resource is non-weather (Nuclear/Geo) OR if advanced fetch failed.
     
-    # ... (Rest of old synthetic logic below if needed) ...
-    # But for now, we just proceed to synthetic if the above block fails or returns empty.
-                            
-                        # Normalize (100 kW system)
-                        system_size_watts = 100_000.0 
-                        unit_profile = raw_watts / system_size_watts
-                        
-                        return pd.Series(unit_profile * capacity_mw, name='Solar Generation (MW)')
-                except Exception as e:
-                    print(f"Failed to load PVWatts file: {e}")
-        
-        # 2. Synthetic Fallback (runs if use_synthetic=True OR file missing/failed)
-        profile = np.zeros(hours)
-        
-        for h in range(hours):
-            hour_of_day = h % 24
-            
-            # Simple day/night check (broadened slightly for summer)
-            is_daytime = 6 <= hour_of_day <= 19
-            if is_daytime:
-                # Center peak at 13 (1 PM)
-                # (hour - 6) / 14 * pi -> maps 6 to 0, 13 to pi/2, 20 to pi
-                # normalized sine wave
-                day_shape = np.sin(np.pi * (hour_of_day - 6) / 13)
-                if day_shape < 0: day_shape = 0
-                
-                # Seasonal Factor: Bassel on cosine of day of year
-                # Peak at day 172 (June 21), Min at day 355/0
-                current_day = day_of_year[h]
-                seasonal_factor = 0.7 + 0.3 * np.cos(2 * np.pi * (current_day - 172) / 365)
-                # Range: 0.4 to 1.0 multiplier? Actually solar variance is intensity + day length.
-                # Scaler: 0.7 (winter) to 1.1 (summer peak intensity)
-                
-                # Cloud Noise
-                noise = rng.uniform(0.7, 1.0)
-                
-                profile[h] = day_shape * seasonal_factor * noise * capacity_mw
-            else:
-                profile[h] = 0.0
-        
-        return pd.Series(profile, name='Solar Generation (MW)')
-        
-        # Fallback to Dummy Solar Profile
-        # 1. Diurnal: Peak around 1 PM (hour 13). Sinusoidal.
-        # 2. Seasonal: Peak in Summer (approx day 172). Lowest in Winter.
-        
-        profile = np.zeros(hours)
-        
-        for h in range(hours):
-            hour_of_day = h % 24
-            
-            # Simple day/night check (broadened slightly for summer)
-            is_daytime = 6 <= hour_of_day <= 19
-            if is_daytime:
-                # Center peak at 13 (1 PM)
-                # (hour - 6) / 14 * pi -> maps 6 to 0, 13 to pi/2, 20 to pi
-                # normalized sine wave
-                day_shape = np.sin(np.pi * (hour_of_day - 6) / 13)
-                if day_shape < 0: day_shape = 0
-                
-                # Seasonal Factor: Bassel on cosine of day of year
-                # Peak at day 172 (June 21), Min at day 355/0
-                current_day = day_of_year[h]
-                seasonal_factor = 0.7 + 0.3 * np.cos(2 * np.pi * (current_day - 172) / 365)
-                # Range: 0.4 to 1.0 multiplier? Actually solar variance is intensity + day length.
-                # Scaler: 0.7 (winter) to 1.1 (summer peak intensity)
-                
-                # Cloud Noise
-                noise = rng.uniform(0.7, 1.0)
-                
-                profile[h] = day_shape * seasonal_factor * noise * capacity_mw
-            else:
-                profile[h] = 0.0
-        
-    elif resource_type == 'Wind':
-        # Wind Profile (ERCOT North)
-        # 1. Diurnal: "Inverse Solar" - higher at night/evening, dip midday.
-        # 2. Seasonal: High in Spring (March-May) and Fall (Oct). Lower in Summer (midday).
-        # 3. Volatility: High.
-        
-        # Diurnal Component (Peak ~2 AM, Trough ~2 PM)
-        # cos curve shifted
-        hour_arg = 2 * np.pi * (t % 24 - 2) / 24 
-        diurnal = 0.6 + 0.25 * np.cos(hour_arg) # Oscillates 0.35 to 0.85
-        
-        # Seasonal Component
-        # Peak Spring (Day 100) and Fall (Day 300). Dip Summer (Day 200) and Winter (Day 0)
-        # Superposition of waves
-        seasonal = 0.7 + 0.3 * np.sin(2 * np.pi * (day_of_year - 50) / 365 * 2) 
-        # Peaks roughly twice a year
-        
-        # Stochastic / Volatility
-        # Weibull distribution-ish or just red noise
-        # Let's use random noise correlated with time
-        noise = rng.normal(0, 0.15, hours)
-        
-        # Combine
-        raw_profile = diurnal * seasonal + noise
-        
-        # Clip and Scale
-        # Max CF typically ~50-60% for onshore
-        profile = np.clip(raw_profile, 0, 1.0) * capacity_mw
-        
-    elif resource_type == 'Geothermal':
-        # Baseload: Flat with very high availability (e.g. 95% capacity factor)
-        # Small random fluctuations
+    hours = 8760
+    # Deterministic seed
+    seed_map = {'Solar': 500, 'Wind': 600, 'Geothermal': 700, 'Nuclear': 800, 'CCS Gas': 900}
+    seed = seed_map.get(resource_type, 999)
+    rng = np.random.default_rng(seed)
+    
+    if resource_type == 'Geothermal':
+        # Baseload: Flat ~95%
         profile = np.full(hours, capacity_mw * 0.95)
         noise = rng.normal(0, 0.01 * capacity_mw, hours)
-        profile = profile + noise
-        profile = np.clip(profile, 0, capacity_mw)
+        profile = np.clip(profile + noise, 0, capacity_mw)
 
     elif resource_type == 'CCS Gas':
-        # Baseload/Firm: Extremely flat, dispatchable, near 100%
+        # Baseload: Flat 100%
         profile = np.full(hours, capacity_mw)
-        # Verify extremely small variance
         noise = rng.normal(0, 0.005 * capacity_mw, hours)
-        profile = profile + noise
-        profile = np.clip(profile, 0, capacity_mw)
+        profile = np.clip(profile + noise, 0, capacity_mw)
 
     elif resource_type == 'Nuclear':
-        # Baseload: Extremely flat, near 100% (refueling outages ignored for simple demo)
+        # Baseload: Flat 100%
         profile = np.full(hours, capacity_mw)
+        
+    elif resource_type == 'Solar':
+        # Simple Synthetic Solar
+        t = np.arange(hours)
+        day_of_year = (t // 24)
+        profile = np.zeros(hours)
+        for h in range(hours):
+            hour = h % 24
+            if 6 <= hour <= 19:
+                # Sine wave day
+                day_shape = np.sin(np.pi * (hour - 6) / 13)
+                if day_shape < 0: day_shape = 0
+                # Seasonal (Peak Summer)
+                season = 0.7 + 0.3 * np.cos(2 * np.pi * (day_of_year[h] - 172) / 365)
+                # Noise
+                noise = rng.uniform(0.7, 1.0)
+                profile[h] = day_shape * season * noise * capacity_mw
+
+    elif resource_type == 'Wind':
+        # Simple Synthetic Wind
+        t = np.arange(hours)
+        day_of_year = (t // 24)
+        # Diurnal (Higher at night)
+        hour_arg = 2 * np.pi * (t % 24 - 2) / 24 
+        diurnal = 0.6 + 0.25 * np.cos(hour_arg)
+        # Seasonal (Peak Spring/Fall)
+        season = 0.7 + 0.3 * np.sin(2 * np.pi * (day_of_year - 50) / 365 * 2) 
+        # Noise
+        noise = rng.normal(0, 0.15, hours)
+        raw = diurnal * season + noise
+        profile = np.clip(raw, 0, 1.0) * capacity_mw
         
     else:
         profile = np.zeros(hours)
