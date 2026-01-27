@@ -94,19 +94,41 @@ def generate_dummy_generation_profile(capacity_mw, resource_type='Solar', use_sy
     cache_dir = "data_cache"
     weather_file = None
     
+    # Determine Location based on Resource Type
+    # Solar: Graham, TX (33.1070, -98.5895) - SW North Zone
+    # Wind: Wichita Falls, TX (33.9137, -98.4934) - NW North Zone
+    # Default: Denton, TX (32.3865, -96.8475)
+    
+    if resource_type == 'Solar':
+        target_lat, target_lon = 33.107, -98.5895 
+    elif resource_type == 'Wind':
+        target_lat, target_lon = 33.9137, -98.4934
+    else:
+        target_lat, target_lon = 32.3865, -96.8475
+
     if not use_synthetic:
-        # Try finding specific year file
-        fname = f"openmeteo_{year}_32.3865_-96.8475.parquet"
+        # Try finding specific year file for target location
+        fname = f"openmeteo_{year}_{target_lat}_{target_lon}.parquet"
         fpath = os.path.join(cache_dir, fname)
         
         if os.path.exists(fpath):
             weather_file = fpath
         else:
             # Fallback to TMY if specific year not found
-            tmy_path = os.path.join(cache_dir, "tmy_32.3865_-96.8475.parquet")
+            # Note: We currently only have TMY for Denton. 
+            # If target location is Wind/Solar specific and we miss the year, we might fall back to Denton TMY or synthetic.
+            # But currently we fetched 2024/2025 for these locs so we should be good.
+            tmy_fname = f"tmy_{target_lat}_{target_lon}.parquet"
+            tmy_path = os.path.join(cache_dir, tmy_fname)
+            
+            # Additional fallback to Denton TMY if specific loc TMY missing
+            denton_tmy = os.path.join(cache_dir, "tmy_32.3865_-96.8475.parquet")
+            
             if os.path.exists(tmy_path):
                 weather_file = tmy_path
-                # st.toast(f"Using TMY Weather Data (Fallback for {year})") # Optional valid feedback
+            elif os.path.exists(denton_tmy):
+                 weather_file = denton_tmy
+                 # st.toast("Using Regional TMY (Denton) as fallback")
 
     if weather_file:
         try:
