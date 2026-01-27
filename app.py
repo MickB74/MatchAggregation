@@ -510,6 +510,29 @@ with tab_guide:
     *   Market Revenue Sharing
 
     **Outputs:** Battery-specific revenue, cost, and net value contributions.
+
+    **Step 5: Scenario Manager (Tab 6)**
+
+    *   **Capture Functionality**: Save your current Load, Generation, and Financial configuration as a unique "Snapshot".
+    *   **Management:** View list of saved scenarios, rename them for clarity, or delete obsolete ones.
+    *   **Restore:** One-click restoration of any saved scenario to make further edits.
+
+    **Step 6: Scenario Comparison (Tab 7)**
+
+    *   **Benchmarking**: Compare multiple saved scenarios side-by-side.
+    *   **Visualizations**:
+        *   **Efficiency Frontier**: Scatter plot of Cost vs CFE Score to identify optimal trade-offs.
+        *   **Capacity Stack**: Compare installed MW across scenarios.
+        *   **Cost Breakdown**: Stacked charts of PPA, REC, and deficits.
+    *   **Detailed Table**: Heatmap-style table highlighting the best performing scenarios across 10+ metrics.
+
+    **Step 7: Download Results (Tab 8)**
+
+    *   **Export Data**: Get the raw data behind your analysis.
+    *   **Formats**:
+        *   **Hourly CSV**: Detailed time-series data for Load, Generation (by tech), Battery flow, and Grid reliance.
+        *   **JSON Config**: Full system state file for archiving or re-uploading.
+        *   **PDF Report**: Automated executive summary with key charts and metrics.
     """)
     
     st.markdown("---")
