@@ -102,16 +102,23 @@ def generate_dummy_generation_profile(capacity_mw, resource_type='Solar', use_sy
         if os.path.exists(fpath):
             weather_file = fpath
         else:
-            # Fallback to TMY if specific year not found but we want "Actual-ish"
-            # Or usually we just fall back to synthetic.
-            # Let's try TMY if year is NOT 2025 (since we only copied 2025)
-            # Actually, user might want TMY specifically.
-            # For now, if file missing, we flow to synthetic.
-            pass
+            # Fallback to TMY if specific year not found
+            tmy_path = os.path.join(cache_dir, "tmy_32.3865_-96.8475.parquet")
+            if os.path.exists(tmy_path):
+                weather_file = tmy_path
+                # st.toast(f"Using TMY Weather Data (Fallback for {year})") # Optional valid feedback
 
     if weather_file:
         try:
             df_w = pd.read_parquet(weather_file)
+            
+            # --- TMY Column Standardization ---
+            # Map PVGIS/Commerical TMY columns to OpenMeteo standard
+            if 'G(h)' in df_w.columns:
+                df_w = df_w.rename(columns={'G(h)': 'GHI_Wm2'})
+            if 'WS10m' in df_w.columns:
+                df_w = df_w.rename(columns={'WS10m': 'Wind_Speed_10m_mps'})
+            
             # Ensure we have 8760 points
             if len(df_w) >= 8760:
                 df_w = df_w.iloc[:8760] # Truncate if leap year
