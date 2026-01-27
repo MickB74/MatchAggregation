@@ -1076,7 +1076,7 @@ with tab_fin:
              c_mkt_1.warning(f"Missing Data (Using Synthetic)")
     
     # Weather Source Toggle
-    use_synthetic_weather = c_mkt_1.checkbox("Use Synthetic Weather", value=False, help="If checked, uses algorithmic weather patterns. If unchecked, uses Actual 2025/TMY data where available.", key='use_synthetic_input')
+    use_synthetic_weather = c_mkt_1.checkbox("Force TMY Weather", value=False, help="If checked, forces use of Typical Meteorological Year (TMY) data even if Actuals are available.", key='use_synthetic_input')
 
     # Get base average from actual data
     _, base_market_avg = get_market_price_profile_v2(32.0, return_base_avg=True, year=market_year)

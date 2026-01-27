@@ -108,7 +108,7 @@ def generate_dummy_generation_profile(capacity_mw, resource_type='Solar', use_sy
             # This handles:
             # 1. 2005-2023 Actuals (PVGIS)
             # 2. 2024+ Actuals (OpenMeteo)
-            # 3. Falls back to TMY if needed
+            # 3. Falls back to TMY if needed (or if forced)
             # 4. Supports Power Curves (Vestas/GE/Nordex)
             
             # Use specific turbine for Wind if desired (e.g. V163 or GE_2X) 
@@ -121,6 +121,7 @@ def generate_dummy_generation_profile(capacity_mw, resource_type='Solar', use_sy
                 capacity_mw=capacity_mw,
                 lat=lat,
                 lon=lon,
+                force_tmy=use_synthetic, # Pass the checkbox value here
                 turbine_type=turbine
             )
             
