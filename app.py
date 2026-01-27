@@ -2635,8 +2635,6 @@ if active_scenario:
     
     with zipfile.ZipFile(zip_buffer, "w") as zf:
         zf.writestr("simulation_results.csv", csv)
-        zf.writestr("scenario_config.json", json_str_full)
-        zf.writestr("scenario_ai_config.json", json_str_ai)
         zf.writestr("Portfolio_Report.pdf", pdf_bytes)
         zf.writestr("Interactive_Report.xlsx", excel_data)
 
@@ -2807,6 +2805,6 @@ with tab_dl:
             file_name="full_simulation_package.zip",
             mime="application/zip",
             use_container_width=True,
-            help="Includes: Results CSV, PDF Report, Full Config JSON, and AI Analysis JSON.",
+            help="Includes: Portfolio Report (PDF), Interactive Report (Excel), and Results CSV.",
             disabled=(len(zip_val) == 0)
         )
