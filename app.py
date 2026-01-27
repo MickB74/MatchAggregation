@@ -513,17 +513,36 @@ with tab_guide:
     """)
     
     st.markdown("---")
-    st.markdown("### 🧮 Methodology & Math")
-    
-    st.markdown("#### 1. Carbon Free Energy (CFE) Score")
-    st.latex(r"CFE = \frac{\sum \text{Matched Generation (MWh)}}{\sum \text{Total Load (MWh)}}")
-    st.info("The CFE Score represents the percentage of your total annual load that is matched by clean energy generation in the exact same hour.")
-    
-    st.markdown("#### 2. Productivity")
-    st.latex(r"Productivity = \frac{\sum \text{Matched Generation (MWh)}}{\text{Total Installed Capacity (MW)}}")
-    st.caption("Measures the efficiency of your portfolio: How many useful MWh you get per MW of capacity.")
+    st.markdown("### 🧮 Methodology")
 
-    st.markdown("#### 3. Financial Settlement (Fixed-Volume PPA)")
+    st.markdown("#### 1. Operational Metrics")
+    
+    st.markdown("**Core Volume Metrics**")
+    st.markdown("- **Total Electricity Usage:** The sum of the hourly load demand across the entire year (8760 hours).")
+    st.markdown("- **Clean Energy Generation:** The total annual energy produced by all renewable sources (Solar, Wind, Geothermal, Nuclear) in the portfolio.")
+    st.markdown("- **Annual Clean Energy / Annual Load:** The ratio of Total Clean Generation to Total Load. This represents the raw volume of clean energy relative to demand, strictly on an annual basis (ignoring hourly timing).")
+    st.latex(r"\text{Annual Ratio} = \frac{\sum \text{Generation}}{\sum \text{Load}}")
+
+    st.markdown("**Matching & Performance Metrics**")
+    st.markdown("- **CFE Score (24/7):** The percentage of hourly load that is matched by clean generation in the exact same hour.")
+    st.latex(r"CFE = \frac{\sum_{t=1}^{8760} \min(\text{Gen}_t, \text{Load}_t)}{\sum \text{Total Load}}")
+    
+    st.markdown("- **Loss of Green Hours (LoGH):** The percentage of hours in the year where the clean generation is insufficient to meet the load 100%.")
+    st.latex(r"LoGH = \frac{\text{Count}(\text{Hours where Gen} < \text{Load})}{8760}")
+
+    st.markdown("- **MW Match Productivity:** A measure of portfolio efficiency, calculated as the total matched MWh divided by the total installed capacity.")
+    st.latex(r"Productivity = \frac{\sum \text{Matched Generation (MWh)}}{\text{Total Installed Capacity (MW)}}")
+
+    st.markdown("**Grid Interaction**")
+    st.markdown("- **Grid Consumption:** The total amount of energy drawn from the grid to meet load when clean generation is insufficient (Deficit).")
+    st.latex(r"\text{Deficit} = \sum \max(0, \text{Load}_t - \text{Gen}_t)")
+
+    st.markdown("- **Excess Generation:** The gross amount of clean energy generated in excess of the load (Surplus). This is energy available for battery charging or export.")
+    st.latex(r"\text{Surplus} = \sum \max(0, \text{Gen}_t - \text{Load}_t)")
+    
+    st.markdown("- **Battery Discharge:** Total energy discharged by the battery system to meet load or sell to the market.")
+
+    st.markdown("#### 2. Financial Settlement (Fixed-Volume PPA)")
     st.markdown("""
     For each technology, the Buyer pays the PPA Price and receives the Market (Capture) Value for the generated energy.
     """)
@@ -537,7 +556,7 @@ with tab_guide:
     st.markdown("**Excess REC Value:**")
     st.latex(r"\text{Excess Value} = \sum (\text{Surplus Generation}_t) \times \text{REC Price}")
 
-    st.markdown("#### 4. Battery Proxy Model (CVTA)")
+    st.markdown("#### 3. Battery Proxy Model (CVTA)")
     st.markdown("""
     The Corporate Virtual Tolling Agreement (CVTA) is a financial swap for battery storage.
     
@@ -560,7 +579,7 @@ with tab_guide:
     st.markdown("Represents the effective premium paid per MWh of battery energy dispatched.")
     st.latex(r"\text{Adder Price} = \frac{\text{Net Cost}}{\text{Total Discharged Energy (MWh)}}")
     
-    st.markdown("#### 5. Synthetic Market Price Model (Duck Curve)")
+    st.markdown("#### 4. Synthetic Market Price Model (Duck Curve)")
     st.markdown("""
     When historical market data is not available, the tool generates a synthetic "Duck Curve" price addapted to the average price input.
     """)
