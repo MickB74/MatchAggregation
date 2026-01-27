@@ -1,0 +1,353 @@
+import requests
+import pandas as pd
+import numpy as np
+import os
+from datetime import datetime
+import power_curves  # Modified import for local file
+
+# Cache directory
+CACHE_DIR = "data_cache"
+if not os.path.exists(CACHE_DIR):
+    os.makedirs(CACHE_DIR)
+
+def get_tmy_data(lat=32.4487, lon=-99.7331, force_refresh=False):
+    """
+    Fetches TMY data from PVGIS for the given coordinates.
+    Defaults to Abilene, Texas (approximate center for West Texas wind/solar).
+    """
+    cache_file = os.path.join(CACHE_DIR, f"tmy_{lat}_{lon}.parquet")
+    
+    if not force_refresh and os.path.exists(cache_file):
+        try:
+            return pd.read_parquet(cache_file)
+        except Exception as e:
+            print(f"Error reading cache: {e}")
+            
+    url = "https://re.jrc.ec.europa.eu/api/tmy"
+    params = {
+        "lat": lat,
+        "lon": lon,
+        "outputformat": "json"
+    }
+    
+    try:
+        print(f"Fetching TMY data from PVGIS for {lat}, {lon}...")
+        response = requests.get(url, params=params)
+        response.raise_for_status()
+        data = response.json()
+        
+        hourly = data['outputs']['tmy_hourly']
+        df = pd.DataFrame(hourly)
+        
+        # Standardize columns
+        # TMY has 'G(h)', 'WS10m'
+        # We'll keep them as is for now, but ensure consistency with actuals
+        
+        df['time_str'] = df['time(UTC)']
+        df['Time'] = pd.to_datetime(df['time(UTC)'], format='%Y%m%d:%H%M')
+        
+        # Save to cache
+        df.to_parquet(cache_file)
+        return df
+        
+    except Exception as e:
+        print(f"Error fetching PVGIS TMY data: {e}")
+        return pd.DataFrame()
+
+def get_actual_data(year, lat=32.4487, lon=-99.7331, force_refresh=False):
+    """
+    Fetches actual hourly data for a specific year from PVGIS.
+    """
+    cache_file = os.path.join(CACHE_DIR, f"actual_{year}_{lat}_{lon}.parquet")
+    
+    if not force_refresh and os.path.exists(cache_file):
+        try:
+            return pd.read_parquet(cache_file)
+        except Exception as e:
+            print(f"Error reading cache: {e}")
+            
+    url = "https://re.jrc.ec.europa.eu/api/seriescalc"
+    params = {
+        "lat": lat,
+        "lon": lon,
+        "startyear": year,
+        "endyear": year,
+        "outputformat": "json",
+        "pvcalculation": 0,
+        "components": 1,
+        "angle": 0 # Horizontal
+    }
+    
+    try:
+        print(f"Fetching Actual data for {year} from PVGIS...")
+        response = requests.get(url, params=params)
+        # response.raise_for_status() # PVGIS sometimes returns 400 for bad queries, handle gently
+        
+        if response.status_code != 200:
+             print(f"PVGIS Error {response.status_code}: {response.text}")
+             return pd.DataFrame()
+
+        data = response.json()
+        
+        if 'outputs' in data and 'hourly' in data['outputs']:
+            hourly = data['outputs']['hourly']
+            df = pd.DataFrame(hourly)
+            
+            # Map columns to match TMY if needed, or handle in calculation
+            # Actuals: 'Gb(i)', 'Gd(i)', 'Gr(i)', 'H_sun', 'T2m', 'WS10m', 'Int'
+            # TMY: 'G(h)', 'Gb(n)', 'Gd(h)', 'IR(h)', 'WS10m', 'WD10m', 'SP'
+            
+            # Save to cache
+            df.to_parquet(cache_file)
+            return df
+        else:
+            print(f"No hourly data found for {year}")
+            return pd.DataFrame()
+            
+    except Exception as e:
+        print(f"Error fetching PVGIS Actual data: {e}")
+        return pd.DataFrame()
+
+def solar_from_ghi(ghi_series, capacity_mw, efficiency=0.85, tracking=True, dc_ac_ratio=1.3):
+    """
+    Estimates solar generation from GHI.
+    tracking: If True, applies a tracking gain factor (heuristic).
+    dc_ac_ratio: Ratio of DC panel capacity to AC inverter capacity.
+    """
+    # Tracking increases yield by ~20-35% and squares off the shoulder of the curve
+    if tracking:
+        # Heuristic: apply a morning/evening boost by flattening the GHI curve
+        effective_irradiance = ghi_series * 1.3
+    else:
+        effective_irradiance = ghi_series
+
+    dc_capacity = capacity_mw * dc_ac_ratio
+    dc_gen = dc_capacity * (effective_irradiance / 1000.0) * efficiency
+    
+    # Clip to AC Capacity (Inverter Limit)
+    return dc_gen.clip(lower=0.0, upper=capacity_mw)
+
+def wind_from_speed(speed_series, capacity_mw, turbine_type="GENERIC"):
+    """Estimates wind generation from wind speed using specific power curve."""
+    # Ensure numpy array for vectorization
+    v = speed_series.values
+    normalized_power = power_curves.get_normalized_power(v, turbine_type)
+    return pd.Series(normalized_power, index=speed_series.index) * capacity_mw
+
+
+def get_openmeteo_data(year, lat, lon):
+    """Fetch hourly solar and wind data from Open-Meteo for any year."""
+    cache_file = os.path.join(CACHE_DIR, f"openmeteo_{year}_{lat}_{lon}.parquet")
+    
+    # Check if cache exists (and verify columns if old cache used 100m)
+    if os.path.exists(cache_file):
+        try:
+            df = pd.read_parquet(cache_file)
+            if 'Wind_Speed_10m_mps' in df.columns:
+                return df
+        except:
+            pass # Re-fetch if corrupt
+        # If old cache (100m), ignore it and re-fetch
+        
+    url = "https://archive-api.open-meteo.com/v1/archive"
+    params = {
+        "latitude": lat,
+        "longitude": lon,
+        "start_date": f"{year}-01-01",
+        "end_date": f"{year+1}-01-02", # Fetch TWO extra days to cover UTC-Central offset at year end and avoid boundary issues
+        "hourly": "shortwave_radiation,wind_speed_10m",
+        "timezone": "UTC"
+    }
+
+    # Cap end_date at today if year is current year (or future)
+    today = pd.Timestamp.now().date()
+    # We want to fetch up to Jan 2nd of next year if possible, but no further than today
+    target_end = pd.Timestamp(f"{year+1}-01-02").date()
+    safe_end = min(target_end, today)
+    params["end_date"] = str(safe_end)
+
+    
+    print(f"Fetching Open-Meteo {year} data (10m) for {lat}, {lon}...")
+    
+    try:
+        response = requests.get(url, params=params)
+        if response.status_code != 200:
+            print(f"Open-Meteo Error: {response.text}")
+            return pd.DataFrame()
+            
+        data = response.json()
+        df = pd.DataFrame(data['hourly'])
+        df['datetime'] = pd.to_datetime(df['time'])
+        
+        # Rename columns to standard internal names
+        # shortwave_radiation = GHI (W/m2)
+        # wind_speed_10m is in km/h -> Convert to m/s
+        df['GHI_Wm2'] = df['shortwave_radiation']
+        df['Wind_Speed_10m_mps'] = df['wind_speed_10m'] / 3.6
+        
+        out_df = df[['datetime', 'GHI_Wm2', 'Wind_Speed_10m_mps']].copy()
+        out_df.to_parquet(cache_file)
+        return out_df
+        
+    except Exception as e:
+        print(f"Error fetching Open-Meteo data: {e}")
+        return pd.DataFrame()
+
+def get_profile_for_year(year, tech, capacity_mw, lat=32.4487, lon=-99.7331, force_tmy=False, turbine_type="GENERIC", hub_height=80, tracking=True, efficiency=0.85):
+    """
+    Generates a full year profile.
+    Uses Actual data for 2005-2023 (PVGIS).
+    Uses Open-Meteo for 2024+ (Solar + Wind) - real weather data.
+    Uses TMY data only when force_tmy=True.
+    efficiency: System efficiency (default 0.85 for 15% losses). Pass 0.86 for 14% losses.
+    """
+    # Determine Data Source
+    # If forced TMY, disable all actuals
+    try:
+        year_int = int(year)
+    except:
+        year_int = 2024 # Default
+
+    use_pvgis_actual = (2005 <= year_int <= 2023) and not force_tmy
+    use_openmeteo_actual = (year_int >= 2024) and not force_tmy  # 2024 and all future years
+    
+    df_data = pd.DataFrame()
+    source_type = "TMY" # Default
+    
+    # 1. Try PVGIS Actuals (2005-2023)
+    if use_pvgis_actual:
+        try:
+            cache_file = os.path.join(CACHE_DIR, f"actual_{year_int}_{lat}_{lon}.parquet")
+            if os.path.exists(cache_file):
+                 df_data = pd.read_parquet(cache_file)
+            else:
+                # Fetch dynamically
+                df_data = get_actual_data(year_int, lat, lon)
+            
+            if not df_data.empty:
+                source_type = "Actual"
+        except Exception as e:
+            print(f"Error in PVGIS flow: {e}")
+
+    # 2. Try Open-Meteo 2024-2025 (Solar + Wind)
+    if use_openmeteo_actual and df_data.empty:
+        df_om = get_openmeteo_data(year_int, lat, lon)
+        if not df_om.empty:
+            df_data = df_om
+            source_type = "OpenMeteo_Actual"
+
+    # 3. Fallback to TMY (or if enabled)
+    if df_data.empty:
+        df_data = get_tmy_data(lat, lon)
+        source_type = "TMY"
+    
+    if df_data.empty:
+        return pd.Series(dtype=float)
+
+    # Calculate MW from Weather Data
+    if tech == "Solar":
+        if source_type == "Actual":
+            # PVGIS: G(h) = Gb(i) + Gd(i) (approx on horizontal)
+            # Or just sum them if mountingplace=free & angle=0
+            if 'Gb(i)' in df_data.columns and 'Gd(i)' in df_data.columns:
+                 irradiance = df_data['Gb(i)'] + df_data['Gd(i)'] + df_data.get('Gr(i)', 0)
+            else:
+                 # Fallback/Edge case
+                 irradiance = pd.Series(0, index=df_data.index)
+        elif source_type == "OpenMeteo_Actual":
+            # Open-Meteo: GHI provided directly
+            irradiance = df_data['GHI_Wm2']
+        elif source_type == "TMY":
+            # PVGIS TMY: G(h)
+            irradiance = df_data['G(h)']
+        else:
+            return pd.Series(dtype=float)
+            
+        mw_hourly = solar_from_ghi(irradiance, capacity_mw, tracking=tracking, efficiency=efficiency)
+        
+    elif tech == "Wind":
+        if source_type in ["Actual", "TMY", "OpenMeteo_Actual"]:
+            if 'WS10m' in df_data.columns or 'Wind_Speed_10m_mps' in df_data.columns:
+                # Use 10m wind speed and apply scaling factor
+                if 'WS10m' in df_data.columns:
+                    ws_10m = df_data['WS10m']
+                else:
+                    ws_10m = df_data['Wind_Speed_10m_mps']
+                
+                # Dynamic Scaling based on Longitude and Hub Height using power law
+                # v_h = v_10 * (h/10)^alpha
+                if lon > -96.0:
+                    alpha = 0.22  # Coastal/East
+                else:
+                    alpha = 0.32  # Inland/West, South, Panhandle
+                
+                wind_speed_hub = ws_10m * ((hub_height / 10.0) ** alpha)
+                mw_hourly = wind_from_speed(wind_speed_hub, capacity_mw, turbine_type=turbine_type) * efficiency
+            else:
+                return pd.Series(dtype=float)
+        else:
+            return pd.Series(dtype=float)
+    else:
+        return pd.Series(dtype=float)
+
+    # Align with Target Year (Resampling)
+    if source_type in ["Actual", "OpenMeteo_Actual"]:
+        # Parse timestamps
+        if source_type == "OpenMeteo_Actual":
+            timestamps = df_data['datetime']
+            if timestamps.dt.tz is None:
+                timestamps = timestamps.dt.tz_localize('UTC')
+            else:
+                timestamps = timestamps.dt.tz_convert('UTC')
+        else:
+            # PVGIS format
+            if 'time' in df_data.columns: time_col = 'time'
+            elif 'time(UTC)' in df_data.columns: time_col = 'time(UTC)'
+            else: return pd.Series(dtype=float)
+            timestamps = pd.to_datetime(df_data[time_col], format='%Y%m%d:%H%M', utc=True)
+        
+        # Create Series
+        s_hourly = pd.Series(mw_hourly.values, index=timestamps)
+        
+        # Handle duplicates/Resample
+        s_hourly = s_hourly[~s_hourly.index.duplicated(keep='first')]
+        s_15min = s_hourly.resample('15min').interpolate(method='linear')
+        
+        # Reindex to full year (aligned to US/Central)
+        target_index_cst = pd.date_range(
+            start=f"{year_int}-01-01 00:00", 
+            end=f"{year_int}-12-31 23:45", 
+            freq='15min', 
+            tz='US/Central'
+        )
+        target_index = target_index_cst.tz_convert('UTC')
+        
+        s_final = s_15min.reindex(target_index).ffill().bfill()
+        s_final.name = "Gen_MW"
+        return s_final.fillna(0)
+    else:
+        # TMY Logic (Linear Interpolation of typical year to target year)
+        dummy_index_hourly = pd.date_range(start="2000-01-01", periods=len(mw_hourly), freq='h')
+        s_hourly = pd.Series(mw_hourly.values, index=dummy_index_hourly)
+        s_15min = s_hourly.resample('15min').interpolate(method='linear')
+        
+        # Reindex to full year (aligned to US/Central)
+        target_index_cst = pd.date_range(
+            start=f"{year_int}-01-01 00:00", 
+            end=f"{year_int}-12-31 23:45", 
+            freq='15min', 
+            tz='US/Central'
+        )
+        target_index = target_index_cst.tz_convert('UTC')
+        
+        values = s_15min.values
+        target_len = len(target_index)
+        
+        # Handle Leap Year length diffs
+        if len(values) < target_len:
+            diff = target_len - len(values)
+            values = np.pad(values, (0, diff), mode='edge')
+        elif len(values) > target_len:
+            values = values[:target_len]
+            
+        return pd.Series(values, index=target_index, name="Gen_MW")

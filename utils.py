@@ -85,148 +85,86 @@ def generate_dummy_generation_profile(capacity_mw, resource_type='Solar', use_sy
     except:
         year = 2024
         
+    # --- Advanced Weather Module Integration ---
+    try:
+        import advanced_weather
+        
+        # Map internal resource type to advanced_weather tech type
+        tech_map = {'Solar': 'Solar', 'Wind': 'Wind'}
+        
+        if resource_type in tech_map:
+            # Determine Location
+            # Solar: Graham, TX (33.1070, -98.5895)
+            # Wind: Wichita Falls, TX (33.9137, -98.4934)
+            # Default: Denton, TX (32.3865, -96.8475)
+            if resource_type == 'Solar':
+                lat, lon = 33.1070, -98.5895
+            elif resource_type == 'Wind':
+                lat, lon = 33.9137, -98.4934
+            else:
+                lat, lon = 32.3865, -96.8475
+                
+            # Call Advanced Module
+            # This handles:
+            # 1. 2005-2023 Actuals (PVGIS)
+            # 2. 2024+ Actuals (OpenMeteo)
+            # 3. Falls back to TMY if needed
+            # 4. Supports Power Curves (Vestas/GE/Nordex)
+            
+            # Use specific turbine for Wind if desired (e.g. V163 or GE_2X) 
+            # For now default to 'GENERIC' (IEC Class 2) or upgraded 'GE_2X'
+            turbine = 'GE_2X' if resource_type == 'Wind' else 'GENERIC'
+            
+            profile_series = advanced_weather.get_profile_for_year(
+                year=year,
+                tech=tech_map[resource_type],
+                capacity_mw=capacity_mw,
+                lat=lat,
+                lon=lon,
+                turbine_type=turbine
+            )
+            
+            if not profile_series.empty:
+                # Convert Index to implied hourly array if needed, but app expects 8760/8784 array?
+                # Actually, app mostly uses arrays. utils.py returns pd.Series.
+                # Just return the values!
+                # Wait, the app might expect strictly 8760 length for simple array ops?
+                # advanced_weather returns US/Central aligned 15-min series (35040 points).
+                # The old function returned HOURLY 8760 points.
+                # WE MUST DOWN-SAMPLE if the app expects hourly 8760.
+                
+                # Check app usage: 
+                # generate_dummy_generation_profile returns pd.Series(profile, name=...) 
+                # where profile was np.zeros(8760).
+                
+                # We need to return an 8760-length Series to match existing interface.
+                # advanced_weather does high-res 15-min.
+                
+                # Resample back to Hourly
+                profile_hourly = profile_series.resample('h').mean()
+                
+                # Ensure 8760 (truncate leap year 8784 if needed for compatibility, or keep)
+                # The old code used hours=8760 hardcoded.
+                # Let's standardize to 8760 to avoid breaking downstream shape assumptions.
+                values = profile_hourly.values
+                if len(values) > 8760:
+                     values = values[:8760]
+                elif len(values) < 8760:
+                     values = np.pad(values, (0, 8760 - len(values)), 'edge')
+                     
+                return pd.Series(values, name=f'{resource_type} Generation (MW)')
+
+    except ImportError:
+        print("Warning: advanced_weather module not found. Using fallback.")
+    except Exception as e:
+        print(f"Error in advanced weather generation: {e}. Falling back.")
+
+    # FALLBACK (Old Logic - Synthetic)
     hours = 8760
     t = np.arange(hours)
     
-    # Check for Actual Weather Data (Parquet)
-    # We support 2025 and TMY for now (copied to data_cache)
-    # Location: HB_NORTH (32.3865, -96.8475)
-    cache_dir = "data_cache"
-    weather_file = None
-    
-    # Determine Location based on Resource Type
-    # Solar: Graham, TX (33.1070, -98.5895) - SW North Zone
-    # Wind: Wichita Falls, TX (33.9137, -98.4934) - NW North Zone
-    # Default: Denton, TX (32.3865, -96.8475)
-    
-    if resource_type == 'Solar':
-        target_lat, target_lon = 33.107, -98.5895 
-    elif resource_type == 'Wind':
-        target_lat, target_lon = 33.9137, -98.4934
-    else:
-        target_lat, target_lon = 32.3865, -96.8475
-
-    if not use_synthetic:
-        # Try finding specific year file for target location
-        fname = f"openmeteo_{year}_{target_lat}_{target_lon}.parquet"
-        fpath = os.path.join(cache_dir, fname)
-        
-        if os.path.exists(fpath):
-            weather_file = fpath
-        else:
-            # Fallback to TMY if specific year not found
-            # Note: We currently only have TMY for Denton. 
-            # If target location is Wind/Solar specific and we miss the year, we might fall back to Denton TMY or synthetic.
-            # But currently we fetched 2024/2025 for these locs so we should be good.
-            tmy_fname = f"tmy_{target_lat}_{target_lon}.parquet"
-            tmy_path = os.path.join(cache_dir, tmy_fname)
-            
-            # Additional fallback to Denton TMY if specific loc TMY missing
-            denton_tmy = os.path.join(cache_dir, "tmy_32.3865_-96.8475.parquet")
-            
-            if os.path.exists(tmy_path):
-                weather_file = tmy_path
-            elif os.path.exists(denton_tmy):
-                 weather_file = denton_tmy
-                 # st.toast("Using Regional TMY (Denton) as fallback")
-
-    if weather_file:
-        try:
-            df_w = pd.read_parquet(weather_file)
-            
-            # --- TMY Column Standardization ---
-            # Map PVGIS/Commerical TMY columns to OpenMeteo standard
-            if 'G(h)' in df_w.columns:
-                df_w = df_w.rename(columns={'G(h)': 'GHI_Wm2'})
-            if 'WS10m' in df_w.columns:
-                df_w = df_w.rename(columns={'WS10m': 'Wind_Speed_10m_mps'})
-            
-            # Ensure we have 8760 points
-            if len(df_w) >= 8760:
-                df_w = df_w.iloc[:8760] # Truncate if leap year
-                
-                if resource_type == 'Solar':
-                    # Model: Power = Cap * (GHI / 1000) * 0.85
-                    if 'GHI_Wm2' in df_w.columns:
-                        ghi = df_w['GHI_Wm2'].values
-                        # Simple efficiency model
-                        eff = 0.85
-                        profile = capacity_mw * (ghi / 1000.0) * eff
-                        return pd.Series(profile, name='Solar Generation (MW)')
-                        
-                elif resource_type == 'Wind':
-                    # Model: Speed 10m -> Speed 80m -> Power Curve
-                    if 'Wind_Speed_10m_mps' in df_w.columns:
-                        ws_10m = df_w['Wind_Speed_10m_mps'].values
-                        
-                        # Shear to 80m (North TX approx 1.6 shear exponent factor? No, alpha is exponent)
-                        # Log law or Power law: v2 = v1 * (h2/h1)^alpha
-                        # Alpha ~ 0.25?? 
-                        # Reference docs say simple multiplier was used: "Scale factors... 1.6 for East/North"
-                        # Wait, 1.6 multiplier implies massive shear or just a tuned linear scaler.
-                        # Let's use the 1.6 multiplier as per README of source repo.
-                        ws_80m = ws_10m * 1.6 
-                        
-                        # IEC Class 2 Power Curve (Simplified)
-                        # Cut-in: 3, Rated: 12, Cut-out: 25
-                        # Cubic region 3-12
-                        
-                        norm_power = np.zeros_like(ws_80m)
-                        
-                        # Region 2 (Cubic): 3 <= v < 12
-                        mask_cubic = (ws_80m >= 3.0) & (ws_80m < 12.0)
-                        norm_power[mask_cubic] = ((ws_80m[mask_cubic] - 3.0) / 9.0) ** 3
-                        
-                        # Region 3 (Rated): 12 <= v < 25
-                        mask_rated = (ws_80m >= 12.0) & (ws_80m < 25.0)
-                        norm_power[mask_rated] = 1.0
-                        
-                        # Region 4 (Cut-out): v >= 25 -> 0.0 (already zero initialized)
-                        
-                        profile = norm_power * capacity_mw
-                        return pd.Series(profile, name='Wind Generation (MW)')
-        except Exception as e:
-            print(f"Weather data load failed: {e}. Falling back to synthetic.")
-
-    # --- Synthetic Generation (Fallback) ---
-    
-    # Seasonality helper (0 to 1 scaling, peak in Summer for Solar, Spring/Fall for Wind)
-    day_of_year = (t // 24)
-    
-    # Create a deterministic random generator based on resource type
-    seed_map = {'Solar': 500, 'Wind': 600, 'Geothermal': 700, 'Nuclear': 800}
-    seed = seed_map.get(resource_type, 999)
-    rng = np.random.default_rng(seed)
-    
-    if resource_type == 'Solar':
-        # 1. Try Real Data (PVWatts CSV) - Legacy Support
-        if not use_synthetic:
-            # import os # Loop removed
-            pvwatts_file = 'pvwatts_hourly_Denton.csv'
-            
-            if os.path.exists(pvwatts_file):
-                try:
-                    # Robustly find the header line to handle blank lines/metadata variability
-                    header_index = 0
-                    with open(pvwatts_file, 'r') as f:
-                        lines = f.readlines()
-                        for i, line in enumerate(lines[:50]): # Check first 50 lines
-                            if 'AC System Output (W)' in line:
-                                header_index = i
-                                break
-                                
-                    # Read with skiprows (skips first N rows, row N becomes header)
-                    df_solar = pd.read_csv(pvwatts_file, skiprows=header_index)
-                    
-                    if 'AC System Output (W)' in df_solar.columns:
-                        # Extract raw watts
-                        raw_watts = df_solar['AC System Output (W)'].values
-                        
-                        # Pad/Truncate to 8760
-                        if len(raw_watts) > hours:
-                            raw_watts = raw_watts[:hours]
-                        elif len(raw_watts) < hours:
-                            raw_watts = np.pad(raw_watts, (0, hours - len(raw_watts)), 'constant')
+    # ... (Rest of old synthetic logic below if needed) ...
+    # But for now, we just proceed to synthetic if the above block fails or returns empty.
                             
                         # Normalize (100 kW system)
                         system_size_watts = 100_000.0 
