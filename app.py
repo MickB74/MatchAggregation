@@ -2399,11 +2399,15 @@ if active_scenario:
 
                     # 3. Battery Financials (CVTA)
                     if batt_capacity > 0:
-                        # Construct DF for function
-                        # Fix: Use correct year for dates to match Main Analysis (affects Day of Week for dispatch)
-                        loop_year_for_dates = 2024 if str(year) == 'Average' else int(year)
-                        ts = pd.date_range(start=f'{loop_year_for_dates}-01-01', periods=8760, freq='h')
-                        df_p = pd.DataFrame({'Price': hist_price_series.values}, index=ts)
+                        # Construct DF for function - MUST match main analysis data source
+                        if str(year) == str(market_year) and 'shared_market_prices' in st.session_state:
+                            # Exact Match: Use the same price data source as main battery calculation
+                            df_p = st.session_state['shared_market_prices']
+                        else:
+                            # Historical year: construct price DF with correct calendar
+                            loop_year_for_dates = 2024 if str(year) == 'Average' else int(year)
+                            ts = pd.date_range(start=f'{loop_year_for_dates}-01-01', periods=8760, freq='h')
+                            df_p = pd.DataFrame({'Price': hist_price_series.values}, index=ts)
                         
                         # Use Session State values if available, otherwise defaults
                         c_rte = st.session_state.get('cvta_rte', 85.0)
