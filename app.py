@@ -2319,10 +2319,14 @@ if active_scenario:
                     net_firm = 0.0
                     net_battery = 0.0
                     
-                    # Solar
                     if solar_capacity > 0:
-                        # Regenerate profile for this specific historical year
-                        sens_solar_profile = generate_dummy_generation_profile(solar_capacity, 'Solar', use_synthetic=use_synthetic_weather, year=year)
+                        # Consistency Fix: Use Custom Profile if available (Static logic)
+                        if 'custom_solar_profile' in st.session_state:
+                             # Use the static profile (scaled to cap)
+                             sens_solar_profile = st.session_state['custom_solar_profile'] * solar_capacity
+                        else:
+                             # Regenerate profile for this specific historical year (weather varies)
+                             sens_solar_profile = generate_dummy_generation_profile(solar_capacity, 'Solar', use_synthetic=use_synthetic_weather, year=year)
                         
                         rev = np.sum(sens_solar_profile.values * hist_price_series.values)
                         cost = np.sum(sens_solar_profile.values * solar_price_eff)
@@ -2330,8 +2334,12 @@ if active_scenario:
                         
                     # Wind
                     if wind_capacity > 0:
-                        # Regenerate profile for this specific historical year
-                        sens_wind_profile = generate_dummy_generation_profile(wind_capacity, 'Wind', use_synthetic=use_synthetic_weather, year=year)
+                         # Consistency Fix: Use Custom Profile if available
+                        if 'custom_wind_profile' in st.session_state:
+                             sens_wind_profile = st.session_state['custom_wind_profile'] * wind_capacity
+                        else:
+                            # Regenerate profile for this specific historical year
+                            sens_wind_profile = generate_dummy_generation_profile(wind_capacity, 'Wind', use_synthetic=use_synthetic_weather, year=year)
                         
                         rev = np.sum(sens_wind_profile.values * hist_price_series.values)
                         cost = np.sum(sens_wind_profile.values * wind_price_eff)
@@ -2364,6 +2372,18 @@ if active_scenario:
                             fixed_pymt = batt_capacity * c_fixed * 12
                             # Net Settlement = Market Revenue - Fixed Payment
                             net_battery = mkt_rev - fixed_pymt
+                    
+                    total_settlement = net_solar + net_wind + net_firm + net_battery
+                    
+                    # --- CONSISTENCY CHECK ---
+                    if str(year) == str(market_year):
+                         # Get main result from session state
+                         main_result = st.session_state.get('net_settlement', 0.0)
+                         diff = abs(total_settlement - main_result)
+                         if diff < 1000: # Allow small float error ($1000 tolerance on millions)
+                             st.toast(f"✅ Year {year} Re-verification Passed! (Diff: ${diff:.0f})", icon="✅")
+                         else:
+                             st.toast(f"⚠️ Verification Mismatch for {year}! Main: ${main_result:,.0f} vs Loop: ${total_settlement:,.0f}", icon="⚠️")
                     
                     total_settlement = net_solar + net_wind + net_firm + net_battery
                     
