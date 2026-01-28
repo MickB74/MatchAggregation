@@ -1179,11 +1179,11 @@ with tab_fin:
 
                 # Re-generate profiles locally for preview
                 # Note: These use 2024 shape by default in utils, which matches our analysis year approx
-                p_sol = generate_dummy_generation_profile(c_sol, 'Solar', use_synthetic=False)
-                p_win = generate_dummy_generation_profile(c_win, 'Wind')
-                p_geo = generate_dummy_generation_profile(c_geo, 'Geothermal')
-                p_nuc = generate_dummy_generation_profile(c_nuc, 'Nuclear')
-                p_ccs = generate_dummy_generation_profile(c_ccs, 'CCS Gas')
+                p_sol = generate_dummy_generation_profile(c_sol, 'Solar', use_synthetic=use_synthetic_weather, year=market_year)
+                p_win = generate_dummy_generation_profile(c_win, 'Wind', use_synthetic=use_synthetic_weather, year=market_year)
+                p_geo = generate_dummy_generation_profile(c_geo, 'Geothermal', use_synthetic=use_synthetic_weather, year=market_year)
+                p_nuc = generate_dummy_generation_profile(c_nuc, 'Nuclear', use_synthetic=use_synthetic_weather, year=market_year)
+                p_ccs = generate_dummy_generation_profile(c_ccs, 'CCS Gas', use_synthetic=use_synthetic_weather, year=market_year)
                 
                 # Prices (Defined locally in Tab 4 just above)
                 # Use default fallback if variable not bound yet (though it should be)
@@ -2320,7 +2320,7 @@ if active_scenario:
                     # Solar
                     if solar_capacity > 0:
                         # Regenerate profile for this specific historical year
-                        sens_solar_profile = generate_dummy_generation_profile(solar_capacity, 'Solar', use_synthetic=False, year=year)
+                        sens_solar_profile = generate_dummy_generation_profile(solar_capacity, 'Solar', use_synthetic=use_synthetic_weather, year=year)
                         
                         rev = np.sum(sens_solar_profile.values * hist_price_series.values)
                         cost = np.sum(sens_solar_profile.values * solar_price_eff)
@@ -2329,7 +2329,7 @@ if active_scenario:
                     # Wind
                     if wind_capacity > 0:
                         # Regenerate profile for this specific historical year
-                        sens_wind_profile = generate_dummy_generation_profile(wind_capacity, 'Wind', use_synthetic=False, year=year)
+                        sens_wind_profile = generate_dummy_generation_profile(wind_capacity, 'Wind', use_synthetic=use_synthetic_weather, year=year)
                         
                         rev = np.sum(sens_wind_profile.values * hist_price_series.values)
                         cost = np.sum(sens_wind_profile.values * wind_price_eff)
