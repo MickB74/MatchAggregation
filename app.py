@@ -2400,7 +2400,9 @@ if active_scenario:
                     # 3. Battery Financials (CVTA)
                     if batt_capacity > 0:
                         # Construct DF for function
-                        ts = pd.date_range('2024-01-01', periods=8760, freq='h') # Dummy dates, prices matter
+                        # Fix: Use correct year for dates to match Main Analysis (affects Day of Week for dispatch)
+                        loop_year_for_dates = 2024 if str(year) == 'Average' else int(year)
+                        ts = pd.date_range(start=f'{loop_year_for_dates}-01-01', periods=8760, freq='h')
                         df_p = pd.DataFrame({'Price': hist_price_series.values}, index=ts)
                         
                         # Use Session State values if available, otherwise defaults
