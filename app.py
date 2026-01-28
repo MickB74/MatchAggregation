@@ -2298,8 +2298,10 @@ if active_scenario:
                 progress_bar = st.progress(0)
                 
                 for i, year in enumerate(years_to_test):
-                    # 1. Load Data using robust utility (skip scaling to get actual historical prices)
-                    hist_prices = get_market_price_profile_v2(30.0, year=year, scale_hist=False)
+                    # 1. Load Data using robust utility (skip scaling to get actual historical prices, then apply manual scaler)
+                    # Apply User's Price Scaler to historical data to simulate "Current Conditions applied to History"
+                    scaler = st.session_state.get('price_scaler_input', 1.0)
+                    hist_prices = get_market_price_profile_v2(30.0, year=year, scale_hist=False) * scaler
                     
                     # Ensure series length matches profile (truncate or pad if necessary, though utils handles it)
                     h_vals = hist_prices.values
@@ -2336,13 +2338,13 @@ if active_scenario:
                         net_wind = (rev - cost)
                         
                     # Firm (CCS/Geo/Nuc)
-                    firm_specs = [(ccs_capacity, ccs_price_eff, 'CCS'), (geo_capacity, geo_price_eff, 'Geo'), (nuc_capacity, nuc_price_eff, 'Nuc')]
+                    firm_specs = [(ccs_capacity, ccs_price_eff, 'CCS Gas'), (geo_capacity, geo_price_eff, 'Geothermal'), (nuc_capacity, nuc_price_eff, 'Nuclear')]
                     for cap, price, name in firm_specs:
                         if cap > 0:
-                             # Flat profile assumption for sensitivity
-                             prof = np.full(8760, cap)
-                             rev = np.sum(prof * hist_price_series.values)
-                             cost = np.sum(prof * price)
+                             # Use standard profile generator for consistency (includes noise etc)
+                             prof = generate_dummy_generation_profile(cap, name, use_synthetic=use_synthetic_weather, year=year)
+                             rev = np.sum(prof.values * hist_price_series.values)
+                             cost = np.sum(prof.values * price)
                              net_firm += (rev - cost)
 
                     # 3. Battery Financials (CVTA)
@@ -2351,15 +2353,15 @@ if active_scenario:
                         ts = pd.date_range('2024-01-01', periods=8760, freq='h') # Dummy dates, prices matter
                         df_p = pd.DataFrame({'Price': hist_price_series.values}, index=ts)
                         
-                        # Use defaults if not set in UI yet
-                        if 'cvta_rte' not in locals(): cvta_rte = 85.0
-                        if 'cvta_vom' not in locals(): cvta_vom = 2.0
-                        if 'cvta_fixed_price' not in locals(): cvta_fixed_price = 12000.0
+                        # Use Session State values if available, otherwise defaults
+                        c_rte = st.session_state.get('cvta_rte', 85.0)
+                        c_vom = st.session_state.get('cvta_vom', 2.0)
+                        c_fixed = st.session_state.get('cvta_fixed', 12000.0)
                         
-                        dr = calculate_proxy_battery_revenue(df_p, batt_capacity, batt_duration, cvta_rte, cvta_vom)
+                        dr = calculate_proxy_battery_revenue(df_p, batt_capacity, batt_duration, c_rte, c_vom)
                         if dr is not None:
                             mkt_rev = dr['Net_Revenue'].sum()
-                            fixed_pymt = batt_capacity * cvta_fixed_price * 12
+                            fixed_pymt = batt_capacity * c_fixed * 12
                             # Net Settlement = Market Revenue - Fixed Payment
                             net_battery = mkt_rev - fixed_pymt
                     
