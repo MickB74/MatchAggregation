@@ -2320,9 +2320,11 @@ if active_scenario:
                     net_battery = 0.0
                     
                     if solar_capacity > 0:
-                        # Consistency Fix: Use Custom Profile if available (Static logic)
-                        if 'custom_solar_profile' in st.session_state:
-                             # Use the static profile (scaled to cap)
+                        if str(year) == str(market_year) and 'solar_profile' in locals():
+                            # Exact Match: Use exact profile from main run
+                            sens_solar_profile = solar_profile 
+                        elif 'custom_solar_profile' in st.session_state:
+                             # Consistency Fix: Use Custom Profile if available (Static logic)
                              sens_solar_profile = st.session_state['custom_solar_profile'] * solar_capacity
                         else:
                              # Regenerate profile for this specific historical year (weather varies)
@@ -2334,8 +2336,9 @@ if active_scenario:
                         
                     # Wind
                     if wind_capacity > 0:
-                         # Consistency Fix: Use Custom Profile if available
-                        if 'custom_wind_profile' in st.session_state:
+                        if str(year) == str(market_year) and 'wind_profile' in locals():
+                            sens_wind_profile = wind_profile
+                        elif 'custom_wind_profile' in st.session_state:
                              sens_wind_profile = st.session_state['custom_wind_profile'] * wind_capacity
                         else:
                             # Regenerate profile for this specific historical year
@@ -2346,11 +2349,20 @@ if active_scenario:
                         net_wind = (rev - cost)
                         
                     # Firm (CCS/Geo/Nuc)
-                    firm_specs = [(ccs_capacity, ccs_price_eff, 'CCS Gas'), (geo_capacity, geo_price_eff, 'Geothermal'), (nuc_capacity, nuc_price_eff, 'Nuclear')]
-                    for cap, price, name in firm_specs:
+                    firm_specs = [
+                        (ccs_capacity, ccs_price_eff, 'CCS Gas', ccs_profile if 'ccs_profile' in locals() else None), 
+                        (geo_capacity, geo_price_eff, 'Geothermal', geo_profile if 'geo_profile' in locals() else None), 
+                        (nuc_capacity, nuc_price_eff, 'Nuclear', nuc_profile if 'nuc_profile' in locals() else None)
+                    ]
+                    
+                    for cap, price, name, main_prof in firm_specs:
                         if cap > 0:
-                             # Use standard profile generator for consistency (includes noise etc)
-                             prof = generate_dummy_generation_profile(cap, name, use_synthetic=use_synthetic_weather, year=year)
+                             if str(year) == str(market_year) and main_prof is not None:
+                                 prof = main_prof
+                             else:
+                                 # Use standard profile generator for consistency
+                                 prof = generate_dummy_generation_profile(cap, name, use_synthetic=use_synthetic_weather, year=year)
+                                 
                              rev = np.sum(prof.values * hist_price_series.values)
                              cost = np.sum(prof.values * price)
                              net_firm += (rev - cost)
