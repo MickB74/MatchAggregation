@@ -2324,18 +2324,22 @@ if active_scenario:
                 progress_bar = st.progress(0)
                 
                 for i, year in enumerate(years_to_test):
-                    # 1. Load Data using robust utility (skip scaling to get actual historical prices, then apply manual scaler)
-                    # Apply User's Price Scaler to historical data to simulate "Current Conditions applied to History"
-                    scaler = st.session_state.get('price_scaler_input', 1.0)
-                    hist_prices = get_market_price_profile_v2(30.0, year=year, scale_hist=False) * scaler
-                    
-                    # Ensure series length matches profile (truncate or pad if necessary, though utils handles it)
-                    h_vals = hist_prices.values
-                    if len(h_vals) > 8760: h_vals = h_vals[:8760]
-                    if len(h_vals) < 8760:
-                        h_vals = np.pad(h_vals, (0, 8760-len(h_vals)), 'edge')
-                    
-                    hist_price_series = pd.Series(h_vals)
+                    if str(year) == str(market_year) and 'market_price_profile_series' in locals():
+                         # Exact Match: Use exact price profile from main run (respects user "Market Price" input)
+                         hist_price_series = market_price_profile_series
+                    else:
+                         # 1. Load Data using robust utility (skip scaling to get actual historical prices, then apply manual scaler)
+                         # Apply User's Price Scaler to historical data to simulate "Current Conditions applied to History"
+                         scaler = st.session_state.get('price_scaler_input', 1.0)
+                         hist_prices = get_market_price_profile_v2(30.0, year=year, scale_hist=False) * scaler
+                         
+                         # Ensure series length matches profile (truncate or pad if necessary, though utils handles it)
+                         h_vals = hist_prices.values
+                         if len(h_vals) > 8760: h_vals = h_vals[:8760]
+                         if len(h_vals) < 8760:
+                             h_vals = np.pad(h_vals, (0, 8760-len(h_vals)), 'edge')
+                         
+                         hist_price_series = pd.Series(h_vals)
                     
                     # 2. Calculate Portfolio Settlement (Techs)
                     # Net Settlement = Market Revenue - PPA Cost
