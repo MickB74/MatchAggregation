@@ -2245,6 +2245,29 @@ if active_scenario:
             if settlement_data:
                 df_settlement = pd.DataFrame(settlement_data)
                 
+                # Calculate Totals
+                total_gen = df_settlement['Generation (MWh)'].sum()
+                total_cost = df_settlement['PPA Cost ($)'].sum()
+                total_value = df_settlement['Market Value ($)'].sum()
+                total_settlement_val = df_settlement['Net Settlement ($)'].sum()
+                
+                # Weighted Averages
+                avg_ppa_price = total_cost / total_gen if total_gen > 0 else 0
+                avg_val_price = total_value / total_gen if total_gen > 0 else 0
+                
+                # Append Total Row using pd.concat
+                total_row = pd.DataFrame([{
+                    'Technology': '**Total**',
+                    'Generation (MWh)': total_gen,
+                    'PPA Price ($/MWh)': avg_ppa_price,
+                    'PPA Cost ($)': total_cost,
+                    'Market Value ($)': total_value,
+                    'Net Settlement ($)': total_settlement_val,
+                    'Value ($/MWh)': avg_val_price
+                }])
+                
+                df_settlement = pd.concat([df_settlement, total_row], ignore_index=True)
+                
                 # Format columns
                 st.dataframe(
                     df_settlement.style.format({
@@ -2259,16 +2282,19 @@ if active_scenario:
                     hide_index=True
                 )
                 
-                # Simple Bar Chart for Settlement
+                # Simple Bar Chart for Settlement (Exclude Total Row)
                 fig_set = go.Figure()
                 
-                colors = ['#2ca02c' if x >= 0 else '#d62728' for x in df_settlement['Net Settlement ($)']]
+                # Slice to exclude the last row (Total)
+                df_chart = df_settlement.iloc[:-1]
+                
+                colors = ['#2ca02c' if x >= 0 else '#d62728' for x in df_chart['Net Settlement ($)']]
                 
                 fig_set.add_trace(go.Bar(
-                    x=df_settlement['Technology'],
-                    y=df_settlement['Net Settlement ($)'],
+                    x=df_chart['Technology'],
+                    y=df_chart['Net Settlement ($)'],
                     marker_color=colors,
-                    text=df_settlement['Net Settlement ($)'],
+                    text=df_chart['Net Settlement ($)'],
                     texttemplate='$%{text:,.0f}',
                     textposition='auto'
                 ))
