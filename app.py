@@ -3022,7 +3022,7 @@ with tab_load_gen:
     
     with col1:
         # Random Generator (Quick Start)
-        if st.button("🎲 Randomize Sites (3-6 Sites)", help="Instantly generate a test portfolio"):
+        if st.button("🎲 Randomize Sites (3-6 Sites)", type="primary", help="Instantly generate a test portfolio"):
             import random
             num_sites = random.randint(3, 6)
             new_sites = []
