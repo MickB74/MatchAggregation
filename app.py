@@ -3174,54 +3174,9 @@ with tab_load_gen:
     with sh_cl2:
         start_hour_weekend = st.number_input("Weekend Start", min_value=0, max_value=23, step=1, key="sh_we")
     
-    # Determine button label and mode
-    is_edit_mode = edit_site_selection != "-- New Site --"
-    btn_label = "Update Site" if is_edit_mode else "Add Site"
-    
-    submitted = st.button(btn_label, type="primary")
-    
-    if submitted:
-        if not site_name:
-            site_name = f"Site {len(st.session_state.load_gen_sites) + 1}"
-        
-        hours_per_day = [mon_hrs, tue_hrs, wed_hrs, thu_hrs, fri_hrs, sat_hrs, sun_hrs]
-        
-        site_data = {
-            "name": site_name,
-            "category": site_category,
-            "annual_kwh": annual_kwh,
-            "hours_per_day": hours_per_day,
-            "start_hour_weekday": start_hour_weekday,
-            "start_hour_weekend": start_hour_weekend,
-            "summer_multiplier": st.session_state.get('smult_input', 1.0),
-            "winter_multiplier": st.session_state.get('wmult_input', 1.0),
-            "weekend_scaler": st.session_state.get('weekend_scaler', 1.0)
-        }
-        
-        if is_edit_mode:
-            # Find index and update
-            idx = next((i for i, s in enumerate(st.session_state.load_gen_sites) if s['name'] == edit_site_selection), -1)
-            if idx != -1:
-                st.session_state.load_gen_sites[idx] = site_data
-                st.success(f"Updated {site_name}")
-                # Clear edit selection to reset form
-                st.session_state.last_loaded_site = None
-                st.rerun()
-            else:
-                st.error("Site not found to update.")
-        else:
-            st.session_state.load_gen_sites.append(site_data)
-            st.success(f"Added {site_name}")
-            st.rerun()
-    
-    if st.session_state.load_gen_sites:
-        if st.button("Clear All Sites"):
-            st.session_state.load_gen_sites = []
-            st.rerun()
-
     st.markdown("---")
     
-    # Load Factor Configuration (Moved to bottom for layout preference)
+    # Load Factor Configuration
     st.markdown("### Load Factor Settings")
     lf_col1, lf_col2, lf_col3 = st.columns(3)
     with lf_col1:
@@ -3285,6 +3240,51 @@ with tab_load_gen:
         help="Scale down weekend load (e.g., 0.5 = 50% load on weekends). Set to 1.0 for full load.",
         key="weekend_scaler"
     )
+
+    # Determine button label and mode (Moved here below settings)
+    is_edit_mode = edit_site_selection != "-- New Site --"
+    btn_label = "Update Site" if is_edit_mode else "Add Site"
+    
+    submitted = st.button(btn_label, type="primary")
+    
+    if submitted:
+        if not site_name:
+            site_name = f"Site {len(st.session_state.load_gen_sites) + 1}"
+        
+        hours_per_day = [mon_hrs, tue_hrs, wed_hrs, thu_hrs, fri_hrs, sat_hrs, sun_hrs]
+        
+        site_data = {
+            "name": site_name,
+            "category": site_category,
+            "annual_kwh": annual_kwh,
+            "hours_per_day": hours_per_day,
+            "start_hour_weekday": start_hour_weekday,
+            "start_hour_weekend": start_hour_weekend,
+            "summer_multiplier": summer_mult,
+            "winter_multiplier": winter_mult,
+            "weekend_scaler": weekend_scaler
+        }
+        
+        if is_edit_mode:
+            # Find index and update
+            idx = next((i for i, s in enumerate(st.session_state.load_gen_sites) if s['name'] == edit_site_selection), -1)
+            if idx != -1:
+                st.session_state.load_gen_sites[idx] = site_data
+                st.success(f"Updated {site_name}")
+                # Clear edit selection to reset form
+                st.session_state.last_loaded_site = None
+                st.rerun()
+            else:
+                st.error("Site not found to update.")
+        else:
+            st.session_state.load_gen_sites.append(site_data)
+            st.success(f"Added {site_name}")
+            st.rerun()
+    
+    if st.session_state.load_gen_sites:
+        if st.button("Clear All Sites"):
+            st.session_state.load_gen_sites = []
+            st.rerun()
     
     st.markdown("---")
     
