@@ -2907,8 +2907,8 @@ with tab_load_gen:
         with st.form("add_site_form", clear_on_submit=True):
             site_name = st.text_input("Site Name", placeholder="e.g. Data Center 1")
             
-            category_options = ["DC", "MFG"]
-            site_category = st.selectbox("Category", category_options, format_func=lambda x: "Data Center" if x == "DC" else "Manufacturing")
+            category_options = ["DC", "MFG", "Office"]
+            site_category = st.selectbox("Category", category_options, format_func=lambda x: "Data Center" if x == "DC" else ("Manufacturing" if x == "MFG" else "Office"))
             
             annual_kwh = st.number_input("Annual kWh", min_value=1000, value=6000000, step=100000, format="%d")
             
