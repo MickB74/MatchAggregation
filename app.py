@@ -3281,11 +3281,6 @@ with tab_load_gen:
             st.success(f"Added {site_name}")
             st.rerun()
     
-    if st.session_state.load_gen_sites:
-        if st.button("Clear All Sites"):
-            st.session_state.load_gen_sites = []
-            st.rerun()
-    
     st.markdown("---")
     
     # --- Current Sites Table ---
@@ -3322,6 +3317,14 @@ with tab_load_gen:
             })
         
         st.dataframe(pd.DataFrame(sites_display), hide_index=True, use_container_width=True)
+
+        # Clear All with Warning
+        with st.popover("🗑️ Clear All Sites"):
+            st.warning("This will permanently remove all sites from your current portfolio.")
+            if st.button("Confirm: Clear All Sites", type="primary", use_container_width=True):
+                st.session_state.load_gen_sites = []
+                st.success("Portfolio cleared.")
+                st.rerun()
     else:
         st.info("No sites added yet. Use the form above to add sites.")
     
