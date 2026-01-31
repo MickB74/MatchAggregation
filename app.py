@@ -271,182 +271,6 @@ exec_summary_container = st.container()
 
 # --- Configuration Section (Top) ---
 tab_guide, tab_load, tab_gen, tab_fin, tab_offtake, tab_scenario, tab_dl = st.tabs(["1\\. Start Here", "2\\. Load Setup", "3\\. Generation Profile", "4\\. Financial Analysis", "5\\. Battery Financials", "6\\. Scenario Manager", "7\\. Download Results"])
-# tab_comp removed
-
-    
-    # --- Tab 5: Scenario Comparison (HIDDEN) ---
-if False:
-
-# with tab_comp:
-#     st.header("7. Scenario Comparison")
-    
-    if 'comparison_scenarios' not in st.session_state or not st.session_state.comparison_scenarios:
-        st.info("No scenarios captured yet. Go to '6. Scenario Manager' to capture your current configuration.")
-    else:
-        # Prepare data for comparison
-        comp_data = []
-        for name, data in st.session_state.comparison_scenarios.items():
-            metrics = data['metrics']
-            caps = data['caps']
-            comp_data.append({
-                "Scenario": name,
-                "CFE Score": metrics.get('cfe_score', 0) * 100,
-                "Total Load (GWh)": metrics.get('total_load_mwh', 0) / 1000,
-                "Avg PPA Price ($/MWh)": metrics.get('avg_ppa_price', 0),
-                "Net Settlement ($M)": metrics.get('net_settlement', 0) / 1e6,
-                "Total Cost ($M)": metrics.get('total_cost', 0) / 1e6,
-                # Detailed Financials
-                "Market Revenue ($M)": metrics.get('market_revenue', 0) / 1e6,
-                "PPA Cost ($M)": metrics.get('gross_ppa_cost', 0) / 1e6,
-                "REC Cost ($M)": metrics.get('rec_cost', 0) / 1e6,
-                "Deficit Cost ($M)": metrics.get('deficit_cost', 0) / 1e6,
-                # Capacities
-                "Solar (MW)": caps.get('solar', 0),
-                "Wind (MW)": caps.get('wind', 0),
-                "Firm (MW)": caps.get('firm', 0),
-                "Battery (MW)": caps.get('batt_mw', 0)
-            })
-        
-        comp_df = pd.DataFrame(comp_data)
-        
-        # --- 1. Top-Level Metrics (Best Performance) ---
-        if not comp_df.empty:
-            best_cfe_idx = comp_df['CFE Score'].idxmax()
-            best_cost_idx = comp_df['Total Cost ($M)'].idxmin() # Lower is better?
-            # Net Settlement: Higher is better (more positive = revenue, more negative = cost)
-            # Total Cost: Lower is better.
-            
-            best_cfe = comp_df.loc[best_cfe_idx]
-            best_cost = comp_df.loc[best_cost_idx]
-            
-            m1, m2, m3 = st.columns(3)
-            m1.metric("Highest CFE Score", f"{best_cfe['CFE Score']:.1f}%", best_cfe['Scenario'])
-            m2.metric("Lowest Total Cost", f"${best_cost['Total Cost ($M)']:,.1f}M", best_cost['Scenario'])
-            m3.metric("Scenarios Compared", len(comp_df))
-            
-            st.markdown("---")
-
-        # --- 2. Visual Analysis (Charts) ---
-        st.subheader("📊 Visual Trade-Off Analysis")
-        
-        c1, c2 = st.columns([2, 1])
-        
-        with c1:
-            st.markdown("**Efficiency Frontier: CFE vs. Cost**")
-            # Scatter Plot: X=CFE, Y=Total Cost
-            fig_scatter = go.Figure()
-            
-            for i, row in comp_df.iterrows():
-                fig_scatter.add_trace(go.Scatter(
-                    x=[row['CFE Score']],
-                    y=[row['Total Cost ($M)']],
-                    mode='markers+text',
-                    text=[row['Scenario']],
-                    textposition="top center",
-                    marker=dict(size=12, line=dict(width=2, color='DarkSlateGrey')),
-                    name=row['Scenario']
-                ))
-            
-            fig_scatter.update_layout(
-                xaxis_title="CFE Score (%)",
-                yaxis_title="Total Annual Cost ($M)",
-                template=chart_template,
-                showlegend=False,
-                height=400
-            )
-            st.plotly_chart(fig_scatter, use_container_width=True)
-            
-        with c2:
-            st.markdown("**Portfolio Capacity Mix (MW)**")
-            # Stacked Bar of Capacities
-            cap_cols = ['Solar (MW)', 'Wind (MW)', 'Firm (MW)', 'Battery (MW)']
-            fig_mix = go.Figure()
-            for col in cap_cols:
-                fig_mix.add_trace(go.Bar(
-                    name=col.replace(" (MW)", ""),
-                    x=comp_df['Scenario'],
-                    y=comp_df[col]
-                ))
-            
-            fig_mix.update_layout(
-                barmode='stack',
-                template=chart_template,
-                legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
-                height=400,
-                margin=dict(l=20, r=20, t=20, b=20)
-            )
-            st.plotly_chart(fig_mix, use_container_width=True)
-
-        # --- 3. Detailed Financial Breakdown Chart ---
-        st.markdown("**Detailed Annual Cost Components ($M)**")
-        # Stacked bar: PPA Cost, REC Cost, Deficit Cost vs Market Revenue (Line?)
-        # Let's just do Cost Components Stacked
-        cost_cols_plot = ["PPA Cost ($M)", "REC Cost ($M)", "Deficit Cost ($M)"]
-        fig_cost = go.Figure()
-        for col in cost_cols_plot:
-            fig_cost.add_trace(go.Bar(
-                name=col.replace(" ($M)", ""),
-                x=comp_df['Scenario'],
-                y=comp_df[col]
-            ))
-            
-        # Add Net Settlement as a Line/Dot?
-        # Or Total Cost as a Line
-        fig_cost.add_trace(go.Scatter(
-            name="Total Net Cost",
-            x=comp_df['Scenario'],
-            y=comp_df['Total Cost ($M)'],
-            mode='lines+markers',
-            line=dict(color='black', width=3, dash='dot')
-        ))
-        
-        fig_cost.update_layout(
-            barmode='stack',
-            template=chart_template,
-            height=350,
-             margin=dict(l=20, r=20, t=20, b=20)
-        )
-        st.plotly_chart(fig_cost, use_container_width=True)
-
-        # --- 4. Comparison Table (Styled) ---
-        st.subheader("📋 Detailed Comparison Table")
-        
-        # Apply Pandas Styling
-        # CFE: Green High
-        # Total Cost: Green Low
-        # Net Settlement: Green High (Revenue) or Green Low (Cost)? 
-        # Net Settlement in this app: Revenue - Cost. High Positive is BEST. 
-        # So Green High.
-        
-        format_dict = {
-            "CFE Score": "{:.1f}%",
-            "Total Load (GWh)": "{:,.1f}",
-            "Avg PPA Price ($/MWh)": "${:.2f}",
-            "Net Settlement ($M)": "${:,.1f}",
-            "Total Cost ($M)": "${:,.1f}",
-            "Market Revenue ($M)": "${:,.1f}",
-            "PPA Cost ($M)": "${:,.1f}",
-            "REC Cost ($M)": "${:,.1f}",
-            "Deficit Cost ($M)": "${:,.1f}",
-            "Solar (MW)": "{:,.0f}",
-            "Wind (MW)": "{:,.0f}",
-            "Firm (MW)": "{:,.0f}",
-            "Battery (MW)": "{:,.0f}"
-        }
-        
-        # Gradient Styling
-        styled_df = comp_df.style.format(format_dict).background_gradient(
-            subset=["CFE Score", "Net Settlement ($M)"], cmap="RdYlGn"
-        ).background_gradient(
-            subset=["Total Cost ($M)"], cmap="RdYlGn_r" # Reversed: Low cost is green
-        )
-        
-        st.dataframe(styled_df, use_container_width=True, hide_index=True)
-            
-        if st.button("🗑️ Clear Comparison Scenarios"):
-            st.session_state.comparison_scenarios = {}
-            st.rerun()
-
 
 
 # --- Tab 1: User Guide (Moved to Top) ---
@@ -462,15 +286,13 @@ with tab_guide:
 
     Choose how to build your hourly load (8760 hours):
     
-    *   **Add Participants (No File Required)**
-        *   Use the *Add Participant* form to generate synthetic load profiles.
-        *   **Supported participant types include:**
-            *   Data Centers
-            *   Offices
-            *   Manufacturing
-            *   Other commercial profiles
-    *   **Upload CSV**
-        *   Upload a file containing hourly electricity demand data (8760 rows).
+    *   **Portfolio Generator**
+        *   Build a bottom-up synthetic load by adding individual sites (Data Centers, Offices, Manufacturing).
+        *   Configure operating hours, seasonality, and load factors for each property.
+        *   **🎲 Randomize Portfolio**: Instantly generate a test portfolio of 3-6 varied sites.
+    *   **Upload 8760 Profile (BETA)**
+        *   Upload one or more Excel/CSV files containing hourly demand data.
+        *   The tool aggregates multiple files into a single portfolio, tracking each as a distinct property.
 
     **Output:** A consolidated hourly load profile used across all subsequent analyses.
 
@@ -495,7 +317,7 @@ with tab_guide:
 
     **Inputs**
     *   **PPA Prices:** Enter fixed contract prices ($/MWh) for each generation technology.
-    *   **Market Price Data:** Select a historical year (2023 or 2024), or Upload custom hourly market prices.
+    *   **Market Price Data:** Select a historical year (2020-2024), 2025 Forecast, or 'Average' composite for 2020-2025.
 
     **Key Metrics**
     *   PPA Costs
@@ -520,26 +342,12 @@ with tab_guide:
 
     **Step 5: Scenario Manager (Tab 6)**
 
-    *   **Capture Functionality**: Save your current Load, Generation, and Financial configuration as a unique "Snapshot".
-    *   **Management:** View list of saved scenarios, rename them for clarity, or delete obsolete ones.
-    *   **Restore:** One-click restoration of any saved scenario to make further edits.
+    *   **Save & Restore**: Download your full configuration as a JSON file and restore it later.
+    *   **Capture & Compare**: Capture metrics from the current session for side-by-side comparison.
 
-    **Step 6: Scenario Comparison (Tab 7)**
+    **Step 6: Download Results (Tab 7)**
 
-    *   **Benchmarking**: Compare multiple saved scenarios side-by-side.
-    *   **Visualizations**:
-        *   **Efficiency Frontier**: Scatter plot of Cost vs CFE Score to identify optimal trade-offs.
-        *   **Capacity Stack**: Compare installed MW across scenarios.
-        *   **Cost Breakdown**: Stacked charts of PPA, REC, and deficits.
-    *   **Detailed Table**: Heatmap-style table highlighting the best performing scenarios across 10+ metrics.
-
-    **Step 7: Download Results (Tab 8)**
-
-    *   **Export Data**: Get the raw data behind your analysis.
-    *   **Formats**:
-        *   **Hourly CSV**: Detailed time-series data for Load, Generation (by tech), Battery flow, and Grid reliance.
-        *   **JSON Config**: Full system state file for archiving or re-uploading.
-        *   **PDF Report**: Automated executive summary with key charts and metrics.
+    *   **Export Results**: Export hourly CSVs, JSON configurations, and professional Excel or PDF reports.
     """)
     
     st.markdown("---")
@@ -2922,9 +2730,77 @@ with tab_scenario:
             st.toast(f"Captured {cap_name}")
             st.rerun()
 
+    # --- Scenario Comparison Display (Logic moved from disabled block) ---
+    if 'comparison_scenarios' in st.session_state and st.session_state.comparison_scenarios:
+        st.markdown("---")
+        st.subheader("📋 Scenario Comparison")
+        
+        # Prepare data for comparison
+        comp_data = []
+        for name, data in st.session_state.comparison_scenarios.items():
+            metrics_vals = data['metrics']
+            caps_vals = data['caps']
+            comp_data.append({
+                "Scenario": name,
+                "CFE Score": metrics_vals.get('cfe_score', 0) * 100,
+                "Total Load (GWh)": metrics_vals.get('total_load_mwh', 0) / 1000,
+                "Avg PPA Price ($/MWh)": metrics_vals.get('avg_ppa_price', 0),
+                "Net Settlement ($M)": metrics_vals.get('net_settlement', 0) / 1e6,
+                "Total Cost ($M)": metrics_vals.get('total_cost', 0) / 1e6,
+                "Market Revenue ($M)": metrics_vals.get('market_revenue', 0) / 1e6,
+                "PPA Cost ($M)": metrics_vals.get('gross_ppa_cost', 0) / 1e6,
+                "REC Cost ($M)": metrics_vals.get('rec_cost', 0) / 1e6,
+                "Deficit Cost ($M)": metrics_vals.get('deficit_cost', 0) / 1e6,
+                "Solar (MW)": caps_vals.get('solar', 0),
+                "Wind (MW)": caps_vals.get('wind', 0),
+                "Firm (MW)": caps_vals.get('firm', 0),
+                "Battery (MW)": caps_vals.get('batt_mw', 0)
+            })
+        
+        comp_df = pd.DataFrame(comp_data)
+        
+        if not comp_df.empty:
+            # Visual Trade-Offs
+            c1, c2 = st.columns([2, 1])
+            with c1:
+                st.markdown("**Efficiency Frontier: CFE vs. Cost**")
+                fig_scatter = go.Figure()
+                for i, row in comp_df.iterrows():
+                    fig_scatter.add_trace(go.Scatter(
+                        x=[row['CFE Score']], y=[row['Total Cost ($M)']],
+                        mode='markers+text', text=[row['Scenario']],
+                        textposition="top center", marker=dict(size=12, line=dict(width=2, color='DarkSlateGrey')),
+                        name=row['Scenario']
+                    ))
+                fig_scatter.update_layout(xaxis_title="CFE Score (%)", yaxis_title="Total Annual Cost ($M)", template=chart_template, showlegend=False, height=400)
+                st.plotly_chart(fig_scatter, use_container_width=True)
+            
+            with c2:
+                st.markdown("**Portfolio Capacity Mix (MW)**")
+                cap_cols = ['Solar (MW)', 'Wind (MW)', 'Firm (MW)', 'Battery (MW)']
+                fig_mix = go.Figure()
+                for col in cap_cols:
+                    fig_mix.add_trace(go.Bar(name=col.replace(" (MW)", ""), x=comp_df['Scenario'], y=comp_df[col]))
+                fig_mix.update_layout(barmode='stack', template=chart_template, legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1), height=400)
+                st.plotly_chart(fig_mix, use_container_width=True)
+
+            # Styled Table
+            format_dict_styled = {
+                "CFE Score": "{:.1f}%", "Total Load (GWh)": "{:,.1f}", "Avg PPA Price ($/MWh)": "${:.2f}",
+                "Net Settlement ($M)": "${:,.1f}", "Total Cost ($M)": "${:,.1f}", "Market Revenue ($M)": "${:,.1f}",
+                "PPA Cost ($M)": "${:,.1f}", "REC Cost ($M)": "${:,.1f}", "Deficit Cost ($M)": "${:,.1f}",
+                "Solar (MW)": "{:,.0f}", "Wind (MW)": "{:,.0f}", "Firm (MW)": "{:,.0f}", "Battery (MW)": "{:,.0f}"
+            }
+            styled_df_comp = comp_df.style.format(format_dict_styled).background_gradient(subset=["CFE Score", "Net Settlement ($M)"], cmap="RdYlGn").background_gradient(subset=["Total Cost ($M)"], cmap="RdYlGn_r")
+            st.dataframe(styled_df_comp, use_container_width=True, hide_index=True)
+            
+            if st.button("🗑️ Clear Comparison Scenarios"):
+                st.session_state.comparison_scenarios = {}
+                st.rerun()
+
 # --- Tab 7: Download Results Buttons ---
 with tab_dl:
-    st.header("8. Download Results")
+    st.header("7. Download Results")
     st.markdown("Export your configuration and analysis reports.")
     
     is_results_ready = active_scenario # Use the flag we defined earlier
@@ -2971,4 +2847,3 @@ with tab_dl:
             disabled=(len(zip_val) == 0)
         )
 
-# --- Tab 8: Load Profile Generator ---
