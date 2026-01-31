@@ -629,6 +629,8 @@ with tab_load:
             st.warning("Note: Custom profile overrides manual participants below.")
             if st.button("❌ Clear Custom Profile"):
                 del st.session_state["custom_aggregated_profile"]
+                if "custom_profile_sites" in st.session_state:
+                    del st.session_state["custom_profile_sites"]
                 st.rerun()
             st.markdown("---")
         
@@ -728,13 +730,15 @@ with tab_load:
     with col_load_2:
         st.markdown("#### Current Participants")
         
-        # Check for Custom Profile Intgeration first
+        # Check for Custom Profile Integration first
         if "custom_aggregated_profile" in st.session_state:
              st.success("Showing sites from Load Generator (Tab 8)")
-             if "load_gen_sites" in st.session_state and st.session_state.load_gen_sites:
+             # Use custom_profile_sites (saved copy) or fall back to load_gen_sites
+             sites_to_display = st.session_state.get("custom_profile_sites", st.session_state.get("load_gen_sites", []))
+             if sites_to_display:
                  # Create display DF
                  display_sites = []
-                 for s in st.session_state.load_gen_sites:
+                 for s in sites_to_display:
                      display_sites.append({
                          "Name": s['name'],
                          "Type": s['category'],
@@ -3311,6 +3315,10 @@ with tab_load_gen:
             
             total_mw_profile = combined_df['Total_kW'] / 1000.0
             st.session_state["custom_aggregated_profile"] = total_mw_profile
+            
+            # Also preserve site metadata for Tab 2 display
+            if "load_gen_sites" in st.session_state and st.session_state.load_gen_sites:
+                st.session_state["custom_profile_sites"] = st.session_state.load_gen_sites.copy()
             
             st.success("✅ Profile sent to Load Setup! Go to '2. Load Setup' to proceed.")
         
