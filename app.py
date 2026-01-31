@@ -848,54 +848,60 @@ with tab_gen:
 
     # Define callback for recommendation
     def apply_recommendation():
-        # Calculate total load from participants
-        temp_load = pd.Series(0.0, index=range(8760))
-        if st.session_state.participants:
+        # Calculate total load from participants OR custom profile
+        temp_load = None
+        
+        if "custom_aggregated_profile" in st.session_state:
+             # Convert MW back to MWh/h (same thing) but verify unit?
+             # app.py generally assumes MW for profile. recommend_portfolio takes profile in MW.
+             # custom_aggregated_profile is stored as MW (Total_kW / 1000).
+             temp_load = st.session_state["custom_aggregated_profile"]
+             
+        elif st.session_state.participants:
+            temp_load = pd.Series(0.0, index=range(8760))
             for p in st.session_state.participants:
                 temp_load += generate_dummy_load_profile(p['load'], p['type'])
-            
-            if temp_load.sum() > 0:
+        
+        if temp_load is not None and temp_load.sum() > 0:
 
-                # Smart Fill: Always use existing values to build around them
-                existing_capacities = {
-                    'Solar': st.session_state.get('solar_input', 0.0),
-                    'Wind': st.session_state.get('wind_input', 0.0),
-                    'CCS Gas': st.session_state.get('ccs_input', 0.0),
-                    'Geothermal': st.session_state.get('geo_input', 0.0),
-                    'Nuclear': st.session_state.get('nuc_input', 0.0),
-                    'Battery_MW': st.session_state.get('batt_input', 0.0)
-                }
-                
-                # Pass excluded techs from session state (widget key='excluded_techs_input')
-                marker_yr = st.session_state.get('market_year_input', 2024)
-                use_syn = st.session_state.get('use_synthetic_input', False)
-                
-                rec = recommend_portfolio(
-                    temp_load, 
-                    target_cfe=1.0, 
-                    excluded_techs=st.session_state.get('excluded_techs_input', []),
-                    existing_capacities=existing_capacities,
-                    fixed_techs=st.session_state.get('fixed_techs_input', []),
-                    year=marker_yr,
-                    use_synthetic=use_syn
-                )
-                st.session_state.solar_input = rec['Solar']
-                st.session_state.wind_input = rec['Wind']
-                st.session_state.ccs_input = rec['CCS Gas']
-                st.session_state.geo_input = rec['Geothermal']
-                st.session_state.nuc_input = rec['Nuclear']
-                st.session_state.batt_input = rec['Battery_MW']
-                st.session_state.batt_duration_input = rec['Battery_Hours']
-                
-                # Match projects from ERCOT queue
-                matched_projects = project_matcher.match_projects_to_recommendation(rec, max_projects_per_tech=5)
-                st.session_state.matched_projects = matched_projects
-                
-                st.session_state.portfolio_recommended = True
-            else:
-                st.session_state.portfolio_error = "Participant load is zero."
+            # Smart Fill: Always use existing values to build around them
+            existing_capacities = {
+                'Solar': st.session_state.get('solar_input', 0.0),
+                'Wind': st.session_state.get('wind_input', 0.0),
+                'CCS Gas': st.session_state.get('ccs_input', 0.0),
+                'Geothermal': st.session_state.get('geo_input', 0.0),
+                'Nuclear': st.session_state.get('nuc_input', 0.0),
+                'Battery_MW': st.session_state.get('batt_input', 0.0)
+            }
+            
+            # Pass excluded techs from session state (widget key='excluded_techs_input')
+            marker_yr = st.session_state.get('market_year_input', 2024)
+            use_syn = st.session_state.get('use_synthetic_input', False)
+            
+            rec = recommend_portfolio(
+                temp_load, 
+                target_cfe=1.0, 
+                excluded_techs=st.session_state.get('excluded_techs_input', []),
+                existing_capacities=existing_capacities,
+                fixed_techs=st.session_state.get('fixed_techs_input', []),
+                year=marker_yr,
+                use_synthetic=use_syn
+            )
+            st.session_state.solar_input = rec['Solar']
+            st.session_state.wind_input = rec['Wind']
+            st.session_state.ccs_input = rec['CCS Gas']
+            st.session_state.geo_input = rec['Geothermal']
+            st.session_state.nuc_input = rec['Nuclear']
+            st.session_state.batt_input = rec['Battery_MW']
+            st.session_state.batt_duration_input = rec['Battery_Hours']
+            
+            # Match projects from ERCOT queue
+            matched_projects = project_matcher.match_projects_to_recommendation(rec, max_projects_per_tech=5)
+            st.session_state.matched_projects = matched_projects
+            
+            st.session_state.portfolio_recommended = True
         else:
-            st.session_state.portfolio_error = "Add participants first."
+            st.session_state.portfolio_error = "No load profile found. Add participants or use Tab 8 generator."
 
     col_gen_1, col_gen_2 = st.columns([1, 1])
     
