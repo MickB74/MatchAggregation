@@ -601,7 +601,9 @@ with tab_load:
             st.line_chart(combined_mw)
             
             # CSV Download
-            csv_str = pd.concat([p.set_index('Datetime') for p in all_profiles], axis=1).to_csv()
+            download_df = pd.concat([p.set_index('Datetime') for p in all_profiles], axis=1)
+            download_df['TOTAL_MW'] = total_kw / 1000.0
+            csv_str = download_df.to_csv().encode('utf-8')
             st.download_button("📥 Download 8760 CSV", csv_str, "portfolio_load.csv", "text/csv")
     
     else:
@@ -629,8 +631,14 @@ with tab_load:
                         st.error(f"File '{uploaded_file.name}' must have 8760 rows. Found {len(df_up)}.")
                         continue
                         
-                    load_col = next((c for c in df_up.columns if any(k in c.lower() for k in ['load', 'mw', 'kw', 'demand'])), df_up.columns[0])
-                    profile = df_up[load_col].astype(float).head(8760)
+                    # Robust Column Detection: Skip datetime columns and look for load keywords
+                    potential_cols = [c for c in df_up.columns if not any(k in str(c).lower() for k in ['date', 'time', 'timestamp', 'index', 'interval', 'hour'])]
+                    if not potential_cols:
+                        st.error(f"No numeric data columns found in '{uploaded_file.name}'.")
+                        continue
+                        
+                    load_col = next((c for c in potential_cols if any(k in str(c).lower() for k in ['total', 'load', 'mw', 'kw', 'demand', 'usage'])), potential_cols[0])
+                    profile = pd.to_numeric(df_up[load_col], errors='coerce').fillna(0).head(8760)
                     
                     # Convert kW to MW if values are high
                     is_kw = profile.max() > 10000
