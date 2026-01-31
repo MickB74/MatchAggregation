@@ -665,19 +665,23 @@ with tab_load:
                     total_keywords = ['total', 'aggregate', 'load_mw', 'load_kw']
                     total_col = next((c for c in numeric_cols if any(k in str(c).lower() for k in total_keywords)), None)
                     
-                    # System columns to ignore during "explosion" (app-generated results)
+                    # System columns to ignore during "explosion" (app-generated results or generator internals)
                     system_cols = [
                         'matched_mw', 'solar_mw', 'wind_mw', 'geothermal_gen_mw', 'nuclear_gen_mw', 
                         'ccs_gas_gen_mw', 'total_raw_gen_mw', 'battery_discharge_mw', 
                         'battery_state_of_charge_mwh', 'grid_deficit_mw', 'surplus_mw', 
-                        'market_price_$/mwh', 'total_mw'
+                        'market_price_$/mwh', 'total_mw', 'total_kw', 'lf', 'kw', 'hour', 'month', 'day_type'
                     ]
                     
                     # Columns to treat as properties
                     prop_cols = []
                     if len(numeric_cols) > 1:
                         # Filter out system columns and the total column
-                        prop_cols = [c for c in numeric_cols if str(c).lower() not in system_cols and c != total_col]
+                        # Use split('.') to handle pandas renamed duplicates like LF.1, LF.2
+                        for c in numeric_cols:
+                            c_base = str(c).lower().split('.')[0]
+                            if c_base not in system_cols and c != total_col:
+                                prop_cols.append(c)
                         
                         # If we filtered everything out (e.g. it was just system cols), 
                         # fall back to the total column if it exists
