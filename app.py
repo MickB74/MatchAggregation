@@ -2926,6 +2926,29 @@ with tab_load_gen:
     with lf_col3:
         st.metric("Operating Load Factor", "1.00", help="Full load during operating hours")
     
+    st.markdown("### Seasonality Factors (Multipliers)")
+    sea_col1, sea_col2 = st.columns(2)
+    with sea_col1:
+        summer_mult = st.number_input(
+            "Summer Peak (Jun-Sep)", 
+            min_value=0.5, 
+            max_value=2.0, 
+            value=1.0, 
+            step=0.1, 
+            format="%.2f",
+            help="Multiplier for load during summer months (June-September)"
+        )
+    with sea_col2:
+        winter_mult = st.number_input(
+            "Winter Peak (Dec-Feb)", 
+            min_value=0.5, 
+            max_value=2.0, 
+            value=1.0, 
+            step=0.1, 
+            format="%.2f",
+            help="Multiplier for load during winter months (December-February)"
+        )
+    
     # US Holidays toggle
     treat_holidays_as_weekends = st.checkbox(
         "Treat US Federal Holidays as Weekends",
@@ -3068,7 +3091,9 @@ with tab_load_gen:
                 "annual_kwh": annual_kwh,
                 "hours_per_day": hours_per_day,
                 "start_hour_weekday": start_hour_weekday,
-                "start_hour_weekend": start_hour_weekend
+                "start_hour_weekend": start_hour_weekend,
+                "summer_multiplier": summer_mult,
+                "winter_multiplier": winter_mult
             })
             st.success(f"Added {site_name}")
             st.rerun()
@@ -3126,7 +3151,9 @@ with tab_load_gen:
                 year=2024,
                 baseline_lf=baseline_lf,
                 ramp_lf=ramp_lf,
-                treat_holidays_as_weekends=treat_holidays_as_weekends
+                treat_holidays_as_weekends=treat_holidays_as_weekends,
+                summer_multiplier=site.get('summer_multiplier', 1.0),
+                winter_multiplier=site.get('winter_multiplier', 1.0)
             )
             
             # Rename kW column to site name

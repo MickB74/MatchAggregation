@@ -65,20 +65,10 @@ def generate_dummy_load_profile(annual_consumption_mwh, profile_type='Flat'):
     return pd.Series(profile, name='Load (MW)')
 
 
-def generate_load_factor_profile(annual_kwh, hours_per_day, start_hour_weekday, start_hour_weekend, year=2024, baseline_lf=0.2, ramp_lf=0.4, treat_holidays_as_weekends=False):
+
+def generate_load_factor_profile(annual_kwh, hours_per_day, start_hour_weekday, start_hour_weekend, year=2024, baseline_lf=0.2, ramp_lf=0.4, treat_holidays_as_weekends=False, summer_multiplier=1.0, winter_multiplier=1.0):
     """
     Generates an 8760-hour load profile using load factor methodology.
-    
-    Load Factor Rules:
-    - During operating hours: LF = 1.0 (full load)
-    - 1 hour before/after operating hours: LF = ramp_lf (ramp up/down)
-    - Outside operating hours: LF = baseline_lf (baseline/standby)
-    - 24h operation: LF = 1.0 for all hours
-    
-    Scaling Factor Formula:
-    Scaling_Factor = Annual_kWh / (Weekdays_count * WD_sum + Weekends_count * WE_sum)
-    Where WD_sum = sum of 24 hourly LF values for weekdays
-    Where WE_sum = sum of 24 hourly LF values for weekends
     
     Args:
         annual_kwh (float): Total annual energy consumption
@@ -89,6 +79,8 @@ def generate_load_factor_profile(annual_kwh, hours_per_day, start_hour_weekday, 
         baseline_lf (float): Load factor for non-operating hours
         ramp_lf (float): Load factor for ramp up/down hours
         treat_holidays_as_weekends (bool): If True, US federal holidays use weekend schedulers (default False)
+        summer_multiplier (float): Multiplier for Jun-Sep (default 1.0)
+        winter_multiplier (float): Multiplier for Dec-Feb (default 1.0)
         
     Returns:
         pd.DataFrame: DataFrame with columns ['Datetime', 'Day_Type', 'Hour', 'LF', 'kW']
@@ -203,21 +195,44 @@ def generate_load_factor_profile(annual_kwh, hours_per_day, start_hour_weekday, 
     wd_sum = calculate_lf_sum(wd_hours, start_hour_weekday)
     we_sum = calculate_lf_sum(we_hours, start_hour_weekend)
     
-    # Count weekdays and weekends in year (treating holidays as weekends if enabled)
+    # Pre-calculate monthly multipliers
+    # Summer: Jun(6), Jul(7), Aug(8), Sep(9)
+    # Winter: Dec(12), Jan(1), Feb(2)
+    def get_monthly_multiplier(month):
+        if month in [6, 7, 8, 9]:
+            return summer_multiplier
+        elif month in [12, 1, 2]:
+            return winter_multiplier
+        else:
+            return 1.0
+
+    # Calculate total unscaled load to determine scaling factor
+    # This replaces the previous simple denominator approach to account for seasonality
+    total_unscaled_load = 0
+    
+    # Simulate the year hour by hour (efficiently using day counts would be faster but iteration is safer for seasonality)
+    # Actually, iterate by day is faster
     year_dates = pd.date_range(start=f'{year}-01-01', end=f'{year}-12-31', freq='D')
     
-    if treat_holidays_as_weekends:
-        # Count holidays as weekends for scaling
-        weekdays_count = sum(1 for d in year_dates if d.dayofweek < 5 and d.date() not in us_holidays)
-        weekends_count = len(year_dates) - weekdays_count
-    else:
-        weekdays_count = sum(1 for d in year_dates if d.dayofweek < 5)
-        weekends_count = len(year_dates) - weekdays_count
-    
+    for d in year_dates:
+        month = d.month
+        monthly_mult = get_monthly_multiplier(month)
+        
+        is_holiday = d.date() in us_holidays
+        is_weekend = d.dayofweek >= 5
+        
+        if is_holiday and treat_holidays_as_weekends:
+            daily_sum = we_sum
+        elif is_weekend:
+            daily_sum = we_sum
+        else:
+            daily_sum = wd_sum
+            
+        total_unscaled_load += daily_sum * monthly_mult
+        
     # Calculate scaling factor
-    denominator = (weekdays_count * wd_sum + weekends_count * we_sum)
-    if denominator > 0:
-        scaling_factor = annual_kwh / denominator
+    if total_unscaled_load > 0:
+        scaling_factor = annual_kwh / total_unscaled_load
     else:
         scaling_factor = 0
     
@@ -226,6 +241,7 @@ def generate_load_factor_profile(annual_kwh, hours_per_day, start_hour_weekday, 
         hour = dt.hour
         day_of_week = dt.dayofweek  # 0=Monday, 6=Sunday
         current_date = dt.date()
+        month = dt.month
         
         # Check if this is a holiday (treat as weekend if toggle is on)
         is_holiday = current_date in us_holidays
@@ -272,8 +288,11 @@ def generate_load_factor_profile(annual_kwh, hours_per_day, start_hour_weekday, 
             else:
                 lf = baseline_lf
         
+        # Apply seasonality
+        seasonal_mult = get_monthly_multiplier(month)
+        
         # Calculate hourly kW
-        hourly_kw = lf * scaling_factor
+        hourly_kw = lf * seasonal_mult * scaling_factor
         
         records.append({
             'Datetime': dt,
