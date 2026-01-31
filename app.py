@@ -3119,10 +3119,24 @@ with tab_load_gen:
             yaxis_title="Load (kW)",
             template=chart_template,
             height=500,
-            hovermode='x unified'
+            hovermode='x unified',
+            xaxis=dict(
+                rangeslider=dict(visible=True),
+                type='date',
+                rangeselector=dict(
+                    buttons=list([
+                        dict(count=7, label="1w", step="day", stepmode="backward"),
+                        dict(count=1, label="1m", step="month", stepmode="backward"),
+                        dict(count=3, label="3m", step="month", stepmode="backward"),
+                        dict(count=6, label="6m", step="month", stepmode="backward"),
+                        dict(step="all", label="All")
+                    ])
+                )
+            ),
+            dragmode='zoom'
         )
         
-        st.plotly_chart(fig_load_gen, use_container_width=True)
+        st.plotly_chart(fig_load_gen, use_container_width=True, config={'displayModeBar': True, 'displaylogo': False})
         
         # Download CSV
         st.markdown("### Download 8760 CSV")
