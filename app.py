@@ -2894,6 +2894,7 @@ with tab_dl:
 with tab_load_gen:
     st.header("8. Multi-Site 8760 Load Profile Generator")
     st.markdown("Create detailed hourly load profiles for multiple sites using load factor methodology.")
+    st.info("This tool generates synthetic load profiles for sites where you know the total annual kWh but don't have actual 8760-hour interval data.")
     
     # Initialize session state for sites
     if 'load_gen_sites' not in st.session_state:
