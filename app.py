@@ -3027,6 +3027,7 @@ with tab_load_gen:
 
     
     # --- Site Entry Form ---
+    site_options = ["-- New Site --"] + ([s['name'] for s in st.session_state.load_gen_sites] if st.session_state.load_gen_sites else [])
     edit_site_selection = st.selectbox("Edit Existing Site", site_options, key="edit_site_select", on_change=load_site_data)
     
     # (Procedural logic removed, handled by callback)
