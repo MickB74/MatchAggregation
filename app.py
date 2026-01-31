@@ -727,7 +727,31 @@ with tab_load:
 
     with col_load_2:
         st.markdown("#### Current Participants")
-        if st.session_state.participants:
+        
+        # Check for Custom Profile Intgeration first
+        if "custom_aggregated_profile" in st.session_state:
+             st.success("Showing sites from Load Generator (Tab 8)")
+             if "load_gen_sites" in st.session_state and st.session_state.load_gen_sites:
+                 # Create display DF
+                 display_sites = []
+                 for s in st.session_state.load_gen_sites:
+                     display_sites.append({
+                         "Name": s['name'],
+                         "Type": s['category'],
+                         "Annual Load (MWh)": s['annual_kwh'] / 1000.0,
+                         "Schedule": "Custom 8760"
+                     })
+                 
+                 site_df_display = pd.DataFrame(display_sites)
+                 st.dataframe(
+                    site_df_display.style.format({"Annual Load (MWh)": "{:,.0f}"}), 
+                    use_container_width=True, 
+                    hide_index=True
+                 )
+             else:
+                 st.warning("Custom profile active, but site details missing from session.")
+
+        elif st.session_state.participants:
             p_df = pd.DataFrame(st.session_state.participants)
             st.dataframe(
                 p_df.style.format({"load": "{:,.0f}"}), 
