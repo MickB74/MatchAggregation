@@ -3003,7 +3003,13 @@ with tab_load_gen:
             sun_hrs = st.number_input("Sun", min_value=0, max_value=24, step=1, key="sun")
 
         
-        start_hour = st.number_input("Operating Start Hour (0-23)", min_value=0, max_value=23, value=8, step=1)
+
+        st.markdown("**Start Hour (0-23)**")
+        sh_col1, sh_col2 = st.columns(2)
+        with sh_col1:
+            start_hour_weekday = st.number_input("Weekday Start", min_value=0, max_value=23, value=8, step=1)
+        with sh_col2:
+            start_hour_weekend = st.number_input("Weekend Start", min_value=0, max_value=23, value=8, step=1)
         
         submitted = st.button("Add Site", type="primary")
         
@@ -3018,7 +3024,8 @@ with tab_load_gen:
                 "category": site_category,
                 "annual_kwh": annual_kwh,
                 "hours_per_day": hours_per_day,
-                "start_hour": start_hour
+                "start_hour_weekday": start_hour_weekday,
+                "start_hour_weekend": start_hour_weekend
             })
             st.success(f"Added {site_name}")
             st.rerun()
@@ -3036,13 +3043,18 @@ with tab_load_gen:
             sites_display = []
             for idx, site in enumerate(st.session_state.load_gen_sites):
                 hrs_str = f"{site['hours_per_day'][0]}-{site['hours_per_day'][4]}/{site['hours_per_day'][5]}-{site['hours_per_day'][6]}"
+                
+                # Handle backwards compatibility for sites added before this change
+                wd_start = site.get('start_hour_weekday', site.get('start_hour', 8))
+                we_start = site.get('start_hour_weekend', site.get('start_hour', 8))
+                
                 sites_display.append({
                     "#": idx + 1,
                     "Site Name": site['name'],
                     "Category": site['category'],
                     "Annual kWh": f"{site['annual_kwh']:,.0f}",
                     "Hours (WD/WE)": hrs_str,
-                    "Start Hour": site['start_hour']
+                    "Start (WD/WE)": f"{wd_start}/{we_start}"
                 })
             
             st.dataframe(pd.DataFrame(sites_display), hide_index=True, use_container_width=True)
@@ -3059,10 +3071,15 @@ with tab_load_gen:
         total_profile_kw = None
         
         for site in st.session_state.load_gen_sites:
+            # Handle backwards compatibility
+            wd_start = site.get('start_hour_weekday', site.get('start_hour', 8))
+            we_start = site.get('start_hour_weekend', site.get('start_hour', 8))
+            
             profile_df = generate_load_factor_profile(
                 annual_kwh=site['annual_kwh'],
                 hours_per_day=site['hours_per_day'],
-                start_hour=site['start_hour'],
+                start_hour_weekday=wd_start,
+                start_hour_weekend=we_start,
                 year=2024,
                 baseline_lf=baseline_lf,
                 ramp_lf=ramp_lf,

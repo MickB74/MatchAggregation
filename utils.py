@@ -147,6 +147,7 @@ def generate_load_factor_profile(annual_kwh, hours_per_day, start_hour, year=202
         
         return set(holidays_list)
     
+    # Get US holidays if enabled
     us_holidays = get_us_holidays(year) if treat_holidays_as_weekends else set()
     
     # Create datetime index for full year
@@ -198,8 +199,8 @@ def generate_load_factor_profile(annual_kwh, hours_per_day, start_hour, year=202
     wd_hours = hours_per_day[0]  # Monday (representative weekday)
     we_hours = hours_per_day[5]  # Saturday (representative weekend)
     
-    wd_sum = calculate_lf_sum(wd_hours, start_hour)
-    we_sum = calculate_lf_sum(we_hours, start_hour)
+    wd_sum = calculate_lf_sum(wd_hours, start_hour_weekday)
+    we_sum = calculate_lf_sum(we_hours, start_hour_weekend)
     
     # Count weekdays and weekends in year (treating holidays as weekends if enabled)
     year_dates = pd.date_range(start=f'{year}-01-01', end=f'{year}-12-31', freq='D')
@@ -232,12 +233,15 @@ def generate_load_factor_profile(annual_kwh, hours_per_day, start_hour, year=202
         if is_holiday:
             day_type = 'HOL'
             hours_op = hours_per_day[5]  # Use Saturday hours for holidays
+            current_start_hour = start_hour_weekend
         elif day_of_week < 5:
             day_type = 'WD'
             hours_op = hours_per_day[day_of_week]
+            current_start_hour = start_hour_weekday
         else:
             day_type = 'WE'
             hours_op = hours_per_day[day_of_week]
+            current_start_hour = start_hour_weekend
         
         # Calculate load factor for this hour
         if hours_op == 24:
@@ -245,17 +249,19 @@ def generate_load_factor_profile(annual_kwh, hours_per_day, start_hour, year=202
         elif hours_op == 0:
             lf = baseline_lf
         else:
-            end_h = (start_hour + hours_op) % 24
+            # Determine start/end hours
+            start_h = current_start_hour
+            end_h = (start_h + hours_op) % 24
             
             # Check if hour is during operation
-            if end_h > start_hour:
-                is_during = start_hour <= hour < end_h
-                is_before = hour == (start_hour - 1) % 24
+            if end_h > start_h:
+                is_during = start_h <= hour < end_h
+                is_before = hour == (start_h - 1) % 24
                 is_after = hour == end_h
             else:
                 # Wraps midnight
-                is_during = hour >= start_hour or hour < end_h
-                is_before = hour == (start_hour - 1) % 24
+                is_during = hour >= start_h or hour < end_h
+                is_before = hour == (start_h - 1) % 24
                 is_after = hour == end_h
             
             if is_during:
