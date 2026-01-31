@@ -268,7 +268,7 @@ def generate_random_scenario():
 exec_summary_container = st.container()
 
 # --- Configuration Section (Top) ---
-tab_guide, tab_load, tab_gen, tab_fin, tab_offtake, tab_scenario, tab_dl, tab_load_gen = st.tabs(["1\\. Start Here", "2\\. Load Setup", "3\\. Generation Profile", "4\\. Financial Analysis", "5\\. Battery Financials", "6\\. Scenario Manager", "7\\. Download Results", "8\\. Load Profile Generator"])
+tab_guide, tab_load, tab_gen, tab_fin, tab_offtake, tab_scenario, tab_dl, tab_load_gen = st.tabs(["1\\. Start Here", "2\\. Load Setup (Simple)", "3\\. Generation Profile", "4\\. Financial Analysis", "5\\. Battery Financials", "6\\. Scenario Manager", "7\\. Download Results", "8\\. Load Profile Generator"])
 # tab_comp removed
 
     
@@ -619,7 +619,7 @@ with tab_guide:
 
 # --- Tab 2: Load Setup ---
 with tab_load:
-    st.header("2. Load Setup")
+    st.header("2. Load Setup (Simple)")
     col_load_1, col_load_2 = st.columns([1, 2])
     
     with col_load_1:
@@ -2947,6 +2947,13 @@ with tab_load_gen:
     if 'load_gen_sites' not in st.session_state:
         st.session_state.load_gen_sites = []
 
+    # Migration: Convert existing kWh sites to MWh if needed
+    if "load_gen_sites" in st.session_state and st.session_state.load_gen_sites:
+        for site in st.session_state.load_gen_sites:
+            if "annual_kwh" in site:
+                # Convert to MWh and rename key for clarity
+                site["annual_mwh"] = site.pop("annual_kwh") / 1000.0 if site["annual_kwh"] > 5000 else site["annual_kwh"]
+
     # Callback to load site data (must be defined before widgets)
     def load_site_data():
         selection = st.session_state.edit_site_select
@@ -2955,7 +2962,7 @@ with tab_load_gen:
             if site_d:
                 st.session_state.site_name_input = site_d['name']
                 st.session_state.category_input = site_d['category']
-                st.session_state.annual_kwh_input = site_d['annual_kwh']
+                st.session_state.annual_kwh_input = site_d.get('annual_mwh', site_d.get('annual_kwh', 6))
                 
                 st.session_state.mon = site_d['hours_per_day'][0]
                 st.session_state.tue = site_d['hours_per_day'][1]
@@ -3095,7 +3102,7 @@ with tab_load_gen:
         
     site_category = st.selectbox("Category", category_options, format_func=format_category, key="category_input", on_change=load_category_defaults)
     
-    annual_kwh = st.number_input("Annual kWh", min_value=1000, value=6000000, step=100000, format="%d", key="annual_kwh_input")
+    annual_mwh = st.number_input("Annual MWh", min_value=1.0, value=6000.0, step=100.0, format="%.1f", key="annual_kwh_input")
     
     st.markdown("**Hours of Operation per Day (0-24)**")
     
@@ -3256,7 +3263,7 @@ with tab_load_gen:
         site_data = {
             "name": site_name,
             "category": site_category,
-            "annual_kwh": annual_kwh,
+            "annual_mwh": annual_mwh,
             "hours_per_day": hours_per_day,
             "start_hour_weekday": start_hour_weekday,
             "start_hour_weekend": start_hour_weekend,
@@ -3311,7 +3318,7 @@ with tab_load_gen:
                 "#": idx + 1,
                 "Site Name": site['name'],
                 "Category": site['category'],
-                "Annual kWh": f"{site['annual_kwh']:,.0f}",
+                "Annual MWh": f"{site.get('annual_mwh', site.get('annual_kwh', 0)):,.1f}",
                 "Hours (WD/WE)": hrs_str,
                 "Start (WD/WE)": f"{wd_start}/{we_start}"
             })
@@ -3342,8 +3349,15 @@ with tab_load_gen:
             wd_start = site.get('start_hour_weekday', site.get('start_hour', 8))
             we_start = site.get('start_hour_weekend', site.get('start_hour', 8))
             
+            # Get annual energy in kWh for the generator function
+            val_mwh = site.get('annual_mwh', site.get('annual_kwh', 0))
+            if val_mwh > 5000: # Simple heuristic if it was accidentally stored as kWh
+                val_kwh = val_mwh
+            else:
+                val_kwh = val_mwh * 1000.0
+
             profile_df = generate_load_factor_profile(
-                annual_kwh=site['annual_kwh'],
+                annual_kwh=val_kwh,
                 hours_per_day=site['hours_per_day'],
                 start_hour_weekday=wd_start,
                 start_hour_weekend=we_start,
@@ -3380,18 +3394,21 @@ with tab_load_gen:
         
         for idx, site in enumerate(st.session_state.load_gen_sites):
             with summary_cols[idx]:
-                site_kw = combined_df[site['name']]
+                site_mwh = combined_df[site['name']].sum() / 1000.0
+                peak_mw = combined_df[site['name']].max() / 1000.0
                 st.metric(
                     label=f"{site['name']}",
-                    value=f"{site_kw.sum():,.0f} kWh/yr",
-                    delta=f"Peak: {site_kw.max():,.0f} kW"
+                    value=f"{site_mwh:,.1f} MWh/yr",
+                    delta=f"Peak: {peak_mw:,.3f} MW"
                 )
         
         with summary_cols[-1]:
+            total_mwh = combined_df['Total_kW'].sum() / 1000.0
+            total_peak_mw = combined_df['Total_kW'].max() / 1000.0
             st.metric(
                 label="Total (All Sites)",
-                value=f"{combined_df['Total_kW'].sum():,.0f} kWh/yr",
-                delta=f"Peak: {combined_df['Total_kW'].max():,.0f} kW"
+                value=f"{total_mwh:,.1f} MWh/yr",
+                delta=f"Peak: {total_peak_mw:,.3f} MW"
             )
         
         # Visualization
@@ -3473,7 +3490,7 @@ with tab_load_gen:
             if "load_gen_sites" in st.session_state and st.session_state.load_gen_sites:
                 st.session_state["custom_profile_sites"] = st.session_state.load_gen_sites.copy()
             
-            st.success("✅ Profile sent to Load Setup! Go to '2. Load Setup' to proceed.")
+            st.success("✅ Profile sent to Load Setup! Go to '2. Load Setup (Simple)' to proceed.")
         
         # Prepare CSV download
         csv_buffer = io.StringIO()
