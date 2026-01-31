@@ -2981,6 +2981,54 @@ with tab_load_gen:
             # Clean up
             if "edit_temp_name" in st.session_state: del st.session_state.edit_temp_name
     
+    # Callback to load category defaults
+    def load_category_defaults():
+        cat = st.session_state.category_input
+        if cat == "DC":
+            # Data Center: 24/7
+            st.session_state.mon = 24
+            st.session_state.tue = 24
+            st.session_state.wed = 24
+            st.session_state.thu = 24
+            st.session_state.fri = 24
+            st.session_state.sat = 24
+            st.session_state.sun = 24
+            st.session_state.sh_wd = 0
+            st.session_state.sh_we = 0
+        elif cat == "MFG":
+            # MFG: 18h M-F, closed weekends
+            st.session_state.mon = 18
+            st.session_state.tue = 18
+            st.session_state.wed = 18
+            st.session_state.thu = 18
+            st.session_state.fri = 18
+            st.session_state.sat = 0
+            st.session_state.sun = 0
+            st.session_state.sh_wd = 6
+            st.session_state.sh_we = 0
+        elif cat == "Office":
+            # Office: 10h M-F (8-6), closed weekends
+            st.session_state.mon = 10
+            st.session_state.tue = 10
+            st.session_state.wed = 10
+            st.session_state.thu = 10
+            st.session_state.fri = 10
+            st.session_state.sat = 0
+            st.session_state.sun = 0
+            st.session_state.sh_wd = 8
+            st.session_state.sh_we = 8
+        elif cat == "Other":
+            # Other: 12h daily
+            st.session_state.mon = 12
+            st.session_state.tue = 12
+            st.session_state.wed = 12
+            st.session_state.thu = 12
+            st.session_state.fri = 12
+            st.session_state.sat = 12
+            st.session_state.sun = 12
+            st.session_state.sh_wd = 6
+            st.session_state.sh_we = 6
+    
     # Random Generator (Quick Start)
     if st.button("🎲 Randomize Sites (3-6 Sites)", type="primary", help="Instantly generate a test portfolio"):
         import random
@@ -3045,55 +3093,7 @@ with tab_load_gen:
         if x == "Other": return "Other (12h/7d)"
         return x
         
-    site_category = st.selectbox("Category", category_options, format_func=format_category, key="category_input")
-    
-    if st.button("Load Defaults for Selected Category"):
-        if site_category == "DC":
-            # Data Center: 24/7
-            st.session_state.mon = 24
-            st.session_state.tue = 24
-            st.session_state.wed = 24
-            st.session_state.thu = 24
-            st.session_state.fri = 24
-            st.session_state.sat = 24
-            st.session_state.sun = 24
-            st.session_state.sh_wd = 0
-            st.session_state.sh_we = 0
-        elif site_category == "MFG":
-            # MFG: 18h M-F, closed weekends
-            st.session_state.mon = 18
-            st.session_state.tue = 18
-            st.session_state.wed = 18
-            st.session_state.thu = 18
-            st.session_state.fri = 18
-            st.session_state.sat = 0
-            st.session_state.sun = 0
-            st.session_state.sh_wd = 6
-            st.session_state.sh_we = 0
-        elif site_category == "Office":
-            # Office: 10h M-F (8-6), closed weekends
-            st.session_state.mon = 10
-            st.session_state.tue = 10
-            st.session_state.wed = 10
-            st.session_state.thu = 10
-            st.session_state.fri = 10
-            st.session_state.sat = 0
-            st.session_state.sun = 0
-            st.session_state.sh_wd = 8
-            st.session_state.sh_we = 8
-        elif site_category == "Other":
-            # Other: 12h daily (User request)
-            # Defaults: 12h/day, start at 6 AM
-            st.session_state.mon = 12
-            st.session_state.tue = 12
-            st.session_state.wed = 12
-            st.session_state.thu = 12
-            st.session_state.fri = 12
-            st.session_state.sat = 12
-            st.session_state.sun = 12
-            st.session_state.sh_wd = 6
-            st.session_state.sh_we = 6
-        st.rerun()
+    site_category = st.selectbox("Category", category_options, format_func=format_category, key="category_input", on_change=load_category_defaults)
     
     annual_kwh = st.number_input("Annual kWh", min_value=1000, value=6000000, step=100000, format="%d", key="annual_kwh_input")
     
