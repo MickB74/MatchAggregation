@@ -65,7 +65,7 @@ def generate_dummy_load_profile(annual_consumption_mwh, profile_type='Flat'):
     return pd.Series(profile, name='Load (MW)')
 
 
-def generate_load_factor_profile(annual_kwh, hours_per_day, start_hour, year=2024, baseline_lf=0.2, ramp_lf=0.1, treat_holidays_as_weekends=False):
+def generate_load_factor_profile(annual_kwh, hours_per_day, start_hour_weekday, start_hour_weekend, year=2024, baseline_lf=0.2, ramp_lf=0.1, treat_holidays_as_weekends=False):
     """
     Generates an 8760-hour load profile using load factor methodology.
     
@@ -81,13 +81,14 @@ def generate_load_factor_profile(annual_kwh, hours_per_day, start_hour, year=202
     Where WE_sum = sum of 24 hourly LF values for weekends
     
     Args:
-        annual_kwh (float): Annual kWh consumption for the site
-        hours_per_day (list): Number of operating hours per day (7 values for Mon-Sun, 0-24)
-        start_hour (int): Operating start hour (0-23)
-        year (int): Year for datetime index (default 2024)
-        baseline_lf (float): Load factor for outside operating hours (default 0.2)
-        ramp_lf (float): Load factor for ramp up/down hours (default 0.1)
-        treat_holidays_as_weekends (bool): If True, US federal holidays use weekend hours (default False)
+        annual_kwh (float): Total annual energy consumption
+        hours_per_day (list): List of 7 integers (Mon-Sun) representing operating hours
+        start_hour_weekday (int): Hour of day operations start on weekdays (0-23)
+        start_hour_weekend (int): Hour of day operations start on weekends (0-23)
+        year (int): Analysis year
+        baseline_lf (float): Load factor for non-operating hours
+        ramp_lf (float): Load factor for ramp up/down hours
+        treat_holidays_as_weekends (bool): If True, US federal holidays use weekend schedulers (default False)
         
     Returns:
         pd.DataFrame: DataFrame with columns ['Datetime', 'Day_Type', 'Hour', 'LF', 'kW']
