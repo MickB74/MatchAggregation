@@ -3012,8 +3012,16 @@ with tab_load_gen:
         
         site_name = st.text_input("Site Name", placeholder="e.g. Data Center 1")
         
-        category_options = ["DC", "MFG", "Office"]
-        site_category = st.selectbox("Category", category_options, format_func=lambda x: "Data Center" if x == "DC" else ("Manufacturing" if x == "MFG" else "Office"))
+        category_options = ["DC", "MFG", "Office", "Other"]
+        # Helper to format option labels
+        def format_category(x):
+            if x == "DC": return "Data Center"
+            if x == "MFG": return "Manufacturing"
+            if x == "Office": return "Office"
+            if x == "Other": return "Other (12h/7d)"
+            return x
+            
+        site_category = st.selectbox("Category", category_options, format_func=format_category)
         
         if st.button("Load Defaults for Selected Category"):
             if site_category == "DC":
@@ -3048,7 +3056,20 @@ with tab_load_gen:
                 st.session_state.sat = 0
                 st.session_state.sun = 0
                 st.session_state.sh_wd = 8
+                st.session_state.sh_wd = 8
                 st.session_state.sh_we = 8
+            elif site_category == "Other":
+                # Other: 12h daily (User request)
+                # Defaults: 12h/day, start at 6 AM
+                st.session_state.mon = 12
+                st.session_state.tue = 12
+                st.session_state.wed = 12
+                st.session_state.thu = 12
+                st.session_state.fri = 12
+                st.session_state.sat = 12
+                st.session_state.sun = 12
+                st.session_state.sh_wd = 6
+                st.session_state.sh_we = 6
             st.rerun()
         
         annual_kwh = st.number_input("Annual kWh", min_value=1000, value=6000000, step=100000, format="%d")
