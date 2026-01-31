@@ -770,13 +770,19 @@ with tab_load:
     
     else:
         # --- Upload 8760 Logic ---
-        st.subheader("Upload 8760 Profile")
-        st.info("Upload one or more hourly (8760-hour) load profiles. The tool will aggregate them.")
+        st.subheader("Upload 8760 Profile (BETA UNDER REVIEW)")
+        st.info("Upload one or more hourly (8760-hour) load profiles. Each file will be treated as a distinct property.")
         uploaded_files = st.file_uploader("Choose CSV or Excel files", type=["csv", "xlsx", "xls"], key="8760_uploader", accept_multiple_files=True)
         
         if uploaded_files:
             try:
-                aggregated_profile = pd.Series(0.0, index=range(8760))
+                # Initialize DataFrame for property profiles
+                m_year = st.session_state.get('market_year_input', 2024)
+                year_for_dates = 2024 if m_year == 'Average' else m_year
+                dates = pd.date_range(start=f'{year_for_dates}-01-01', periods=8760, freq='h')
+                
+                property_profiles_df = pd.DataFrame({'Datetime': dates})
+                total_profile = pd.Series(0.0, index=range(8760))
                 file_details = []
                 
                 for uploaded_file in uploaded_files:
@@ -794,9 +800,13 @@ with tab_load:
                     is_kw = profile.max() > 10000
                     if is_kw: profile = profile / 1000.0
                     
-                    aggregated_profile += profile.values
+                    # Store individual property profile
+                    prop_name = uploaded_file.name
+                    property_profiles_df[prop_name] = profile.values
+                    total_profile += profile.values
+                    
                     file_details.append({
-                        "File": uploaded_file.name,
+                        "Property": prop_name,
                         "Total (MWh)": f"{profile.sum():,.0f}",
                         "Peak (MW)": f"{profile.max():,.2f}"
                     })
@@ -804,17 +814,53 @@ with tab_load:
                 if not file_details:
                     st.warning("No valid 8760 profiles found in uploaded files.")
                 else:
-                    st.session_state["custom_aggregated_profile"] = aggregated_profile
-                    st.success(f"✅ Aggregated {len(file_details)} file(s)")
+                    st.session_state["custom_aggregated_profile"] = total_profile
+                    st.success(f"✅ Loaded {len(file_details)} property(ies)")
                     
-                    # Display summary of uploaded files
-                    with st.expander("Uploaded File Details"):
-                        st.table(pd.DataFrame(file_details))
-                        
-                    m1, m2 = st.columns(2)
-                    m1.metric("Total Aggregate Load", f"{aggregated_profile.sum():,.0f} MWh")
-                    m2.metric("Aggregate Peak Load", f"{aggregated_profile.max():,.2f} MW")
-                    st.line_chart(aggregated_profile)
+                    # Detailed Metrics Breakdown
+                    st.markdown("### Property Breakdown")
+                    breakdown_cols = st.columns(min(len(file_details), 4))
+                    for i, detail in enumerate(file_details):
+                        with breakdown_cols[i % 4]:
+                            st.metric(detail["Property"], f"{detail['Total (MWh)']} MWh", f"Peak: {detail['Peak (MW)']} MW")
+
+                    # Visualization
+                    st.markdown("### Load Profile Visualization")
+                    fig_multi = go.Figure()
+                    
+                    # Add trace for each property
+                    for detail in file_details:
+                        prop_name = detail["Property"]
+                        fig_multi.add_trace(go.Scatter(
+                            x=property_profiles_df['Datetime'],
+                            y=property_profiles_df[prop_name],
+                            mode='lines',
+                            name=prop_name,
+                            line=dict(width=1.5)
+                        ))
+                    
+                    # Add Aggregate Total trace
+                    fig_multi.add_trace(go.Scatter(
+                        x=property_profiles_df['Datetime'],
+                        y=total_profile,
+                        mode='lines',
+                        name='TOTAL',
+                        line=dict(width=3, color='Navy', dash='dot')
+                    ))
+                    
+                    fig_multi.update_layout(
+                        xaxis_title="Time",
+                        yaxis_title="Load (MW)",
+                        template=chart_template,
+                        hovermode='x unified',
+                        height=500
+                    )
+                    st.plotly_chart(fig_multi, use_container_width=True)
+                    
+                    # Prepare export CSV with all columns
+                    property_profiles_df['TOTAL_MW'] = total_profile
+                    csv_export = property_profiles_df.to_csv(index=False).encode('utf-8')
+                    st.download_button("📥 Download Property Breakdown (8760 CSV)", csv_export, "load_breakdown_8760.csv", "text/csv")
                     
             except Exception as e: st.error(f"Error processing files: {e}")
         else:
