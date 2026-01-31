@@ -3026,235 +3026,189 @@ with tab_load_gen:
 
 
     
-    col1, col2 = st.columns([1, 2])
+    # --- Site Entry Form ---
+    edit_site_selection = st.selectbox("Edit Existing Site", site_options, key="edit_site_select", on_change=load_site_data)
     
-    with col1:
-
+    # (Procedural logic removed, handled by callback)
+             
+    st.subheader("Add / Update Site")
+    
+    site_name = st.text_input("Site Name", placeholder="e.g. Data Center 1", key="site_name_input")
+    
+    category_options = ["DC", "MFG", "Office", "Other"]
+    # Helper to format option labels
+    def format_category(x):
+        if x == "DC": return "Data Center"
+        if x == "MFG": return "Manufacturing"
+        if x == "Office": return "Office"
+        if x == "Other": return "Other (12h/7d)"
+        return x
         
-        # Edit Mode Selection
-        site_options = ["-- New Site --"] + ([s['name'] for s in st.session_state.load_gen_sites] if st.session_state.load_gen_sites else [])
-        edit_site_selection = st.selectbox("Edit Existing Site", site_options, key="edit_site_select", on_change=load_site_data)
-        
-        # (Procedural logic removed, handled by callback)
-                 
-        st.subheader("Add / Update Site")
-        
-        site_name = st.text_input("Site Name", placeholder="e.g. Data Center 1", key="site_name_input")
-        
-        category_options = ["DC", "MFG", "Office", "Other"]
-        # Helper to format option labels
-        def format_category(x):
-            if x == "DC": return "Data Center"
-            if x == "MFG": return "Manufacturing"
-            if x == "Office": return "Office"
-            if x == "Other": return "Other (12h/7d)"
-            return x
-            
-        site_category = st.selectbox("Category", category_options, format_func=format_category, key="category_input")
-        
-        if st.button("Load Defaults for Selected Category"):
-            if site_category == "DC":
-                # Data Center: 24/7
-                st.session_state.mon = 24
-                st.session_state.tue = 24
-                st.session_state.wed = 24
-                st.session_state.thu = 24
-                st.session_state.fri = 24
-                st.session_state.sat = 24
-                st.session_state.sun = 24
-                st.session_state.sh_wd = 0
-                st.session_state.sh_we = 0
-            elif site_category == "MFG":
-                # MFG: 18h M-F, closed weekends
-                st.session_state.mon = 18
-                st.session_state.tue = 18
-                st.session_state.wed = 18
-                st.session_state.thu = 18
-                st.session_state.fri = 18
-                st.session_state.sat = 0
-                st.session_state.sun = 0
-                st.session_state.sh_wd = 6
-                st.session_state.sh_we = 0
-            elif site_category == "Office":
-                # Office: 10h M-F (8-6), closed weekends
-                st.session_state.mon = 10
-                st.session_state.tue = 10
-                st.session_state.wed = 10
-                st.session_state.thu = 10
-                st.session_state.fri = 10
-                st.session_state.sat = 0
-                st.session_state.sun = 0
-                st.session_state.sh_wd = 8
-                st.session_state.sh_wd = 8
-                st.session_state.sh_we = 8
-            elif site_category == "Other":
-                # Other: 12h daily (User request)
-                # Defaults: 12h/day, start at 6 AM
-                st.session_state.mon = 12
-                st.session_state.tue = 12
-                st.session_state.wed = 12
-                st.session_state.thu = 12
-                st.session_state.fri = 12
-                st.session_state.sat = 12
-                st.session_state.sun = 12
-                st.session_state.sh_wd = 6
-                st.session_state.sh_we = 6
-            st.rerun()
-        
-        annual_kwh = st.number_input("Annual kWh", min_value=1000, value=6000000, step=100000, format="%d", key="annual_kwh_input")
-        
-        st.markdown("**Hours of Operation per Day (0-24)**")
-        
-        # Initialize session state for hours if not present
-        if "mon" not in st.session_state:
-            st.session_state.mon = 8
-        if "tue" not in st.session_state:
-            st.session_state.tue = 8
-        if "wed" not in st.session_state:
-            st.session_state.wed = 8
-        if "thu" not in st.session_state:
-            st.session_state.thu = 8
-        if "fri" not in st.session_state:
-            st.session_state.fri = 8
-        if "sat" not in st.session_state:
+    site_category = st.selectbox("Category", category_options, format_func=format_category, key="category_input")
+    
+    if st.button("Load Defaults for Selected Category"):
+        if site_category == "DC":
+            # Data Center: 24/7
+            st.session_state.mon = 24
+            st.session_state.tue = 24
+            st.session_state.wed = 24
+            st.session_state.thu = 24
+            st.session_state.fri = 24
+            st.session_state.sat = 24
+            st.session_state.sun = 24
+            st.session_state.sh_wd = 0
+            st.session_state.sh_we = 0
+        elif site_category == "MFG":
+            # MFG: 18h M-F, closed weekends
+            st.session_state.mon = 18
+            st.session_state.tue = 18
+            st.session_state.wed = 18
+            st.session_state.thu = 18
+            st.session_state.fri = 18
             st.session_state.sat = 0
-        if "sun" not in st.session_state:
             st.session_state.sun = 0
-        
-        # Initialize session state for start hours
-        if "sh_wd" not in st.session_state:
+            st.session_state.sh_wd = 6
+            st.session_state.sh_we = 0
+        elif site_category == "Office":
+            # Office: 10h M-F (8-6), closed weekends
+            st.session_state.mon = 10
+            st.session_state.tue = 10
+            st.session_state.wed = 10
+            st.session_state.thu = 10
+            st.session_state.fri = 10
+            st.session_state.sat = 0
+            st.session_state.sun = 0
             st.session_state.sh_wd = 8
-        if "sh_we" not in st.session_state:
             st.session_state.sh_we = 8
-
-        # Sync all days option
-        sync_col1, sync_col2 = st.columns([2, 1])
-        with sync_col1:
-            sync_hours = st.number_input("Set all days to:", min_value=0, max_value=24, value=8, step=1, key="sync_hrs")
-        with sync_col2:
-            st.write("")  # Spacer
-            if st.button("Apply"):
-                # Update all session state values to match sync_hours
-                st.session_state.mon = sync_hours
-                st.session_state.tue = sync_hours
-                st.session_state.wed = sync_hours
-                st.session_state.thu = sync_hours
-                st.session_state.fri = sync_hours
-                st.session_state.sat = sync_hours
-                st.session_state.sun = sync_hours
-                st.rerun()
-        
-        # Individual day controls
-        # Weekdays section
-        st.markdown("**Weekdays (Mon-Fri)**")
-        wd_col1, wd_col2, wd_col3 = st.columns(3)
-        with wd_col1:
-            mon_hrs = st.number_input("Mon", min_value=0, max_value=24, step=1, key="mon")
-            tue_hrs = st.number_input("Tue", min_value=0, max_value=24, step=1, key="tue")
-        with wd_col2:
-            wed_hrs = st.number_input("Wed", min_value=0, max_value=24, step=1, key="wed")
-            thu_hrs = st.number_input("Thu", min_value=0, max_value=24, step=1, key="thu")
-        with wd_col3:
-            fri_hrs = st.number_input("Fri", min_value=0, max_value=24, step=1, key="fri")
-        
-        # Weekends section
-        st.markdown("**Weekends (Sat-Sun)**")
-        we_col1, we_col2 = st.columns(2)
-        with we_col1:
-            sat_hrs = st.number_input("Sat", min_value=0, max_value=24, step=1, key="sat")
-        with we_col2:
-            sun_hrs = st.number_input("Sun", min_value=0, max_value=24, step=1, key="sun")
-
-        
-
-        st.markdown("**Start Hour (0-23)**")
-        sh_col1, sh_col2 = st.columns(2)
-        with sh_col1:
-            start_hour_weekday = st.number_input("Weekday Start", min_value=0, max_value=23, step=1, key="sh_wd")
-        with sh_col2:
-            start_hour_weekend = st.number_input("Weekend Start", min_value=0, max_value=23, step=1, key="sh_we")
-        
-        # Determine button label and mode
-        is_edit_mode = edit_site_selection != "-- New Site --"
-        btn_label = "Update Site" if is_edit_mode else "Add Site"
-        
-        submitted = st.button(btn_label, type="primary")
-        
-        if submitted:
-            if not site_name:
-                site_name = f"Site {len(st.session_state.load_gen_sites) + 1}"
-            
-            hours_per_day = [mon_hrs, tue_hrs, wed_hrs, thu_hrs, fri_hrs, sat_hrs, sun_hrs]
-            
-            site_data = {
-                "name": site_name,
-                "category": site_category,
-                "annual_kwh": annual_kwh,
-                "hours_per_day": hours_per_day,
-                "start_hour_weekday": start_hour_weekday,
-                "start_hour_weekend": start_hour_weekend,
-                "summer_multiplier": st.session_state.get('smult_input', 1.0),
-                "winter_multiplier": st.session_state.get('wmult_input', 1.0),
-                "weekend_scaler": st.session_state.get('weekend_scaler', 1.0)
-            }
-            
-            if is_edit_mode:
-                # Find index and update
-                idx = next((i for i, s in enumerate(st.session_state.load_gen_sites) if s['name'] == edit_site_selection), -1)
-                if idx != -1:
-                    st.session_state.load_gen_sites[idx] = site_data
-                    st.success(f"Updated {site_name}")
-                    # Clear edit selection to reset form
-                    st.session_state.last_loaded_site = None
-                    st.rerun()
-                else:
-                    st.error("Site not found to update.")
-            else:
-                st.session_state.load_gen_sites.append(site_data)
-                st.success(f"Added {site_name}")
-                st.rerun()
-        
-        if st.session_state.load_gen_sites:
-            if st.button("Clear All Sites"):
-                st.session_state.load_gen_sites = []
-                st.rerun()
+        elif site_category == "Other":
+            # Other: 12h daily (User request)
+            # Defaults: 12h/day, start at 6 AM
+            st.session_state.mon = 12
+            st.session_state.tue = 12
+            st.session_state.wed = 12
+            st.session_state.thu = 12
+            st.session_state.fri = 12
+            st.session_state.sat = 12
+            st.session_state.sun = 12
+            st.session_state.sh_wd = 6
+            st.session_state.sh_we = 6
+        st.rerun()
     
-    with col2:
-        st.subheader("Current Sites")
+    annual_kwh = st.number_input("Annual kWh", min_value=1000, value=6000000, step=100000, format="%d", key="annual_kwh_input")
+    
+    st.markdown("**Hours of Operation per Day (0-24)**")
+    
+    # Initialize session state for hours if not present
+    if "mon" not in st.session_state:
+        st.session_state.mon = 8
+    if "tue" not in st.session_state:
+        st.session_state.tue = 8
+    if "wed" not in st.session_state:
+        st.session_state.wed = 8
+    if "thu" not in st.session_state:
+        st.session_state.thu = 8
+    if "fri" not in st.session_state:
+        st.session_state.fri = 8
+    if "sat" not in st.session_state:
+        st.session_state.sat = 0
+    if "sun" not in st.session_state:
+        st.session_state.sun = 0
+    
+    # Initialize session state for start hours
+    if "sh_wd" not in st.session_state:
+        st.session_state.sh_wd = 8
+    if "sh_we" not in st.session_state:
+        st.session_state.sh_we = 8
+
+    # Sync all days option
+    sync_col1, sync_col2 = st.columns([2, 1])
+    with sync_col1:
+        sync_hours = st.number_input("Set all days to:", min_value=0, max_value=24, value=8, step=1, key="sync_hrs")
+    with sync_col2:
+        st.write("")  # Spacer
+        if st.button("Apply"):
+            # Update all session state values to match sync_hours
+            st.session_state.mon = sync_hours
+            st.session_state.tue = sync_hours
+            st.session_state.wed = sync_hours
+            st.session_state.thu = sync_hours
+            st.session_state.fri = sync_hours
+            st.session_state.sat = sync_hours
+            st.session_state.sun = sync_hours
+            st.rerun()
+    
+    # Individual day controls
+    # Weekdays section
+    st.markdown("**Weekdays (Mon-Fri)**")
+    wd_cl1, wd_cl2, wd_cl3 = st.columns(3)
+    with wd_cl1:
+        mon_hrs = st.number_input("Mon", min_value=0, max_value=24, step=1, key="mon")
+        tue_hrs = st.number_input("Tue", min_value=0, max_value=24, step=1, key="tue")
+    with wd_cl2:
+        wed_hrs = st.number_input("Wed", min_value=0, max_value=24, step=1, key="wed")
+        thu_hrs = st.number_input("Thu", min_value=0, max_value=24, step=1, key="thu")
+    with wd_cl3:
+        fri_hrs = st.number_input("Fri", min_value=0, max_value=24, step=1, key="fri")
+    
+    # Weekends section
+    st.markdown("**Weekends (Sat-Sun)**")
+    we_cl1, we_cl2 = st.columns(2)
+    with we_cl1:
+        sat_hrs = st.number_input("Sat", min_value=0, max_value=24, step=1, key="sat")
+    with we_cl2:
+        sun_hrs = st.number_input("Sun", min_value=0, max_value=24, step=1, key="sun")
+
+    st.markdown("**Start Hour (0-23)**")
+    sh_cl1, sh_cl2 = st.columns(2)
+    with sh_cl1:
+        start_hour_weekday = st.number_input("Weekday Start", min_value=0, max_value=23, step=1, key="sh_wd")
+    with sh_cl2:
+        start_hour_weekend = st.number_input("Weekend Start", min_value=0, max_value=23, step=1, key="sh_we")
+    
+    # Determine button label and mode
+    is_edit_mode = edit_site_selection != "-- New Site --"
+    btn_label = "Update Site" if is_edit_mode else "Add Site"
+    
+    submitted = st.button(btn_label, type="primary")
+    
+    if submitted:
+        if not site_name:
+            site_name = f"Site {len(st.session_state.load_gen_sites) + 1}"
         
-        if st.session_state.load_gen_sites:
-            # Delete Control
-            site_names_list = [s['name'] for s in st.session_state.load_gen_sites]
-            to_delete = st.multiselect("Select sites to delete", site_names_list)
-            if to_delete:
-                if st.button("Delete Selected"):
-                    st.session_state.load_gen_sites = [s for s in st.session_state.load_gen_sites if s['name'] not in to_delete]
-                    st.success(f"Deleted {len(to_delete)} sites.")
-                    st.rerun()
-            
-            st.markdown("---")
-            
-            # Display sites in a table
-            sites_display = []
-            for idx, site in enumerate(st.session_state.load_gen_sites):
-                hrs_str = f"{site['hours_per_day'][0]}-{site['hours_per_day'][4]}/{site['hours_per_day'][5]}-{site['hours_per_day'][6]}"
-                
-                # Handle backwards compatibility for sites added before this change
-                wd_start = site.get('start_hour_weekday', site.get('start_hour', 8))
-                we_start = site.get('start_hour_weekend', site.get('start_hour', 8))
-                
-                sites_display.append({
-                    "#": idx + 1,
-                    "Site Name": site['name'],
-                    "Category": site['category'],
-                    "Annual kWh": f"{site['annual_kwh']:,.0f}",
-                    "Hours (WD/WE)": hrs_str,
-                    "Start (WD/WE)": f"{wd_start}/{we_start}"
-                })
-            
-            st.dataframe(pd.DataFrame(sites_display), hide_index=True, use_container_width=True)
+        hours_per_day = [mon_hrs, tue_hrs, wed_hrs, thu_hrs, fri_hrs, sat_hrs, sun_hrs]
+        
+        site_data = {
+            "name": site_name,
+            "category": site_category,
+            "annual_kwh": annual_kwh,
+            "hours_per_day": hours_per_day,
+            "start_hour_weekday": start_hour_weekday,
+            "start_hour_weekend": start_hour_weekend,
+            "summer_multiplier": st.session_state.get('smult_input', 1.0),
+            "winter_multiplier": st.session_state.get('wmult_input', 1.0),
+            "weekend_scaler": st.session_state.get('weekend_scaler', 1.0)
+        }
+        
+        if is_edit_mode:
+            # Find index and update
+            idx = next((i for i, s in enumerate(st.session_state.load_gen_sites) if s['name'] == edit_site_selection), -1)
+            if idx != -1:
+                st.session_state.load_gen_sites[idx] = site_data
+                st.success(f"Updated {site_name}")
+                # Clear edit selection to reset form
+                st.session_state.last_loaded_site = None
+                st.rerun()
+            else:
+                st.error("Site not found to update.")
         else:
-            st.info("No sites added yet. Use the form on the left to add sites.")
+            st.session_state.load_gen_sites.append(site_data)
+            st.success(f"Added {site_name}")
+            st.rerun()
+    
+    if st.session_state.load_gen_sites:
+        if st.button("Clear All Sites"):
+            st.session_state.load_gen_sites = []
+            st.rerun()
 
     st.markdown("---")
     
@@ -3330,6 +3284,45 @@ with tab_load_gen:
         help="When enabled, US federal holidays (New Year's, MLK Jr Day, Presidents' Day, Memorial Day, Juneteenth, Independence Day, Labor Day, Columbus Day, Veterans Day, Thanksgiving, Christmas) will use weekend operating hours",
         key="treat_holidays_input"
     )
+    
+    st.markdown("---")
+    
+    # --- Current Sites Table ---
+    st.subheader("Current Sites")
+    
+    if st.session_state.load_gen_sites:
+        # Delete Control
+        site_names_list = [s['name'] for s in st.session_state.load_gen_sites]
+        to_delete = st.multiselect("Select sites to delete", site_names_list)
+        if to_delete:
+            if st.button("Delete Selected"):
+                st.session_state.load_gen_sites = [s for s in st.session_state.load_gen_sites if s['name'] not in to_delete]
+                st.success(f"Deleted {len(to_delete)} sites.")
+                st.rerun()
+        
+        st.markdown("---")
+        
+        # Display sites in a table
+        sites_display = []
+        for idx, site in enumerate(st.session_state.load_gen_sites):
+            hrs_str = f"{site['hours_per_day'][0]}-{site['hours_per_day'][4]}/{site['hours_per_day'][5]}-{site['hours_per_day'][6]}"
+            
+            # Handle backwards compatibility for sites added before this change
+            wd_start = site.get('start_hour_weekday', site.get('start_hour', 8))
+            we_start = site.get('start_hour_weekend', site.get('start_hour', 8))
+            
+            sites_display.append({
+                "#": idx + 1,
+                "Site Name": site['name'],
+                "Category": site['category'],
+                "Annual kWh": f"{site['annual_kwh']:,.0f}",
+                "Hours (WD/WE)": hrs_str,
+                "Start (WD/WE)": f"{wd_start}/{we_start}"
+            })
+        
+        st.dataframe(pd.DataFrame(sites_display), hide_index=True, use_container_width=True)
+    else:
+        st.info("No sites added yet. Use the form above to add sites.")
     
     # Generate and display profiles
     if st.session_state.load_gen_sites:
