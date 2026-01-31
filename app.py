@@ -2946,6 +2946,40 @@ with tab_load_gen:
     # Initialize session state for sites
     if 'load_gen_sites' not in st.session_state:
         st.session_state.load_gen_sites = []
+
+    # Callback to load site data (must be defined before widgets)
+    def load_site_data():
+        selection = st.session_state.edit_site_select
+        if selection != "-- New Site --":
+            site_d = next((s for s in st.session_state.load_gen_sites if s['name'] == selection), None)
+            if site_d:
+                st.session_state.site_name_input = site_d['name']
+                st.session_state.category_input = site_d['category']
+                st.session_state.annual_kwh_input = site_d['annual_kwh']
+                
+                st.session_state.mon = site_d['hours_per_day'][0]
+                st.session_state.tue = site_d['hours_per_day'][1]
+                st.session_state.wed = site_d['hours_per_day'][2]
+                st.session_state.thu = site_d['hours_per_day'][3]
+                st.session_state.fri = site_d['hours_per_day'][4]
+                st.session_state.sat = site_d['hours_per_day'][5]
+                st.session_state.sun = site_d['hours_per_day'][6]
+                
+                st.session_state.sh_wd = site_d.get('start_hour_weekday', 8)
+                st.session_state.sh_we = site_d.get('start_hour_weekend', 8)
+                st.session_state.weekend_scaler = site_d.get('weekend_scaler', 1.0)
+                
+                st.session_state.smult_input = site_d.get('summer_multiplier', 1.0)
+                st.session_state.wmult_input = site_d.get('winter_multiplier', 1.0)
+                
+                st.session_state.last_loaded_site = selection
+        else:
+            # Reset defaults
+            st.session_state.last_loaded_site = None
+            st.session_state.site_name_input = ""
+            # Optional: reset other defaults if needed, but usually leaving them is fine
+            # Clean up
+            if "edit_temp_name" in st.session_state: del st.session_state.edit_temp_name
     
     # Load Factor Configuration
     st.markdown("### Load Factor Settings")
@@ -3069,43 +3103,9 @@ with tab_load_gen:
         
         # Edit Mode Selection
         site_options = ["-- New Site --"] + ([s['name'] for s in st.session_state.load_gen_sites] if st.session_state.load_gen_sites else [])
-        edit_site_selection = st.selectbox("Edit Existing Site", site_options, key="edit_site_select")
+        edit_site_selection = st.selectbox("Edit Existing Site", site_options, key="edit_site_select", on_change=load_site_data)
         
-        # Load data logic
-        if edit_site_selection != "-- New Site --":
-            if st.session_state.get("last_loaded_site") != edit_site_selection:
-                site_d = next((s for s in st.session_state.load_gen_sites if s['name'] == edit_site_selection), None)
-                if site_d:
-                    # Update session state vars to pre-fill form
-                    st.session_state.site_name_input = site_d['name']
-                    st.session_state.category_input = site_d['category']
-                    st.session_state.annual_kwh_input = site_d['annual_kwh']
-                    
-                    st.session_state.mon = site_d['hours_per_day'][0]
-                    st.session_state.tue = site_d['hours_per_day'][1]
-                    st.session_state.wed = site_d['hours_per_day'][2]
-                    st.session_state.thu = site_d['hours_per_day'][3]
-                    st.session_state.fri = site_d['hours_per_day'][4]
-                    st.session_state.sat = site_d['hours_per_day'][5]
-                    st.session_state.sun = site_d['hours_per_day'][6]
-                    
-                    st.session_state.sh_wd = site_d.get('start_hour_weekday', 8)
-                    st.session_state.sh_we = site_d.get('start_hour_weekend', 8)
-                    st.session_state.weekend_scaler = site_d.get('weekend_scaler', 1.0)
-                    
-                    # Seasonality
-                    st.session_state.smult_input = site_d.get('summer_multiplier', 1.0)
-                    st.session_state.wmult_input = site_d.get('winter_multiplier', 1.0)
-                    
-                    st.session_state.last_loaded_site = edit_site_selection
-                    st.rerun()
-        else:
-             # Reset defaults if switching from Edit to New
-             if st.session_state.get("last_loaded_site") is not None:
-                 st.session_state.last_loaded_site = None
-                 # Could reset to defaults here, or let user type
-                 st.session_state.site_name_input = ""
-                 st.rerun()
+        # (Procedural logic removed, handled by callback)
                  
         st.subheader("Add / Update Site")
         
