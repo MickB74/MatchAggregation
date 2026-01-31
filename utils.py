@@ -65,14 +65,14 @@ def generate_dummy_load_profile(annual_consumption_mwh, profile_type='Flat'):
     return pd.Series(profile, name='Load (MW)')
 
 
-def generate_load_factor_profile(annual_kwh, hours_per_day, start_hour, year=2024):
+def generate_load_factor_profile(annual_kwh, hours_per_day, start_hour, year=2024, baseline_lf=0.2, ramp_lf=0.1):
     """
     Generates an 8760-hour load profile using load factor methodology.
     
     Load Factor Rules:
     - During operating hours: LF = 1.0 (full load)
-    - 1 hour before/after operating hours: LF = 0.1 (ramp up/down)
-    - Outside operating hours: LF = 0.2 (baseline/standby)
+    - 1 hour before/after operating hours: LF = ramp_lf (ramp up/down)
+    - Outside operating hours: LF = baseline_lf (baseline/standby)
     - 24h operation: LF = 1.0 for all hours
     
     Scaling Factor Formula:
@@ -85,6 +85,8 @@ def generate_load_factor_profile(annual_kwh, hours_per_day, start_hour, year=202
         hours_per_day (list): Number of operating hours per day (7 values for Mon-Sun, 0-24)
         start_hour (int): Operating start hour (0-23)
         year (int): Year for datetime index (default 2024)
+        baseline_lf (float): Load factor for outside operating hours (default 0.2)
+        ramp_lf (float): Load factor for ramp up/down hours (default 0.1)
         
     Returns:
         pd.DataFrame: DataFrame with columns ['Datetime', 'Day_Type', 'Hour', 'LF', 'kW']
@@ -103,10 +105,10 @@ def generate_load_factor_profile(annual_kwh, hours_per_day, start_hour, year=202
             if hours_op == 24:
                 return 24.0  # All hours at LF=1.0
             else:
-                return 24 * 0.2  # All hours at baseline
+                return 24 * baseline_lf  # All hours at baseline
         
         end_h = (start_h + hours_op) % 24
-        lf_array = np.full(24, 0.2)  # Default: outside hours
+        lf_array = np.full(24, baseline_lf)  # Default: outside hours
         
         # Set operating hours
         if end_h > start_h:
@@ -114,22 +116,22 @@ def generate_load_factor_profile(annual_kwh, hours_per_day, start_hour, year=202
             lf_array[start_h:end_h] = 1.0
             # Before hour
             if start_h > 0:
-                lf_array[start_h - 1] = 0.1
+                lf_array[start_h - 1] = ramp_lf
             else:
-                lf_array[23] = 0.1  # Wraps to previous day
+                lf_array[23] = ramp_lf  # Wraps to previous day
             # After hour
             if end_h < 24:
-                lf_array[end_h] = 0.1
+                lf_array[end_h] = ramp_lf
             else:
-                lf_array[0] = 0.1  # Wraps to next day
+                lf_array[0] = ramp_lf  # Wraps to next day
         else:
             # Wraps midnight
             lf_array[start_h:] = 1.0
             lf_array[:end_h] = 1.0
             # Before hour
-            lf_array[(start_h - 1) % 24] = 0.1
+            lf_array[(start_h - 1) % 24] = ramp_lf
             # After hour (use modulo for wrapping)
-            lf_array[end_h % 24] = 0.1
+            lf_array[end_h % 24] = ramp_lf
             
         return lf_array.sum()
     
@@ -170,7 +172,7 @@ def generate_load_factor_profile(annual_kwh, hours_per_day, start_hour, year=202
         if hours_op == 24:
             lf = 1.0
         elif hours_op == 0:
-            lf = 0.2
+            lf = baseline_lf
         else:
             end_h = (start_hour + hours_op) % 24
             
@@ -188,9 +190,9 @@ def generate_load_factor_profile(annual_kwh, hours_per_day, start_hour, year=202
             if is_during:
                 lf = 1.0
             elif is_before or is_after:
-                lf = 0.1
+                lf = ramp_lf
             else:
-                lf = 0.2
+                lf = baseline_lf
         
         # Calculate hourly kW
         hourly_kw = lf * scaling_factor

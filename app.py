@@ -2899,6 +2899,34 @@ with tab_load_gen:
     if 'load_gen_sites' not in st.session_state:
         st.session_state.load_gen_sites = []
     
+    # Load Factor Configuration
+    st.markdown("### Load Factor Settings")
+    lf_col1, lf_col2, lf_col3 = st.columns(3)
+    with lf_col1:
+        baseline_lf = st.number_input(
+            "Baseline Load Factor (outside hours)",
+            min_value=0.0,
+            max_value=1.0,
+            value=0.20,
+            step=0.01,
+            format="%.2f",
+            help="Load factor for hours outside operating schedule (e.g., 0.20 = 20%)"
+        )
+    with lf_col2:
+        ramp_lf = st.number_input(
+            "Ramp Load Factor (1h before/after)",
+            min_value=0.0,
+            max_value=1.0,
+            value=0.10,
+            step=0.01,
+            format="%.2f",
+            help="Load factor for ramp up/down hours (e.g., 0.10 = 10%)"
+        )
+    with lf_col3:
+        st.metric("Operating Load Factor", "1.00", help="Full load during operating hours")
+    
+    st.markdown("---")
+    
     col1, col2 = st.columns([1, 2])
     
     with col1:
@@ -2984,7 +3012,9 @@ with tab_load_gen:
                 annual_kwh=site['annual_kwh'],
                 hours_per_day=site['hours_per_day'],
                 start_hour=site['start_hour'],
-                year=2024
+                year=2024,
+                baseline_lf=baseline_lf,
+                ramp_lf=ramp_lf
             )
             
             # Rename kW column to site name
