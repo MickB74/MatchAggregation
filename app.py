@@ -680,9 +680,32 @@ with tab_load:
             elif cat == "Office":
                 for day in ['mon', 'tue', 'wed', 'thu', 'fri']: st.session_state[day] = 10
                 st.session_state.sat = 0; st.session_state.sun = 0; st.session_state.sh_wd = 8
-            elif cat == "Other":
-                for day in ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun']: st.session_state[day] = 12
-                st.session_state.sh_wd = 6
+        def randomize_portfolio():
+            import random
+            num_sites = random.randint(3, 6)
+            st.session_state.load_gen_sites = []
+            categories = ["DC", "MFG", "Office", "Other"]
+            for i in range(num_sites):
+                cat = random.choice(categories)
+                name = f"{'Data Center' if cat=='DC' else 'Factory' if cat=='MFG' else 'Office' if cat=='Office' else 'Commercial'} {i+1}"
+                kwh = random.randint(5, 50) * 1_000_000
+                
+                if cat == "DC":
+                    hrs = [24]*7; sh_wd = 0; sh_we = 0
+                elif cat == "MFG":
+                    hrs = [18, 18, 18, 18, 18, 0, 0]; sh_wd = 6; sh_we = 0
+                elif cat == "Office":
+                    hrs = [10, 10, 10, 10, 10, 0, 0]; sh_wd = 8; sh_we = 0
+                else: 
+                    hrs = [12]*7; sh_wd = 6; sh_we = 6
+                
+                st.session_state.load_gen_sites.append({
+                    "name": name, "category": cat, "annual_kwh": kwh, 
+                    "hours_per_day": hrs, "start_hour_weekday": sh_wd, "start_hour_weekend": sh_we,
+                    "summer_multiplier": round(random.uniform(0.9, 1.3), 2),
+                    "winter_multiplier": round(random.uniform(0.9, 1.3), 2),
+                    "weekend_scaler": round(random.uniform(0.7, 1.0), 2)
+                })
 
         # --- Site Entry Form ---
         site_options = ["-- New Site --"] + ([s['name'] for s in st.session_state.load_gen_sites] if st.session_state.load_gen_sites else [])
@@ -727,13 +750,18 @@ with tab_load:
         with sea2: winter_mult = st.number_input("Winter Peak (Dec-Feb)", 0.5, 2.0, 1.0, 0.1, key="wmult_input")
         
         is_edit = edit_site_selection != "-- New Site --"
-        if st.button("Update Site" if is_edit else "Add Site", type="primary"):
-            site_data = {"name": site_name or f"Site {len(st.session_state.load_gen_sites)+1}", "category": site_category, "annual_kwh": annual_kwh, "hours_per_day": [mon_hrs, tue_hrs, wed_hrs, thu_hrs, fri_hrs, sat_hrs, sun_hrs], "start_hour_weekday": start_hour_weekday, "start_hour_weekend": start_hour_weekend, "summer_multiplier": summer_mult, "winter_multiplier": winter_mult, "weekend_scaler": weekend_scaler}
-            if is_edit:
-                idx = next((i for i, s in enumerate(st.session_state.load_gen_sites) if s['name'] == edit_site_selection), -1)
-                if idx != -1: st.session_state.load_gen_sites[idx] = site_data
-            else: st.session_state.load_gen_sites.append(site_data)
-            st.session_state.last_loaded_site = None; st.rerun()
+        b_col1, b_col2 = st.columns([1, 1])
+        with b_col1:
+            if st.button("Update Site" if is_edit else "Add Site", type="primary", use_container_width=True):
+                site_data = {"name": site_name or f"Site {len(st.session_state.load_gen_sites)+1}", "category": site_category, "annual_kwh": annual_kwh, "hours_per_day": [mon_hrs, tue_hrs, wed_hrs, thu_hrs, fri_hrs, sat_hrs, sun_hrs], "start_hour_weekday": start_hour_weekday, "start_hour_weekend": start_hour_weekend, "summer_multiplier": summer_mult, "winter_multiplier": winter_mult, "weekend_scaler": weekend_scaler}
+                if is_edit:
+                    idx = next((i for i, s in enumerate(st.session_state.load_gen_sites) if s['name'] == edit_site_selection), -1)
+                    if idx != -1: st.session_state.load_gen_sites[idx] = site_data
+                else: st.session_state.load_gen_sites.append(site_data)
+                st.session_state.last_loaded_site = None; st.rerun()
+        with b_col2:
+            if st.button("🎲 Randomize Portfolio", use_container_width=True, help="Generate 3-6 random sites for testing"):
+                randomize_portfolio(); st.rerun()
 
         if st.session_state.load_gen_sites:
             st.markdown("---")
