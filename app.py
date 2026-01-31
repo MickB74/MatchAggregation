@@ -2945,6 +2945,42 @@ with tab_load_gen:
         category_options = ["DC", "MFG", "Office"]
         site_category = st.selectbox("Category", category_options, format_func=lambda x: "Data Center" if x == "DC" else ("Manufacturing" if x == "MFG" else "Office"))
         
+        if st.button("Load Defaults for Selected Category"):
+            if site_category == "DC":
+                # Data Center: 24/7
+                st.session_state.mon = 24
+                st.session_state.tue = 24
+                st.session_state.wed = 24
+                st.session_state.thu = 24
+                st.session_state.fri = 24
+                st.session_state.sat = 24
+                st.session_state.sun = 24
+                st.session_state.sh_wd = 0
+                st.session_state.sh_we = 0
+            elif site_category == "MFG":
+                # MFG: 18h M-F, closed weekends
+                st.session_state.mon = 18
+                st.session_state.tue = 18
+                st.session_state.wed = 18
+                st.session_state.thu = 18
+                st.session_state.fri = 18
+                st.session_state.sat = 0
+                st.session_state.sun = 0
+                st.session_state.sh_wd = 6
+                st.session_state.sh_we = 0
+            elif site_category == "Office":
+                # Office: 10h M-F (8-6), closed weekends
+                st.session_state.mon = 10
+                st.session_state.tue = 10
+                st.session_state.wed = 10
+                st.session_state.thu = 10
+                st.session_state.fri = 10
+                st.session_state.sat = 0
+                st.session_state.sun = 0
+                st.session_state.sh_wd = 8
+                st.session_state.sh_we = 8
+            st.rerun()
+        
         annual_kwh = st.number_input("Annual kWh", min_value=1000, value=6000000, step=100000, format="%d")
         
         st.markdown("**Hours of Operation per Day (0-24)**")
@@ -2964,6 +3000,12 @@ with tab_load_gen:
             st.session_state.sat = 0
         if "sun" not in st.session_state:
             st.session_state.sun = 0
+        
+        # Initialize session state for start hours
+        if "sh_wd" not in st.session_state:
+            st.session_state.sh_wd = 8
+        if "sh_we" not in st.session_state:
+            st.session_state.sh_we = 8
 
         # Sync all days option
         sync_col1, sync_col2 = st.columns([2, 1])
@@ -3008,9 +3050,9 @@ with tab_load_gen:
         st.markdown("**Start Hour (0-23)**")
         sh_col1, sh_col2 = st.columns(2)
         with sh_col1:
-            start_hour_weekday = st.number_input("Weekday Start", min_value=0, max_value=23, value=8, step=1)
+            start_hour_weekday = st.number_input("Weekday Start", min_value=0, max_value=23, step=1, key="sh_wd")
         with sh_col2:
-            start_hour_weekend = st.number_input("Weekend Start", min_value=0, max_value=23, value=8, step=1)
+            start_hour_weekend = st.number_input("Weekend Start", min_value=0, max_value=23, step=1, key="sh_we")
         
         submitted = st.button("Add Site", type="primary")
         
