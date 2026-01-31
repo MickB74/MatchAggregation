@@ -2939,74 +2939,73 @@ with tab_load_gen:
     with col1:
         st.subheader("Add Site")
         
-        with st.form("add_site_form", clear_on_submit=True):
-            site_name = st.text_input("Site Name", placeholder="e.g. Data Center 1")
-            
-            category_options = ["DC", "MFG", "Office"]
-            site_category = st.selectbox("Category", category_options, format_func=lambda x: "Data Center" if x == "DC" else ("Manufacturing" if x == "MFG" else "Office"))
-            
-            annual_kwh = st.number_input("Annual kWh", min_value=1000, value=6000000, step=100000, format="%d")
-            
-            st.markdown("**Hours of Operation per Day (0-24)**")
-            
-            # Sync all days option
-            sync_col1, sync_col2 = st.columns([2, 1])
-            with sync_col1:
-                sync_hours = st.number_input("Set all days to:", min_value=0, max_value=24, value=8, step=1, key="sync_hrs")
-            with sync_col2:
-                st.write("")  # Spacer
-                if st.button("Apply"):
-                    # Update all session state values to match sync_hours
-                    st.session_state.mon = sync_hours
-                    st.session_state.tue = sync_hours
-                    st.session_state.wed = sync_hours
-                    st.session_state.thu = sync_hours
-                    st.session_state.fri = sync_hours
-                    st.session_state.sat = sync_hours
-                    st.session_state.sun = sync_hours
-                    st.rerun()
-            
-            # Individual day controls
-            # Weekdays section
-            st.markdown("**Weekdays (Mon-Fri)**")
-            wd_col1, wd_col2, wd_col3 = st.columns(3)
-            with wd_col1:
-                mon_hrs = st.number_input("Mon", min_value=0, max_value=24, value=8, step=1, key="mon")
-                tue_hrs = st.number_input("Tue", min_value=0, max_value=24, value=8, step=1, key="tue")
-            with wd_col2:
-                wed_hrs = st.number_input("Wed", min_value=0, max_value=24, value=8, step=1, key="wed")
-                thu_hrs = st.number_input("Thu", min_value=0, max_value=24, value=8, step=1, key="thu")
-            with wd_col3:
-                fri_hrs = st.number_input("Fri", min_value=0, max_value=24, value=8, step=1, key="fri")
-            
-            # Weekends section
-            st.markdown("**Weekends (Sat-Sun)**")
-            we_col1, we_col2 = st.columns(2)
-            with we_col1:
-                sat_hrs = st.number_input("Sat", min_value=0, max_value=24, value=0, step=1, key="sat")
-            with we_col2:
-                sun_hrs = st.number_input("Sun", min_value=0, max_value=24, value=0, step=1, key="sun")
-
-            
-            start_hour = st.number_input("Operating Start Hour (0-23)", min_value=0, max_value=23, value=8, step=1)
-            
-            submitted = st.form_submit_button("Add Site", type="primary")
-            
-            if submitted:
-                if not site_name:
-                    site_name = f"Site {len(st.session_state.load_gen_sites) + 1}"
-                
-                hours_per_day = [mon_hrs, tue_hrs, wed_hrs, thu_hrs, fri_hrs, sat_hrs, sun_hrs]
-                
-                st.session_state.load_gen_sites.append({
-                    "name": site_name,
-                    "category": site_category,
-                    "annual_kwh": annual_kwh,
-                    "hours_per_day": hours_per_day,
-                    "start_hour": start_hour
-                })
-                st.success(f"Added {site_name}")
+        site_name = st.text_input("Site Name", placeholder="e.g. Data Center 1")
+        
+        category_options = ["DC", "MFG", "Office"]
+        site_category = st.selectbox("Category", category_options, format_func=lambda x: "Data Center" if x == "DC" else ("Manufacturing" if x == "MFG" else "Office"))
+        
+        annual_kwh = st.number_input("Annual kWh", min_value=1000, value=6000000, step=100000, format="%d")
+        
+        st.markdown("**Hours of Operation per Day (0-24)**")
+        
+        # Sync all days option
+        sync_col1, sync_col2 = st.columns([2, 1])
+        with sync_col1:
+            sync_hours = st.number_input("Set all days to:", min_value=0, max_value=24, value=8, step=1, key="sync_hrs")
+        with sync_col2:
+            st.write("")  # Spacer
+            if st.button("Apply"):
+                # Update all session state values to match sync_hours
+                st.session_state.mon = sync_hours
+                st.session_state.tue = sync_hours
+                st.session_state.wed = sync_hours
+                st.session_state.thu = sync_hours
+                st.session_state.fri = sync_hours
+                st.session_state.sat = sync_hours
+                st.session_state.sun = sync_hours
                 st.rerun()
+        
+        # Individual day controls
+        # Weekdays section
+        st.markdown("**Weekdays (Mon-Fri)**")
+        wd_col1, wd_col2, wd_col3 = st.columns(3)
+        with wd_col1:
+            mon_hrs = st.number_input("Mon", min_value=0, max_value=24, value=8, step=1, key="mon")
+            tue_hrs = st.number_input("Tue", min_value=0, max_value=24, value=8, step=1, key="tue")
+        with wd_col2:
+            wed_hrs = st.number_input("Wed", min_value=0, max_value=24, value=8, step=1, key="wed")
+            thu_hrs = st.number_input("Thu", min_value=0, max_value=24, value=8, step=1, key="thu")
+        with wd_col3:
+            fri_hrs = st.number_input("Fri", min_value=0, max_value=24, value=8, step=1, key="fri")
+        
+        # Weekends section
+        st.markdown("**Weekends (Sat-Sun)**")
+        we_col1, we_col2 = st.columns(2)
+        with we_col1:
+            sat_hrs = st.number_input("Sat", min_value=0, max_value=24, value=0, step=1, key="sat")
+        with we_col2:
+            sun_hrs = st.number_input("Sun", min_value=0, max_value=24, value=0, step=1, key="sun")
+
+        
+        start_hour = st.number_input("Operating Start Hour (0-23)", min_value=0, max_value=23, value=8, step=1)
+        
+        submitted = st.button("Add Site", type="primary")
+        
+        if submitted:
+            if not site_name:
+                site_name = f"Site {len(st.session_state.load_gen_sites) + 1}"
+            
+            hours_per_day = [mon_hrs, tue_hrs, wed_hrs, thu_hrs, fri_hrs, sat_hrs, sun_hrs]
+            
+            st.session_state.load_gen_sites.append({
+                "name": site_name,
+                "category": site_category,
+                "annual_kwh": annual_kwh,
+                "hours_per_day": hours_per_day,
+                "start_hour": start_hour
+            })
+            st.success(f"Added {site_name}")
+            st.rerun()
         
         if st.session_state.load_gen_sites:
             if st.button("Clear All Sites"):
