@@ -2996,6 +2996,17 @@ with tab_load_gen:
             help="Multiplier for load during winter months (December-February)"
         )
     
+    # Weekend Scaler
+    weekend_scaler = st.number_input(
+        "Weekend Load Scaler",
+        min_value=0.0,
+        max_value=1.0,
+        value=1.0,
+        step=0.1,
+        format="%.2f",
+        help="Scale down weekend load (e.g., 0.5 = 50% load on weekends). Set to 1.0 for full load."
+    )
+    
     # US Holidays toggle
     treat_holidays_as_weekends = st.checkbox(
         "Treat US Federal Holidays as Weekends",
@@ -3161,7 +3172,10 @@ with tab_load_gen:
                 "start_hour_weekday": start_hour_weekday,
                 "start_hour_weekend": start_hour_weekend,
                 "summer_multiplier": summer_mult,
-                "winter_multiplier": winter_mult
+                "start_hour_weekend": start_hour_weekend,
+                "summer_multiplier": summer_mult,
+                "winter_multiplier": winter_mult,
+                "weekend_scaler": weekend_scaler
             })
             st.success(f"Added {site_name}")
             st.rerun()
@@ -3221,7 +3235,8 @@ with tab_load_gen:
                 ramp_lf=ramp_lf,
                 treat_holidays_as_weekends=treat_holidays_as_weekends,
                 summer_multiplier=site.get('summer_multiplier', 1.0),
-                winter_multiplier=site.get('winter_multiplier', 1.0)
+                winter_multiplier=site.get('winter_multiplier', 1.0),
+                weekend_scaler=site.get('weekend_scaler', 1.0)
             )
             
             # Rename kW column to site name

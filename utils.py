@@ -66,7 +66,7 @@ def generate_dummy_load_profile(annual_consumption_mwh, profile_type='Flat'):
 
 
 
-def generate_load_factor_profile(annual_kwh, hours_per_day, start_hour_weekday, start_hour_weekend, year=2024, baseline_lf=0.2, ramp_lf=0.4, treat_holidays_as_weekends=False, summer_multiplier=1.0, winter_multiplier=1.0):
+def generate_load_factor_profile(annual_kwh, hours_per_day, start_hour_weekday, start_hour_weekend, year=2024, baseline_lf=0.2, ramp_lf=0.4, treat_holidays_as_weekends=False, summer_multiplier=1.0, winter_multiplier=1.0, weekend_scaler=1.0):
     """
     Generates an 8760-hour load profile using load factor methodology.
     
@@ -81,6 +81,7 @@ def generate_load_factor_profile(annual_kwh, hours_per_day, start_hour_weekday, 
         treat_holidays_as_weekends (bool): If True, US federal holidays use weekend schedulers (default False)
         summer_multiplier (float): Multiplier for Jun-Sep (default 1.0)
         winter_multiplier (float): Multiplier for Dec-Feb (default 1.0)
+        weekend_scaler (float): Scalar for weekend load magnitudes (0.0-1.0)
         
     Returns:
         pd.DataFrame: DataFrame with columns ['Datetime', 'Day_Type', 'Hour', 'LF', 'kW']
@@ -222,9 +223,9 @@ def generate_load_factor_profile(annual_kwh, hours_per_day, start_hour_weekday, 
         is_weekend = d.dayofweek >= 5
         
         if is_holiday and treat_holidays_as_weekends:
-            daily_sum = we_sum
+            daily_sum = we_sum * weekend_scaler
         elif is_weekend:
-            daily_sum = we_sum
+            daily_sum = we_sum * weekend_scaler
         else:
             daily_sum = wd_sum
             
@@ -290,6 +291,10 @@ def generate_load_factor_profile(annual_kwh, hours_per_day, start_hour_weekday, 
         
         # Apply seasonality
         seasonal_mult = get_monthly_multiplier(month)
+        
+        # Apply Weekend Scaler if applicable
+        if day_type == 'WE' or day_type == 'HOL':
+             lf = lf * weekend_scaler
         
         # Calculate hourly kW
         hourly_kw = lf * seasonal_mult * scaling_factor
