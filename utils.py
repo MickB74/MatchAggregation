@@ -65,7 +65,7 @@ def generate_dummy_load_profile(annual_consumption_mwh, profile_type='Flat'):
     return pd.Series(profile, name='Load (MW)')
 
 
-def generate_load_factor_profile(annual_kwh, hours_per_day, start_hour_weekday, start_hour_weekend, year=2024, baseline_lf=0.2, ramp_lf=0.1, treat_holidays_as_weekends=False):
+def generate_load_factor_profile(annual_kwh, hours_per_day, start_hour_weekday, start_hour_weekend, year=2024, baseline_lf=0.2, ramp_lf=0.4, treat_holidays_as_weekends=False):
     """
     Generates an 8760-hour load profile using load factor methodology.
     

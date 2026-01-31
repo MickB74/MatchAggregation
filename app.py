@@ -2917,7 +2917,7 @@ with tab_load_gen:
             "Ramp Load Factor (1h before/after)",
             min_value=0.0,
             max_value=1.0,
-            value=0.10,
+            value=0.40,
             step=0.01,
             format="%.2f",
             help="Load factor for ramp up/down hours (e.g., 0.10 = 10%)"
