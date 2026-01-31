@@ -743,7 +743,10 @@ with tab_load:
             
             with st.popover("🗑️ Clear Portfolio"):
                 if st.button("Confirm: Clear All Sites", type="primary"): 
-                    st.session_state.load_gen_sites = []; st.rerun()
+                    st.session_state.load_gen_sites = []
+                    if "custom_aggregated_profile" in st.session_state:
+                        del st.session_state["custom_aggregated_profile"]
+                    st.rerun()
             
             # --- Generate Combined Profile ---
             all_profiles = []
@@ -789,6 +792,10 @@ with tab_load:
                     m2.metric("Peak Load", f"{profile.max():,.2f} MW")
                     st.line_chart(profile)
             except Exception as e: st.error(f"Error: {e}")
+        else:
+            # Clear profile if uploader is empty and we're in upload mode
+            if "custom_aggregated_profile" in st.session_state and not st.session_state.load_gen_sites:
+                 del st.session_state["custom_aggregated_profile"]
 # --- Tab 2: Generation Portfolio ---
 with tab_gen:
     st.header("3. Generation Profile")
@@ -1579,25 +1586,22 @@ json_str_full = "{}"
 json_str_ai = "{}"
 
 # 1. Calculate Aggregated Load
-active_scenario = st.session_state.get("custom_aggregated_profile") is not None or st.session_state.participants or uploaded_load_file
+active_scenario = st.session_state.get("custom_aggregated_profile") is not None or st.session_state.get("participants", [])
 
 if active_scenario:
     # Aggregate Load
     if "custom_aggregated_profile" in st.session_state:
-        # Priority 1: Custom Profile from Tab 8
-        # Ensure it matches 8760 length (it should)
+        # Priority 1: Custom Profile from Generator or Upload
         total_load_profile = st.session_state["custom_aggregated_profile"]
-    elif uploaded_load_file:
-        # Process Upload
-        total_load_profile = process_uploaded_profile(uploaded_load_file, keywords=['load', 'mw', 'mwh', 'demand'])
-        if total_load_profile is None:
-             st.error("Could not parse uploaded file. Ensure column 'Load' or numeric data exists.")
-             st.stop()
-    else:
-        # Logic for participants
+    elif st.session_state.get("participants"):
+        # Logic for legacy participants
         total_load_profile = pd.Series(0.0, index=range(8760))
         for p in st.session_state.participants:
-            profile = generate_dummy_load_profile(p['load'], p['type'])
+            # Handle both old 'type/load' and new generator 'category/annual_kwh' if needed
+            # but usually participants had type/load
+            p_type = p.get('type', p.get('category', 'Flat'))
+            p_load = p.get('load', p.get('annual_kwh', 0) / 1000.0) # Assume MWh
+            profile = generate_dummy_load_profile(p_load, p_type)
             total_load_profile += profile
         
     total_annual_load = total_load_profile.sum()
