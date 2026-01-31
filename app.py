@@ -2925,6 +2925,13 @@ with tab_load_gen:
     with lf_col3:
         st.metric("Operating Load Factor", "1.00", help="Full load during operating hours")
     
+    # US Holidays toggle
+    treat_holidays_as_weekends = st.checkbox(
+        "Treat US Federal Holidays as Weekends",
+        value=False,
+        help="When enabled, US federal holidays (New Year's, MLK Jr Day, Presidents' Day, Memorial Day, Juneteenth, Independence Day, Labor Day, Columbus Day, Veterans Day, Thanksgiving, Christmas) will use weekend operating hours"
+    )
+    
     st.markdown("---")
     
     col1, col2 = st.columns([1, 2])
@@ -3040,7 +3047,8 @@ with tab_load_gen:
                 start_hour=site['start_hour'],
                 year=2024,
                 baseline_lf=baseline_lf,
-                ramp_lf=ramp_lf
+                ramp_lf=ramp_lf,
+                treat_holidays_as_weekends=treat_holidays_as_weekends
             )
             
             # Rename kW column to site name

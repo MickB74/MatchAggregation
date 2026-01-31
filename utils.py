@@ -65,7 +65,7 @@ def generate_dummy_load_profile(annual_consumption_mwh, profile_type='Flat'):
     return pd.Series(profile, name='Load (MW)')
 
 
-def generate_load_factor_profile(annual_kwh, hours_per_day, start_hour, year=2024, baseline_lf=0.2, ramp_lf=0.1):
+def generate_load_factor_profile(annual_kwh, hours_per_day, start_hour, year=2024, baseline_lf=0.2, ramp_lf=0.1, treat_holidays_as_weekends=False):
     """
     Generates an 8760-hour load profile using load factor methodology.
     
@@ -87,10 +87,68 @@ def generate_load_factor_profile(annual_kwh, hours_per_day, start_hour, year=202
         year (int): Year for datetime index (default 2024)
         baseline_lf (float): Load factor for outside operating hours (default 0.2)
         ramp_lf (float): Load factor for ramp up/down hours (default 0.1)
+        treat_holidays_as_weekends (bool): If True, US federal holidays use weekend hours (default False)
         
     Returns:
         pd.DataFrame: DataFrame with columns ['Datetime', 'Day_Type', 'Hour', 'LF', 'kW']
     """
+    # Define US Federal Holidays (fixed dates and observable dates for the year)
+    def get_us_holidays(year):
+        """Get US Federal Holidays for a given year"""
+        from datetime import date
+        import calendar
+        
+        holidays_list = []
+        
+        # New Year's Day - January 1
+        holidays_list.append(date(year, 1, 1))
+        
+        # Martin Luther King Jr. Day - 3rd Monday in January
+        jan_mondays = [d for d in calendar.Calendar().itermonthdates(year, 1) if d.weekday() == 0 and d.month == 1]
+        if len(jan_mondays) >= 3:
+            holidays_list.append(jan_mondays[2])
+        
+        # Presidents' Day - 3rd Monday in February
+        feb_mondays = [d for d in calendar.Calendar().itermonthdates(year, 2) if d.weekday() == 0 and d.month == 2]
+        if len(feb_mondays) >= 3:
+            holidays_list.append(feb_mondays[2])
+        
+        # Memorial Day - Last Monday in May
+        may_mondays = [d for d in calendar.Calendar().itermonthdates(year, 5) if d.weekday() == 0 and d.month == 5]
+        if may_mondays:
+            holidays_list.append(may_mondays[-1])
+        
+        # Juneteenth - June 19
+        holidays_list.append(date(year, 6, 19))
+        
+        # Independence Day - July 4
+        holidays_list.append(date(year, 7, 4))
+        
+        # Labor Day - 1st Monday in September
+        sep_mondays = [d for d in calendar.Calendar().itermonthdates(year, 9) if d.weekday() == 0 and d.month == 9]
+        if sep_mondays:
+            holidays_list.append(sep_mondays[0])
+        
+        # Columbus Day - 2nd Monday in October
+        oct_mondays = [d for d in calendar.Calendar().itermonthdates(year, 10) if d.weekday() == 0 and d.month == 10]
+        if len(oct_mondays) >= 2:
+            holidays_list.append(oct_mondays[1])
+        
+        # Veterans Day - November 11
+        holidays_list.append(date(year, 11, 11))
+        
+        # Thanksgiving - 4th Thursday in November
+        nov_thursdays = [d for d in calendar.Calendar().itermonthdates(year, 11) if d.weekday() == 3 and d.month == 11]
+        if len(nov_thursdays) >= 4:
+            holidays_list.append(nov_thursdays[3])
+        
+        # Christmas - December 25
+        holidays_list.append(date(year, 12, 25))
+        
+        return set(holidays_list)
+    
+    us_holidays = get_us_holidays(year) if treat_holidays_as_weekends else set()
+    
     # Create datetime index for full year
     dates = pd.date_range(start=f'{year}-01-01', periods=8760, freq='h')
     
@@ -143,10 +201,16 @@ def generate_load_factor_profile(annual_kwh, hours_per_day, start_hour, year=202
     wd_sum = calculate_lf_sum(wd_hours, start_hour)
     we_sum = calculate_lf_sum(we_hours, start_hour)
     
-    # Count weekdays and weekends in year
+    # Count weekdays and weekends in year (treating holidays as weekends if enabled)
     year_dates = pd.date_range(start=f'{year}-01-01', end=f'{year}-12-31', freq='D')
-    weekdays_count = sum(1 for d in year_dates if d.dayofweek < 5)
-    weekends_count = len(year_dates) - weekdays_count
+    
+    if treat_holidays_as_weekends:
+        # Count holidays as weekends for scaling
+        weekdays_count = sum(1 for d in year_dates if d.dayofweek < 5 and d.date() not in us_holidays)
+        weekends_count = len(year_dates) - weekdays_count
+    else:
+        weekdays_count = sum(1 for d in year_dates if d.dayofweek < 5)
+        weekends_count = len(year_dates) - weekdays_count
     
     # Calculate scaling factor
     denominator = (weekdays_count * wd_sum + weekends_count * we_sum)
@@ -159,9 +223,16 @@ def generate_load_factor_profile(annual_kwh, hours_per_day, start_hour, year=202
     for dt in dates:
         hour = dt.hour
         day_of_week = dt.dayofweek  # 0=Monday, 6=Sunday
+        current_date = dt.date()
         
-        # Determine if weekday or weekend
-        if day_of_week < 5:
+        # Check if this is a holiday (treat as weekend if toggle is on)
+        is_holiday = current_date in us_holidays
+        
+        # Determine if weekday or weekend (or holiday treated as weekend)
+        if is_holiday:
+            day_type = 'HOL'
+            hours_op = hours_per_day[5]  # Use Saturday hours for holidays
+        elif day_of_week < 5:
             day_type = 'WD'
             hours_op = hours_per_day[day_of_week]
         else:
