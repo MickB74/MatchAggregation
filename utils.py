@@ -64,6 +64,148 @@ def generate_dummy_load_profile(annual_consumption_mwh, profile_type='Flat'):
         
     return pd.Series(profile, name='Load (MW)')
 
+
+def generate_load_factor_profile(annual_kwh, hours_per_day, start_hour, year=2024):
+    """
+    Generates an 8760-hour load profile using load factor methodology.
+    
+    Load Factor Rules:
+    - During operating hours: LF = 1.0 (full load)
+    - 1 hour before/after operating hours: LF = 0.1 (ramp up/down)
+    - Outside operating hours: LF = 0.2 (baseline/standby)
+    - 24h operation: LF = 1.0 for all hours
+    
+    Scaling Factor Formula:
+    Scaling_Factor = Annual_kWh / (Weekdays_count * WD_sum + Weekends_count * WE_sum)
+    Where WD_sum = sum of 24 hourly LF values for weekdays
+    Where WE_sum = sum of 24 hourly LF values for weekends
+    
+    Args:
+        annual_kwh (float): Annual kWh consumption for the site
+        hours_per_day (list): Number of operating hours per day (7 values for Mon-Sun, 0-24)
+        start_hour (int): Operating start hour (0-23)
+        year (int): Year for datetime index (default 2024)
+        
+    Returns:
+        pd.DataFrame: DataFrame with columns ['Datetime', 'Day_Type', 'Hour', 'LF', 'kW']
+    """
+    # Create datetime index for full year
+    dates = pd.date_range(start=f'{year}-01-01', periods=8760, freq='h')
+    
+    # Initialize results
+    records = []
+    
+    # Calculate weekday/weekend LF sums for scaling
+    def calculate_lf_sum(hours_op, start_h):
+        """Calculate sum of 24 hourly load factors"""
+        if hours_op == 24 or hours_op == 0:
+            # 24h operation or no operation
+            if hours_op == 24:
+                return 24.0  # All hours at LF=1.0
+            else:
+                return 24 * 0.2  # All hours at baseline
+        
+        end_h = (start_h + hours_op) % 24
+        lf_array = np.full(24, 0.2)  # Default: outside hours
+        
+        # Set operating hours
+        if end_h > start_h:
+            # Simple case: doesn't wrap midnight
+            lf_array[start_h:end_h] = 1.0
+            # Before hour
+            if start_h > 0:
+                lf_array[start_h - 1] = 0.1
+            else:
+                lf_array[23] = 0.1  # Wraps to previous day
+            # After hour
+            if end_h < 24:
+                lf_array[end_h] = 0.1
+            else:
+                lf_array[0] = 0.1  # Wraps to next day
+        else:
+            # Wraps midnight
+            lf_array[start_h:] = 1.0
+            lf_array[:end_h] = 1.0
+            # Before hour
+            lf_array[(start_h - 1) % 24] = 0.1
+            # After hour (use modulo for wrapping)
+            lf_array[end_h % 24] = 0.1
+            
+        return lf_array.sum()
+    
+    # Hours_per_day is a list [Mon, Tue, Wed, Thu, Fri, Sat, Sun]
+    # Calculate WD and WE sums
+    wd_hours = hours_per_day[0]  # Monday (representative weekday)
+    we_hours = hours_per_day[5]  # Saturday (representative weekend)
+    
+    wd_sum = calculate_lf_sum(wd_hours, start_hour)
+    we_sum = calculate_lf_sum(we_hours, start_hour)
+    
+    # Count weekdays and weekends in year
+    year_dates = pd.date_range(start=f'{year}-01-01', end=f'{year}-12-31', freq='D')
+    weekdays_count = sum(1 for d in year_dates if d.dayofweek < 5)
+    weekends_count = len(year_dates) - weekdays_count
+    
+    # Calculate scaling factor
+    denominator = (weekdays_count * wd_sum + weekends_count * we_sum)
+    if denominator > 0:
+        scaling_factor = annual_kwh / denominator
+    else:
+        scaling_factor = 0
+    
+    # Generate hourly profile
+    for dt in dates:
+        hour = dt.hour
+        day_of_week = dt.dayofweek  # 0=Monday, 6=Sunday
+        
+        # Determine if weekday or weekend
+        if day_of_week < 5:
+            day_type = 'WD'
+            hours_op = hours_per_day[day_of_week]
+        else:
+            day_type = 'WE'
+            hours_op = hours_per_day[day_of_week]
+        
+        # Calculate load factor for this hour
+        if hours_op == 24:
+            lf = 1.0
+        elif hours_op == 0:
+            lf = 0.2
+        else:
+            end_h = (start_hour + hours_op) % 24
+            
+            # Check if hour is during operation
+            if end_h > start_hour:
+                is_during = start_hour <= hour < end_h
+                is_before = hour == (start_hour - 1) % 24
+                is_after = hour == end_h
+            else:
+                # Wraps midnight
+                is_during = hour >= start_hour or hour < end_h
+                is_before = hour == (start_hour - 1) % 24
+                is_after = hour == end_h
+            
+            if is_during:
+                lf = 1.0
+            elif is_before or is_after:
+                lf = 0.1
+            else:
+                lf = 0.2
+        
+        # Calculate hourly kW
+        hourly_kw = lf * scaling_factor
+        
+        records.append({
+            'Datetime': dt,
+            'Day_Type': day_type,
+            'Hour': hour,
+            'LF': lf,
+            'kW': hourly_kw
+        })
+    
+    return pd.DataFrame(records)
+
+
 @st.cache_data
 def generate_dummy_generation_profile(capacity_mw, resource_type='Solar', use_synthetic=False, year=2024):
     """

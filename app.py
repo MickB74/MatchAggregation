@@ -11,6 +11,7 @@ import io
 from utils import (
     generate_dummy_load_profile,
     generate_dummy_generation_profile,
+    generate_load_factor_profile,
     calculate_cfe_score,
     simulate_battery_storage,
     recommend_portfolio,
@@ -267,7 +268,7 @@ def generate_random_scenario():
 exec_summary_container = st.container()
 
 # --- Configuration Section (Top) ---
-tab_guide, tab_load, tab_gen, tab_fin, tab_offtake, tab_scenario, tab_dl = st.tabs(["1\\. Start Here", "2\\. Load Setup", "3\\. Generation Profile", "4\\. Financial Analysis", "5\\. Battery Financials", "6\\. Scenario Manager", "7\\. Download Results"])
+tab_guide, tab_load, tab_gen, tab_fin, tab_offtake, tab_scenario, tab_dl, tab_load_gen = st.tabs(["1\\. Start Here", "2\\. Load Setup", "3\\. Generation Profile", "4\\. Financial Analysis", "5\\. Battery Financials", "6\\. Scenario Manager", "7\\. Download Results", "8\\. Load Profile Generator"])
 # tab_comp removed
 
     
@@ -2888,3 +2889,193 @@ with tab_dl:
             help="Includes: Portfolio Report (PDF), Interactive Report (Excel), and Results CSV.",
             disabled=(len(zip_val) == 0)
         )
+
+# --- Tab 8: Load Profile Generator ---
+with tab_load_gen:
+    st.header("8. Multi-Site 8760 Load Profile Generator")
+    st.markdown("Create detailed hourly load profiles for multiple sites using load factor methodology.")
+    
+    # Initialize session state for sites
+    if 'load_gen_sites' not in st.session_state:
+        st.session_state.load_gen_sites = []
+    
+    col1, col2 = st.columns([1, 2])
+    
+    with col1:
+        st.subheader("Add Site")
+        
+        with st.form("add_site_form", clear_on_submit=True):
+            site_name = st.text_input("Site Name", placeholder="e.g. Data Center 1")
+            
+            category_options = ["DC", "MFG"]
+            site_category = st.selectbox("Category", category_options, format_func=lambda x: "Data Center" if x == "DC" else "Manufacturing")
+            
+            annual_kwh = st.number_input("Annual kWh", min_value=1000, value=6000000, step=100000, format="%d")
+            
+            st.markdown("**Hours of Operation per Day (0-24)**")
+            hrs_col1, hrs_col2 = st.columns(2)
+            with hrs_col1:
+                mon_hrs = st.number_input("Mon", min_value=0, max_value=24, value=24, step=1, key="mon")
+                tue_hrs = st.number_input("Tue", min_value=0, max_value=24, value=24, step=1, key="tue")
+                wed_hrs = st.number_input("Wed", min_value=0, max_value=24, value=24, step=1, key="wed")
+                thu_hrs = st.number_input("Thu", min_value=0, max_value=24, value=24, step=1, key="thu")
+            with hrs_col2:
+                fri_hrs = st.number_input("Fri", min_value=0, max_value=24, value=24, step=1, key="fri")
+                sat_hrs = st.number_input("Sat", min_value=0, max_value=24, value=0, step=1, key="sat")
+                sun_hrs = st.number_input("Sun", min_value=0, max_value=24, value=0, step=1, key="sun")
+            
+            start_hour = st.number_input("Operating Start Hour (0-23)", min_value=0, max_value=23, value=0, step=1)
+            
+            submitted = st.form_submit_button("Add Site", type="primary")
+            
+            if submitted:
+                if not site_name:
+                    site_name = f"Site {len(st.session_state.load_gen_sites) + 1}"
+                
+                hours_per_day = [mon_hrs, tue_hrs, wed_hrs, thu_hrs, fri_hrs, sat_hrs, sun_hrs]
+                
+                st.session_state.load_gen_sites.append({
+                    "name": site_name,
+                    "category": site_category,
+                    "annual_kwh": annual_kwh,
+                    "hours_per_day": hours_per_day,
+                    "start_hour": start_hour
+                })
+                st.success(f"Added {site_name}")
+                st.rerun()
+        
+        if st.session_state.load_gen_sites:
+            if st.button("Clear All Sites"):
+                st.session_state.load_gen_sites = []
+                st.rerun()
+    
+    with col2:
+        st.subheader("Current Sites")
+        
+        if st.session_state.load_gen_sites:
+            # Display sites in a table
+            sites_display = []
+            for idx, site in enumerate(st.session_state.load_gen_sites):
+                hrs_str = f"{site['hours_per_day'][0]}-{site['hours_per_day'][4]}/{site['hours_per_day'][5]}-{site['hours_per_day'][6]}"
+                sites_display.append({
+                    "#": idx + 1,
+                    "Site Name": site['name'],
+                    "Category": site['category'],
+                    "Annual kWh": f"{site['annual_kwh']:,.0f}",
+                    "Hours (WD/WE)": hrs_str,
+                    "Start Hour": site['start_hour']
+                })
+            
+            st.dataframe(pd.DataFrame(sites_display), hide_index=True, use_container_width=True)
+        else:
+            st.info("No sites added yet. Use the form on the left to add sites.")
+    
+    # Generate and display profiles
+    if st.session_state.load_gen_sites:
+        st.markdown("---")
+        st.subheader("Generated Load Profiles")
+        
+        # Generate profiles for all sites
+        all_profiles = []
+        total_profile_kw = None
+        
+        for site in st.session_state.load_gen_sites:
+            profile_df = generate_load_factor_profile(
+                annual_kwh=site['annual_kwh'],
+                hours_per_day=site['hours_per_day'],
+                start_hour=site['start_hour'],
+                year=2024
+            )
+            
+            # Rename kW column to site name
+            profile_df = profile_df.rename(columns={'kW': site['name']})
+            all_profiles.append(profile_df)
+            
+            # Sum for total
+            if total_profile_kw is None:
+                total_profile_kw = profile_df[site['name']].copy()
+            else:
+                total_profile_kw += profile_df[site['name']]
+        
+        # Combine all profiles
+        combined_df = all_profiles[0][['Datetime', 'Day_Type', 'Hour']].copy()
+        for profile_df in all_profiles:
+            site_name = [col for col in profile_df.columns if col not in ['Datetime', 'Day_Type', 'Hour', 'LF']][0]
+            combined_df[site_name] = profile_df[site_name]
+        
+        combined_df['Total_kW'] = total_profile_kw
+        
+        # Summary Statistics
+        st.markdown("### Summary Statistics")
+        summary_cols = st.columns(len(st.session_state.load_gen_sites) + 1)
+        
+        for idx, site in enumerate(st.session_state.load_gen_sites):
+            with summary_cols[idx]:
+                site_kw = combined_df[site['name']]
+                st.metric(
+                    label=f"{site['name']}",
+                    value=f"{site_kw.sum():,.0f} kWh/yr",
+                    delta=f"Peak: {site_kw.max():,.0f} kW"
+                )
+        
+        with summary_cols[-1]:
+            st.metric(
+                label="Total (All Sites)",
+                value=f"{combined_df['Total_kW'].sum():,.0f} kWh/yr",
+                delta=f"Peak: {combined_df['Total_kW'].max():,.0f} kW"
+            )
+        
+        # Visualization
+        st.markdown("### Load Profile Visualization")
+        
+        # Create interactive plot
+        fig_load_gen = go.Figure()
+        
+        # Add each site as a separate trace
+        for site in st.session_state.load_gen_sites:
+            fig_load_gen.add_trace(go.Scatter(
+                x=combined_df['Datetime'],
+                y=combined_df[site['name']],
+                mode='lines',
+                name=site['name'],
+                line=dict(width=1.5)
+            ))
+        
+        # Add total as a thicker line
+        fig_load_gen.add_trace(go.Scatter(
+            x=combined_df['Datetime'],
+            y=combined_df['Total_kW'],
+            mode='lines',
+            name='Total Load',
+            line=dict(width=3, color='Navy', dash='dot')
+        ))
+        
+        fig_load_gen.update_layout(
+            xaxis_title="Time",
+            yaxis_title="Load (kW)",
+            template=chart_template,
+            height=500,
+            hovermode='x unified'
+        )
+        
+        st.plotly_chart(fig_load_gen, use_container_width=True)
+        
+        # Download CSV
+        st.markdown("### Download 8760 CSV")
+        
+        # Prepare CSV download
+        csv_buffer = io.StringIO()
+        combined_df.to_csv(csv_buffer, index=False)
+        csv_str = csv_buffer.getvalue()
+        
+        st.download_button(
+            label="📥 Download 8760 CSV",
+            data=csv_str,
+            file_name="load_profile_8760.csv",
+            mime="text/csv",
+            type="primary"
+        )
+        
+        # Preview data table
+        with st.expander("Preview Data Table (First 100 Hours)"):
+            st.dataframe(combined_df.head(100), use_container_width=True)
