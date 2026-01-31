@@ -2989,11 +2989,26 @@ with tab_load_gen:
                 
                 st.session_state.last_loaded_site = selection
         else:
-            # Reset defaults
+            # Reset defaults to Data Center (24/7)
             st.session_state.last_loaded_site = None
             st.session_state.site_name_input = ""
-            # Optional: reset other defaults if needed, but usually leaving them is fine
-            # Clean up
+            st.session_state.category_input = "DC"
+            
+            st.session_state.mon = 24
+            st.session_state.tue = 24
+            st.session_state.wed = 24
+            st.session_state.thu = 24
+            st.session_state.fri = 24
+            st.session_state.sat = 24
+            st.session_state.sun = 24
+            st.session_state.sh_wd = 0
+            st.session_state.sh_we = 0
+            
+            st.session_state.annual_kwh_input = 6000000
+            st.session_state.weekend_scaler = 1.0
+            st.session_state.smult_input = 1.0
+            st.session_state.wmult_input = 1.0
+
             if "edit_temp_name" in st.session_state: del st.session_state.edit_temp_name
     
     # Callback to load category defaults
@@ -3116,30 +3131,30 @@ with tab_load_gen:
     
     # Initialize session state for hours if not present
     if "mon" not in st.session_state:
-        st.session_state.mon = 8
+        st.session_state.mon = 24
     if "tue" not in st.session_state:
-        st.session_state.tue = 8
+        st.session_state.tue = 24
     if "wed" not in st.session_state:
-        st.session_state.wed = 8
+        st.session_state.wed = 24
     if "thu" not in st.session_state:
-        st.session_state.thu = 8
+        st.session_state.thu = 24
     if "fri" not in st.session_state:
-        st.session_state.fri = 8
+        st.session_state.fri = 24
     if "sat" not in st.session_state:
-        st.session_state.sat = 0
+        st.session_state.sat = 24
     if "sun" not in st.session_state:
-        st.session_state.sun = 0
+        st.session_state.sun = 24
     
     # Initialize session state for start hours
     if "sh_wd" not in st.session_state:
-        st.session_state.sh_wd = 8
+        st.session_state.sh_wd = 0
     if "sh_we" not in st.session_state:
-        st.session_state.sh_we = 8
+        st.session_state.sh_we = 0
 
     # Sync all days option
     sync_col1, sync_col2 = st.columns([2, 1])
     with sync_col1:
-        sync_hours = st.number_input("Set all days to:", min_value=0, max_value=24, value=8, step=1, key="sync_hrs")
+        sync_hours = st.number_input("Set all days to:", min_value=0, max_value=24, value=24, step=1, key="sync_hrs")
     with sync_col2:
         st.write("")  # Spacer
         if st.button("Apply"):
