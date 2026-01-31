@@ -2981,6 +2981,49 @@ with tab_load_gen:
             # Clean up
             if "edit_temp_name" in st.session_state: del st.session_state.edit_temp_name
     
+    # Random Generator (Quick Start)
+    if st.button("🎲 Randomize Sites (3-6 Sites)", type="primary", help="Instantly generate a test portfolio"):
+        import random
+        num_sites = random.randint(3, 6)
+        new_sites = []
+        
+        categories = ["DC", "MFG", "Office", "Other"]
+        
+        for i in range(num_sites):
+            cat = random.choice(categories)
+            # Randomize inputs
+            r_annual = random.randint(5, 50) * 1000000 # 5M to 50M
+            r_summer = round(random.uniform(0.8, 1.25), 2)
+            r_winter = round(random.uniform(0.8, 1.25), 2)
+            
+            # Defaults based on category
+            if cat == "DC":
+                h_pd = [24]*7; swd=0; swe=0
+            elif cat == "MFG":
+                h_pd = [18]*5 + [0,0]; swd=6; swe=0
+            elif cat == "Office":
+                h_pd = [10]*5 + [0,0]; swd=8; swe=8
+            else: # Other
+                h_pd = [12]*7; swd=6; swe=6
+                
+            new_sites.append({
+                "name": f"Random {cat} {i+1}",
+                "category": cat,
+                "annual_kwh": r_annual,
+                "hours_per_day": h_pd,
+                "start_hour_weekday": swd,
+                "start_hour_weekend": swe,
+                "summer_multiplier": r_summer,
+                "winter_multiplier": r_winter,
+                "weekend_scaler": 1.0
+            })
+            
+        st.session_state.load_gen_sites = new_sites
+        st.success(f"Generated {num_sites} random sites!")
+        st.rerun()
+        
+    st.markdown("---")
+
     # Load Factor Configuration
     st.markdown("### Load Factor Settings")
     lf_col1, lf_col2, lf_col3 = st.columns(3)
@@ -3058,48 +3101,7 @@ with tab_load_gen:
     col1, col2 = st.columns([1, 2])
     
     with col1:
-        # Random Generator (Quick Start)
-        if st.button("🎲 Randomize Sites (3-6 Sites)", type="primary", help="Instantly generate a test portfolio"):
-            import random
-            num_sites = random.randint(3, 6)
-            new_sites = []
-            
-            categories = ["DC", "MFG", "Office", "Other"]
-            
-            for i in range(num_sites):
-                cat = random.choice(categories)
-                # Randomize inputs
-                r_annual = random.randint(5, 50) * 1000000 # 5M to 50M
-                r_summer = round(random.uniform(0.8, 1.25), 2)
-                r_winter = round(random.uniform(0.8, 1.25), 2)
-                
-                # Defaults based on category
-                if cat == "DC":
-                    h_pd = [24]*7; swd=0; swe=0
-                elif cat == "MFG":
-                    h_pd = [18]*5 + [0,0]; swd=6; swe=0
-                elif cat == "Office":
-                    h_pd = [10]*5 + [0,0]; swd=8; swe=8
-                else: # Other
-                    h_pd = [12]*7; swd=6; swe=6
-                    
-                new_sites.append({
-                    "name": f"Random {cat} {i+1}",
-                    "category": cat,
-                    "annual_kwh": r_annual,
-                    "hours_per_day": h_pd,
-                    "start_hour_weekday": swd,
-                    "start_hour_weekend": swe,
-                    "summer_multiplier": r_summer,
-                    "winter_multiplier": r_winter,
-                    "weekend_scaler": 1.0
-                })
-                
-            st.session_state.load_gen_sites = new_sites
-            st.success(f"Generated {num_sites} random sites!")
-            st.rerun()
-            
-        st.markdown("---")
+
         
         # Edit Mode Selection
         site_options = ["-- New Site --"] + ([s['name'] for s in st.session_state.load_gen_sites] if st.session_state.load_gen_sites else [])
