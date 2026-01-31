@@ -3159,6 +3159,14 @@ with tab_load_gen:
     with we_cl2:
         sun_hrs = st.number_input("Sun", min_value=0, max_value=24, step=1, key="sun")
 
+    # US Holidays toggle (Moved here per user request)
+    treat_holidays_as_weekends = st.checkbox(
+        "Treat US Federal Holidays as Weekends",
+        value=False,
+        help="When enabled, US federal holidays (New Year's, MLK Jr Day, Presidents' Day, Memorial Day, Juneteenth, Independence Day, Labor Day, Columbus Day, Veterans Day, Thanksgiving, Christmas) will use weekend operating hours",
+        key="treat_holidays_input"
+    )
+
     st.markdown("**Start Hour (0-23)**")
     sh_cl1, sh_cl2 = st.columns(2)
     with sh_cl1:
@@ -3276,14 +3284,6 @@ with tab_load_gen:
         format="%.2f",
         help="Scale down weekend load (e.g., 0.5 = 50% load on weekends). Set to 1.0 for full load.",
         key="weekend_scaler"
-    )
-    
-    # US Holidays toggle
-    treat_holidays_as_weekends = st.checkbox(
-        "Treat US Federal Holidays as Weekends",
-        value=False,
-        help="When enabled, US federal holidays (New Year's, MLK Jr Day, Presidents' Day, Memorial Day, Juneteenth, Independence Day, Labor Day, Columbus Day, Veterans Day, Thanksgiving, Christmas) will use weekend operating hours",
-        key="treat_holidays_input"
     )
     
     st.markdown("---")
