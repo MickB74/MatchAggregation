@@ -125,6 +125,8 @@ def load_scenario():
             # 1. Participants
             if 'participants' in config:
                 st.session_state.participants = config['participants']
+            if 'load_gen_sites' in config:
+                st.session_state.load_gen_sites = config['load_gen_sites']
             
             # 2. Generation Capacities
             if 'solar_capacity' in config: st.session_state.solar_input = float(config['solar_capacity'])
@@ -268,7 +270,7 @@ def generate_random_scenario():
 exec_summary_container = st.container()
 
 # --- Configuration Section (Top) ---
-tab_guide, tab_load, tab_gen, tab_fin, tab_offtake, tab_scenario, tab_dl, tab_load_gen = st.tabs(["1\\. Start Here", "2\\. Load Setup (Simple)", "3\\. Generation Profile", "4\\. Financial Analysis", "5\\. Battery Financials", "6\\. Scenario Manager", "7\\. Download Results", "8\\. Load Profile Generator"])
+tab_guide, tab_load, tab_gen, tab_fin, tab_offtake, tab_scenario, tab_dl = st.tabs(["1\\. Start Here", "2\\. Load Setup", "3\\. Generation Profile", "4\\. Financial Analysis", "5\\. Battery Financials", "6\\. Scenario Manager", "7\\. Download Results"])
 # tab_comp removed
 
     
@@ -616,249 +618,177 @@ with tab_guide:
     - **Base Shape**: Sinusoidal with a trough at midday (solar cannibalization) and peak at evening (17:00-21:00).
     - **Seasonal Factor**: Higher prices in Summer (`cos` function peaking around day 172).
     """)
-
 # --- Tab 2: Load Setup ---
 with tab_load:
-    st.header("2. Load Setup (Simple)")
-    col_load_1, col_load_2 = st.columns([1, 2])
+    st.header("2. Load Setup")
+    st.markdown("Configure your load profile by either building a multi-site portfolio or uploading a pre-made 8760-hour profile.")
     
-    with col_load_1:
-        # Check for custom profile integration from Tab 8
-        if "custom_aggregated_profile" in st.session_state:
-            st.info("ℹ️ Using Custom Profile from Generator (Tab 8)")
-            st.warning("Note: Custom profile overrides manual participants below.")
-            if st.button("❌ Clear Custom Profile"):
-                del st.session_state["custom_aggregated_profile"]
-                if "custom_profile_sites" in st.session_state:
-                    del st.session_state["custom_profile_sites"]
+    # Mode Selection: Generator vs Upload
+    load_entry_mode = st.radio("Select Load Entry Method:", ["Portfolio Generator", "Upload 8760 (CSV/Excel)"], horizontal=True, key="load_entry_mode")
+    
+    if load_entry_mode == "Portfolio Generator":
+        st.info("Synthetic Portfolio Generator: Build a profile from multiple sites (DC, Mfg, Office) using load factor logic.")
+        # --- Generator Logic ported from Tab 8 ---
+        # Initialize session state for sites
+        if 'load_gen_sites' not in st.session_state:
+            st.session_state.load_gen_sites = []
+
+        # Migration: Ensure all sites are stored in kWh for input consistency
+        if "load_gen_sites" in st.session_state and st.session_state.load_gen_sites:
+            for site in st.session_state.load_gen_sites:
+                if "annual_mwh" in site:
+                    val = site.pop("annual_mwh")
+                    site["annual_kwh"] = val * 1000.0 if val < 50000 else val
+
+        def load_site_data():
+            selection = st.session_state.edit_site_select
+            if selection != "-- New Site --":
+                site_d = next((s for s in st.session_state.load_gen_sites if s['name'] == selection), None)
+                if site_d:
+                    st.session_state.site_name_input = site_d['name']
+                    st.session_state.category_input = site_d['category']
+                    st.session_state.annual_kwh_input = site_d.get('annual_kwh', 6000000)
+                    st.session_state.mon = site_d['hours_per_day'][0]
+                    st.session_state.tue = site_d['hours_per_day'][1]
+                    st.session_state.wed = site_d['hours_per_day'][2]
+                    st.session_state.thu = site_d['hours_per_day'][3]
+                    st.session_state.fri = site_d['hours_per_day'][4]
+                    st.session_state.sat = site_d['hours_per_day'][5]
+                    st.session_state.sun = site_d['hours_per_day'][6]
+                    st.session_state.sh_wd = site_d.get('start_hour_weekday', 8)
+                    st.session_state.sh_we = site_d.get('start_hour_weekend', 8)
+                    st.session_state.weekend_scaler = site_d.get('weekend_scaler', 1.0)
+                    st.session_state.smult_input = site_d.get('summer_multiplier', 1.0)
+                    st.session_state.wmult_input = site_d.get('winter_multiplier', 1.0)
+                    st.session_state.last_loaded_site = selection
+            else:
+                st.session_state.last_loaded_site = None
+                st.session_state.site_name_input = ""
+                st.session_state.category_input = "DC"
+                for day in ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun']: st.session_state[day] = 24
+                st.session_state.sh_wd = 0; st.session_state.sh_we = 0; st.session_state.annual_kwh_input = 6000000
+                st.session_state.weekend_scaler = 1.0; st.session_state.smult_input = 1.0; st.session_state.wmult_input = 1.0
+
+        def load_category_defaults():
+            cat = st.session_state.category_input
+            if cat == "DC":
+                for day in ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun']: st.session_state[day] = 24
+                st.session_state.sh_wd = 0; st.session_state.sh_we = 0
+            elif cat == "MFG":
+                for day in ['mon', 'tue', 'wed', 'thu', 'fri']: st.session_state[day] = 18
+                st.session_state.sat = 0; st.session_state.sun = 0; st.session_state.sh_wd = 6
+            elif cat == "Office":
+                for day in ['mon', 'tue', 'wed', 'thu', 'fri']: st.session_state[day] = 10
+                st.session_state.sat = 0; st.session_state.sun = 0; st.session_state.sh_wd = 8
+            elif cat == "Other":
+                for day in ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun']: st.session_state[day] = 12
+                st.session_state.sh_wd = 6
+
+        # --- Site Entry Form ---
+        site_options = ["-- New Site --"] + ([s['name'] for s in st.session_state.load_gen_sites] if st.session_state.load_gen_sites else [])
+        edit_site_selection = st.selectbox("Edit Existing Site", site_options, key="edit_site_select", on_change=load_site_data)
+        
+        st.subheader("Add / Update Site")
+        site_name = st.text_input("Site Name", placeholder="e.g. Data Center 1", key="site_name_input")
+        site_category = st.selectbox("Category", ["DC", "MFG", "Office", "Other"], format_func=lambda x: {"DC":"Data Center", "MFG":"Manufacturing", "Office":"Office", "Other":"Other (12h/7d)"}.get(x,x), key="category_input", on_change=load_category_defaults)
+        annual_kwh = st.number_input("Annual kWh", min_value=1000, value=6000000, step=100000, format="%d", key="annual_kwh_input")
+        
+        st.markdown("**Hours of Operation per Day (0-24)**")
+        sync_col1, sync_col2 = st.columns([2, 1])
+        with sync_col1: sync_hours = st.number_input("Set all days to:", min_value=0, max_value=24, value=24, step=1, key="sync_hrs")
+        with sync_col2: 
+            st.write(""); 
+            if st.button("Apply"):
+                for day in ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun']: st.session_state[day] = sync_hours
                 st.rerun()
+        
+        wd_cl1, wd_cl2, wd_cl3 = st.columns(3)
+        with wd_cl1: mon_hrs = st.number_input("Mon", 0, 24, key="mon"); tue_hrs = st.number_input("Tue", 0, 24, key="tue")
+        with wd_cl2: wed_hrs = st.number_input("Wed", 0, 24, key="wed"); thu_hrs = st.number_input("Thu", 0, 24, key="thu")
+        with wd_cl3: fri_hrs = st.number_input("Fri", 0, 24, key="fri")
+        
+        we_cl1, we_cl2 = st.columns(2)
+        with we_cl1: sat_hrs = st.number_input("Sat", 0, 24, key="sat")
+        with we_cl2: sun_hrs = st.number_input("Sun", 0, 24, key="sun")
+        
+        treat_holidays_as_weekends = st.checkbox("Treat US Federal Holidays as Weekends", False, key="treat_holidays_input")
+        sh_cl1, sh_cl2 = st.columns(2)
+        with sh_cl1: start_hour_weekday = st.number_input("Weekday Start", 0, 23, key="sh_wd")
+        with sh_cl2: start_hour_weekend = st.number_input("Weekend Start", 0, 23, key="sh_we")
+        
+        st.markdown("### Load Factor & Seasonality")
+        lf1, lf2, lf3 = st.columns(3)
+        with lf1: baseline_lf = st.number_input("Baseline LF", 0.0, 1.0, 0.20, 0.01, key="baseline_lf_input")
+        with lf2: ramp_lf = st.number_input("Ramp LF", 0.0, 1.0, 0.40, 0.01, key="ramp_lf_input")
+        with lf3: weekend_scaler = st.number_input("Weekend Scaler", 0.0, 1.0, 1.0, 0.1, key="weekend_scaler")
+        
+        sea1, sea2 = st.columns(2)
+        with sea1: summer_mult = st.number_input("Summer Peak (Jun-Sep)", 0.5, 2.0, 1.0, 0.1, key="smult_input")
+        with sea2: winter_mult = st.number_input("Winter Peak (Dec-Feb)", 0.5, 2.0, 1.0, 0.1, key="wmult_input")
+        
+        is_edit = edit_site_selection != "-- New Site --"
+        if st.button("Update Site" if is_edit else "Add Site", type="primary"):
+            site_data = {"name": site_name or f"Site {len(st.session_state.load_gen_sites)+1}", "category": site_category, "annual_kwh": annual_kwh, "hours_per_day": [mon_hrs, tue_hrs, wed_hrs, thu_hrs, fri_hrs, sat_hrs, sun_hrs], "start_hour_weekday": start_hour_weekday, "start_hour_weekend": start_hour_weekend, "summer_multiplier": summer_mult, "winter_multiplier": winter_mult, "weekend_scaler": weekend_scaler}
+            if is_edit:
+                idx = next((i for i, s in enumerate(st.session_state.load_gen_sites) if s['name'] == edit_site_selection), -1)
+                if idx != -1: st.session_state.load_gen_sites[idx] = site_data
+            else: st.session_state.load_gen_sites.append(site_data)
+            st.session_state.last_loaded_site = None; st.rerun()
+
+        if st.session_state.load_gen_sites:
             st.markdown("---")
-        
-        if st.button("🎲 Random Scenario (>500 GWh)"):
-            # Clear existing
-            st.session_state.participants = []
+            st.subheader("Current Portfolio")
+            sites_df = pd.DataFrame(st.session_state.load_gen_sites)
+            st.dataframe(sites_df[["name", "category", "annual_kwh"]], use_container_width=True, hide_index=True)
             
-            # Logic to generate random scenario > 500k MWh
-            import random
-            current_total_load = 0
-            count = 1
+            with st.popover("🗑️ Clear Portfolio"):
+                if st.button("Confirm: Clear All Sites", type="primary"): 
+                    st.session_state.load_gen_sites = []; st.rerun()
             
-            # Target at least 500k and at least 3 participants
-            while current_total_load < 500000 or len(st.session_state.participants) < 3:
-                # Randomly choose type
-                # Weighted towards Data Centers for higher load
-                p_type = random.choice(["Data Center", "Data Center", "Office", "Office", "Ammonia Plant"])
-                
-                if p_type == "Data Center":
-                    # Large load: 100k - 300k MWh
-                    load = random.randint(100000, 300000)
-                elif p_type == "Ammonia Plant":
-                     # Large constant load: 200k - 400k MWh (mapped to Flat/DataCenter profile logic usually, but we use 'Flat' for now)
-                     # We'll use 'Flat' profile type for Ammonia internally if 'Ammonia Plant' isn't in utils yet
-                     # Actually utils only has ['Flat', 'Data Center', 'Office']
-                     # Let's map Ammonia to 'Flat' effectively by just calling it 'Flat' in the backend, 
-                     # OR we stick to the selectbox types.
-                     # The user asked for "random scenarios", so diversity is good.
-                     # Let's stick to valid types for now to ensure profile generation works:
-                     # 'Data Center', 'Office', 'Flat'
-                     p_type = "Flat"
-                     load = random.randint(150000, 400000)
-                     p_name = f"Ind. Plant {count}" 
-                else: # Office
-                    # Medium load: 10k - 50k MWh
-                    load = random.randint(10000, 50000)
-                    
-                if p_type == "Data Center":
-                     p_name = f"Data Center {count}"
-                elif p_type == "Office":
-                     p_name = f"Office Park {count}"
-                elif p_type == "Flat":
-                     p_name = f"Industrial {count}"
-
-                st.session_state.participants.append({
-                    "name": p_name,
-                    "type": p_type,
-                    "load": load
-                })
-                
-                current_total_load += load
-                count += 1
+            # --- Generate Combined Profile ---
+            all_profiles = []
+            total_kw = None
+            for s in st.session_state.load_gen_sites:
+                p_df = generate_load_factor_profile(annual_kwh=s['annual_kwh'], hours_per_day=s['hours_per_day'], start_hour_weekday=s.get('start_hour_weekday', 8), start_hour_weekend=s.get('start_hour_weekend', 8), year=2024, baseline_lf=baseline_lf, ramp_lf=ramp_lf, treat_holidays_as_weekends=treat_holidays_as_weekends, summer_multiplier=s.get('summer_multiplier', 1.0), winter_multiplier=s.get('winter_multiplier', 1.0), weekend_scaler=s.get('weekend_scaler', 1.0))
+                all_profiles.append(p_df.rename(columns={'kW': s['name']}))
+                total_kw = p_df['kW'].copy() if total_kw is None else total_kw + p_df['kW']
             
-            st.success(f"Generated {len(st.session_state.participants)} participants with {current_total_load:,.0f} MWh total load!")
-            st.rerun()
-
-
-
-        st.markdown("---")
-        st.markdown("#### Add Participant")
-        # Only show participant form if no file is uploaded (or allow both but prioritize file?)
-        # Logic: If 'uploaded_load_file' is present, we use it. But we can still build list.
-        
-        with st.form("add_participant", clear_on_submit=True):
-            p_name = st.text_input("Participant Name", placeholder="e.g. Data Center 1")
+            combined_mw = total_kw / 1000.0
+            st.session_state["custom_aggregated_profile"] = combined_mw
             
-            type_options = ["Data Center", "Manufacturing", "Office", "Flat"]
-            type_labels = {
-                "Data Center": "Data Center (LF: ~95%)",
-                "Manufacturing": "Manufacturing (LF: ~90%)",
-                "Office": "Office (LF: ~45%)",
-                "Flat": "Baseload / Flat (LF: 100%)"
-            }
-            p_type = st.selectbox("Building Type", type_options, format_func=lambda x: type_labels.get(x, x))
-            p_load = st.number_input("Annual Consumption (MWh)", min_value=1000, value=50000, step=50000)
-            submitted = st.form_submit_button("Add Participant")
+            m1, m2 = st.columns(2)
+            m1.metric("Total Load", f"{combined_mw.sum():,.0f} MWh")
+            m2.metric("Peak Load", f"{combined_mw.max():,.2f} MW")
+            st.line_chart(combined_mw)
             
-            if submitted:
-                # Handle default name if empty
-                if not p_name:
-                    p_name = f"Participant {len(st.session_state.participants) + 1}"
-                    
-                st.session_state.participants.append({
-                    "name": p_name,
-                    "type": p_type,
-                    "load": p_load
-                })
-                st.success(f"Added {p_name}")
-
-        if st.session_state.participants:
-            if st.button("Clear Participants"):
-                st.session_state.participants = []
-                st.rerun()
-        
-
-
-    with col_load_2:
-        st.markdown("#### Current Participants")
-        
-        # Check for Custom Profile Integration first
-        if "custom_aggregated_profile" in st.session_state:
-             st.success("Showing sites from Load Generator (Tab 8)")
-             # Use custom_profile_sites (saved copy) or fall back to load_gen_sites
-             sites_to_display = st.session_state.get("custom_profile_sites", st.session_state.get("load_gen_sites", []))
-             if sites_to_display:
-                 # Create display DF
-                 display_sites = []
-                 for s in sites_to_display:
-                     display_sites.append({
-                         "Name": s['name'],
-                         "Type": s['category'],
-                         "Annual Load (MWh)": s['annual_kwh'] / 1000.0,
-                         "Schedule": "Custom 8760"
-                     })
-                 
-                 site_df_display = pd.DataFrame(display_sites)
-                 st.dataframe(
-                    site_df_display.style.format({"Annual Load (MWh)": "{:,.0f}"}), 
-                    use_container_width=True, 
-                    hide_index=True
-                 )
-             else:
-                 st.warning("Custom profile active, but site details missing from session.")
-
-        elif st.session_state.participants:
-            p_df = pd.DataFrame(st.session_state.participants)
-            st.dataframe(
-                p_df.style.format({"load": "{:,.0f}"}), 
-                hide_index=True, 
-                use_container_width=True
-            )
-        else:
-            st.info("No participants added yet.")
-            
-        st.markdown("---")
-        st.markdown("#### Or Upload Aggregate Load Profile")
-        uploaded_load_file = st.file_uploader("Upload CSV (Hourly load in MW)", type=['csv', 'txt'], key='uploaded_load_file')
-
-    # --- Export Section (Bottom of Load Tab) ---
-    st.markdown("---")
-    st.markdown("#### 📥 Export Load Data")
+            # CSV Download
+            csv_str = pd.concat([p.set_index('Datetime') for p in all_profiles], axis=1).to_csv()
+            st.download_button("📥 Download 8760 CSV", csv_str, "portfolio_load.csv", "text/csv")
     
-    if st.session_state.participants:
-        # --- Hourly Profile Export ---
-        # Get Market Year for Timestamps
-        
-        # Get Market Year for Timestamps
-        m_year = st.session_state.get('market_year_input', 2024)
-        
-        # Create Datetime Index (use 2024 if Average selected)
-        year_for_dates = 2024 if m_year == 'Average' else m_year
-        dates = pd.date_range(start=f'{year_for_dates}-01-01', periods=8760, freq='h')
-        
-        # Initialize Data Dictionary with Timestamp
-        hourly_data = {'Datetime': dates}
-        total_load_profile = pd.Series(0.0, index=range(8760))
-        
-        # Generate profiles for each participant
-        for p in st.session_state.participants:
-            # Generate profile
-            p_profile = generate_dummy_load_profile(p['load'], p['type'])
-            
-            # Add to dictionary (Use name + type as column header)
-            col_name = f"{p['name']} ({p['type']})"
-            # Simple handle for duplicate names
-            if col_name in hourly_data:
-                 col_name = f"{col_name}_{random.randint(1,999)}"
-
-            hourly_data[col_name] = p_profile.values
-            
-            # Add to total
-            total_load_profile += p_profile.values
-            
-        # Add Total Column
-        hourly_data['Total_Load_MW'] = total_load_profile
-        
-        # Create Detailed DataFrame
-        hourly_df = pd.DataFrame(hourly_data)
-        
-        # --- Visual Validation ---
-        st.markdown("**Load Profile Visualization**")
-        fig_load = go.Figure()
-        
-        # Add traces for each participant
-        for col in hourly_df.columns:
-            if col not in ['Datetime', 'Total_Load_MW']:
-                fig_load.add_trace(go.Scatter(
-                    x=hourly_df['Datetime'],
-                    y=hourly_df[col],
-                    mode='lines',
-                    name=col,
-                    line=dict(width=1.5)
-                ))
-        
-        # Add Total Load as a separate, more visible trace
-        fig_load.add_trace(go.Scatter(
-            x=hourly_df['Datetime'],
-            y=hourly_df['Total_Load_MW'],
-            mode='lines',
-            name='Total Load',
-            line=dict(width=3, color='Navy', dash='dot')
-        ))
-
-        fig_load.update_layout(
-            xaxis_title="Time",
-            yaxis_title="Load (MW)",
-            template=chart_template,
-            legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
-            height=450,
-            margin=dict(l=20, r=20, t=20, b=20)
-        )
-        st.plotly_chart(fig_load, use_container_width=True)
-
-        # Preview
-        with st.expander("View Hourly Data Preview"):
-            st.dataframe(hourly_df.head(24), use_container_width=True)
-            
-        # Convert to CSV
-        csv_hourly = hourly_df.to_csv(index=False).encode('utf-8')
-        
-        st.download_button(
-            label="Download Detailed Hourly Profile",
-            data=csv_hourly,
-            file_name=f"detailed_hourly_load_{m_year}.csv",
-            mime="text/csv",
-        )
     else:
-        st.info("Add participants above to enable export.")
+        # --- Upload 8760 Logic ---
+        st.subheader("Upload 8760 Profile")
+        st.info("Upload an hourly (8760-hour) load profile in MW.")
+        uploaded_file = st.file_uploader("Choose CSV or Excel file", type=["csv", "xlsx", "xls"], key="8760_uploader")
+        
+        if uploaded_file:
+            try:
+                if uploaded_file.name.endswith('.csv'): df_up = pd.read_csv(uploaded_file)
+                else: df_up = pd.read_excel(uploaded_file)
+                
+                if len(df_up) < 8760: st.error(f"File must have 8760 rows. Found {len(df_up)}.")
+                else:
+                    load_col = next((c for c in df_up.columns if any(k in c.lower() for k in ['load', 'mw', 'kw', 'demand'])), df_up.columns[0])
+                    profile = df_up[load_col].astype(float).head(8760)
+                    if profile.max() > 10000: profile = profile / 1000.0 # Convert kW to MW
+                    
+                    st.session_state["custom_aggregated_profile"] = profile
+                    st.success(f"✅ Loaded profile from {uploaded_file.name}")
+                    m1, m2 = st.columns(2)
+                    m1.metric("Total Load", f"{profile.sum():,.0f} MWh")
+                    m2.metric("Peak Load", f"{profile.max():,.2f} MW")
+                    st.line_chart(profile)
+            except Exception as e: st.error(f"Error: {e}")
 # --- Tab 2: Generation Portfolio ---
 with tab_gen:
     st.header("3. Generation Profile")
@@ -929,7 +859,7 @@ with tab_gen:
             
             st.session_state.portfolio_recommended = True
         else:
-            st.session_state.portfolio_error = "No load profile found. Add participants or use Tab 8 generator."
+            st.session_state.portfolio_error = "No load profile found. Please configure load in '2. Load Setup'."
 
     col_gen_1, col_gen_2 = st.columns([1, 1])
     
@@ -2717,6 +2647,7 @@ if active_scenario:
         "market_price": market_price,
         "rec_price": rec_price,
         "participants": st.session_state.participants,
+        "load_gen_sites": st.session_state.get('load_gen_sites', []),
         "excluded_techs": st.session_state.get('excluded_techs', [])
     }
     # Add optional large arrays
@@ -2938,592 +2869,3 @@ with tab_dl:
         )
 
 # --- Tab 8: Load Profile Generator ---
-with tab_load_gen:
-    st.header("8. Multi-Site 8760 Load Profile Generator")
-    st.markdown("Create detailed hourly load profiles for multiple sites using load factor methodology.")
-    st.info("This tool generates synthetic load profiles for sites where you know the total annual kWh but don't have actual 8760-hour interval data.")
-    
-    # Initialize session state for sites
-    if 'load_gen_sites' not in st.session_state:
-        st.session_state.load_gen_sites = []
-
-    # Migration: Ensure all sites are stored in kWh for input consistency
-    if "load_gen_sites" in st.session_state and st.session_state.load_gen_sites:
-        for site in st.session_state.load_gen_sites:
-            if "annual_mwh" in site:
-                # If we have annual_mwh < 10000, it's likely actually MWh, so convert to kWh
-                # If it's larger (e.g. 31,000,000), it was actually kWh stored in the wrong key
-                val = site.pop("annual_mwh")
-                site["annual_kwh"] = val * 1000.0 if val < 50000 else val
-            elif "annual_kwh" not in site:
-                site["annual_kwh"] = 6000000 # Default fallback
-
-    # Callback to load site data (must be defined before widgets)
-    def load_site_data():
-        selection = st.session_state.edit_site_select
-        if selection != "-- New Site --":
-            site_d = next((s for s in st.session_state.load_gen_sites if s['name'] == selection), None)
-            if site_d:
-                st.session_state.site_name_input = site_d['name']
-                st.session_state.category_input = site_d['category']
-                # Load annual_kwh, handling potential legacy keys
-                st.session_state.annual_kwh_input = site_d.get('annual_kwh', site_d.get('annual_mwh', 6000000))
-                # If the value is tiny (likely MWh), multiply it
-                if st.session_state.annual_kwh_input < 50000 and "annual_mwh" in site_d:
-                     st.session_state.annual_kwh_input *= 1000.0
-                
-                st.session_state.mon = site_d['hours_per_day'][0]
-                st.session_state.tue = site_d['hours_per_day'][1]
-                st.session_state.wed = site_d['hours_per_day'][2]
-                st.session_state.thu = site_d['hours_per_day'][3]
-                st.session_state.fri = site_d['hours_per_day'][4]
-                st.session_state.sat = site_d['hours_per_day'][5]
-                st.session_state.sun = site_d['hours_per_day'][6]
-                
-                st.session_state.sh_wd = site_d.get('start_hour_weekday', 8)
-                st.session_state.sh_we = site_d.get('start_hour_weekend', 8)
-                st.session_state.weekend_scaler = site_d.get('weekend_scaler', 1.0)
-                
-                st.session_state.smult_input = site_d.get('summer_multiplier', 1.0)
-                st.session_state.wmult_input = site_d.get('winter_multiplier', 1.0)
-                
-                st.session_state.last_loaded_site = selection
-        else:
-            # Reset defaults to Data Center (24/7)
-            st.session_state.last_loaded_site = None
-            st.session_state.site_name_input = ""
-            st.session_state.category_input = "DC"
-            
-            st.session_state.mon = 24
-            st.session_state.tue = 24
-            st.session_state.wed = 24
-            st.session_state.thu = 24
-            st.session_state.fri = 24
-            st.session_state.sat = 24
-            st.session_state.sun = 24
-            st.session_state.sh_wd = 0
-            st.session_state.sh_we = 0
-            
-            st.session_state.annual_kwh_input = 6000000
-            st.session_state.weekend_scaler = 1.0
-            st.session_state.smult_input = 1.0
-            st.session_state.wmult_input = 1.0
-
-            if "edit_temp_name" in st.session_state: del st.session_state.edit_temp_name
-    
-    # Callback to load category defaults
-    def load_category_defaults():
-        cat = st.session_state.category_input
-        if cat == "DC":
-            # Data Center: 24/7
-            st.session_state.mon = 24
-            st.session_state.tue = 24
-            st.session_state.wed = 24
-            st.session_state.thu = 24
-            st.session_state.fri = 24
-            st.session_state.sat = 24
-            st.session_state.sun = 24
-            st.session_state.sh_wd = 0
-            st.session_state.sh_we = 0
-        elif cat == "MFG":
-            # MFG: 18h M-F, closed weekends
-            st.session_state.mon = 18
-            st.session_state.tue = 18
-            st.session_state.wed = 18
-            st.session_state.thu = 18
-            st.session_state.fri = 18
-            st.session_state.sat = 0
-            st.session_state.sun = 0
-            st.session_state.sh_wd = 6
-            st.session_state.sh_we = 0
-        elif cat == "Office":
-            # Office: 10h M-F (8-6), closed weekends
-            st.session_state.mon = 10
-            st.session_state.tue = 10
-            st.session_state.wed = 10
-            st.session_state.thu = 10
-            st.session_state.fri = 10
-            st.session_state.sat = 0
-            st.session_state.sun = 0
-            st.session_state.sh_wd = 8
-            st.session_state.sh_we = 8
-        elif cat == "Other":
-            # Other: 12h daily
-            st.session_state.mon = 12
-            st.session_state.tue = 12
-            st.session_state.wed = 12
-            st.session_state.thu = 12
-            st.session_state.fri = 12
-            st.session_state.sat = 12
-            st.session_state.sun = 12
-            st.session_state.sh_wd = 6
-            st.session_state.sh_we = 6
-    
-    # Random Generator (Quick Start)
-    if st.button("🎲 Randomize Sites (3-6 Sites)", type="primary", help="Instantly generate a test portfolio"):
-        import random
-        num_sites = random.randint(3, 6)
-        new_sites = []
-        
-        categories = ["DC", "MFG", "Office", "Other"]
-        
-        for i in range(num_sites):
-            cat = random.choice(categories)
-            # Randomize inputs
-            r_annual = random.randint(5, 50) * 1000000 # 5M to 50M
-            r_summer = round(random.uniform(0.8, 1.25), 2)
-            r_winter = round(random.uniform(0.8, 1.25), 2)
-            
-            # Defaults based on category
-            if cat == "DC":
-                h_pd = [24]*7; swd=0; swe=0
-            elif cat == "MFG":
-                h_pd = [18]*5 + [0,0]; swd=6; swe=0
-            elif cat == "Office":
-                h_pd = [10]*5 + [0,0]; swd=8; swe=8
-            else: # Other
-                h_pd = [12]*7; swd=6; swe=6
-                
-            new_sites.append({
-                "name": f"Random {cat} {i+1}",
-                "category": cat,
-                "annual_kwh": r_annual,
-                "hours_per_day": h_pd,
-                "start_hour_weekday": swd,
-                "start_hour_weekend": swe,
-                "summer_multiplier": r_summer,
-                "winter_multiplier": r_winter,
-                "weekend_scaler": 1.0
-            })
-            
-        st.session_state.load_gen_sites = new_sites
-        st.success(f"Generated {num_sites} random sites!")
-        st.rerun()
-        
-    st.markdown("---")
-
-
-    
-    # --- Site Entry Form ---
-    site_options = ["-- New Site --"] + ([s['name'] for s in st.session_state.load_gen_sites] if st.session_state.load_gen_sites else [])
-    edit_site_selection = st.selectbox("Edit Existing Site", site_options, key="edit_site_select", on_change=load_site_data)
-    
-    # (Procedural logic removed, handled by callback)
-             
-    st.subheader("Add / Update Site")
-    
-    site_name = st.text_input("Site Name", placeholder="e.g. Data Center 1", key="site_name_input")
-    
-    category_options = ["DC", "MFG", "Office", "Other"]
-    # Helper to format option labels
-    def format_category(x):
-        if x == "DC": return "Data Center"
-        if x == "MFG": return "Manufacturing"
-        if x == "Office": return "Office"
-        if x == "Other": return "Other (12h/7d)"
-        return x
-        
-    site_category = st.selectbox("Category", category_options, format_func=format_category, key="category_input", on_change=load_category_defaults)
-    
-    annual_kwh = st.number_input("Annual kWh", min_value=1000, value=6000000, step=100000, format="%d", key="annual_kwh_input")
-    
-    st.markdown("**Hours of Operation per Day (0-24)**")
-    
-    # Initialize session state for hours if not present
-    if "mon" not in st.session_state:
-        st.session_state.mon = 24
-    if "tue" not in st.session_state:
-        st.session_state.tue = 24
-    if "wed" not in st.session_state:
-        st.session_state.wed = 24
-    if "thu" not in st.session_state:
-        st.session_state.thu = 24
-    if "fri" not in st.session_state:
-        st.session_state.fri = 24
-    if "sat" not in st.session_state:
-        st.session_state.sat = 24
-    if "sun" not in st.session_state:
-        st.session_state.sun = 24
-    
-    # Initialize session state for start hours
-    if "sh_wd" not in st.session_state:
-        st.session_state.sh_wd = 0
-    if "sh_we" not in st.session_state:
-        st.session_state.sh_we = 0
-
-    # Sync all days option
-    sync_col1, sync_col2 = st.columns([2, 1])
-    with sync_col1:
-        sync_hours = st.number_input("Set all days to:", min_value=0, max_value=24, value=24, step=1, key="sync_hrs")
-    with sync_col2:
-        st.write("")  # Spacer
-        if st.button("Apply"):
-            # Update all session state values to match sync_hours
-            st.session_state.mon = sync_hours
-            st.session_state.tue = sync_hours
-            st.session_state.wed = sync_hours
-            st.session_state.thu = sync_hours
-            st.session_state.fri = sync_hours
-            st.session_state.sat = sync_hours
-            st.session_state.sun = sync_hours
-            st.rerun()
-    
-    # Individual day controls
-    # Weekdays section
-    st.markdown("**Weekdays (Mon-Fri)**")
-    wd_cl1, wd_cl2, wd_cl3 = st.columns(3)
-    with wd_cl1:
-        mon_hrs = st.number_input("Mon", min_value=0, max_value=24, step=1, key="mon")
-        tue_hrs = st.number_input("Tue", min_value=0, max_value=24, step=1, key="tue")
-    with wd_cl2:
-        wed_hrs = st.number_input("Wed", min_value=0, max_value=24, step=1, key="wed")
-        thu_hrs = st.number_input("Thu", min_value=0, max_value=24, step=1, key="thu")
-    with wd_cl3:
-        fri_hrs = st.number_input("Fri", min_value=0, max_value=24, step=1, key="fri")
-    
-    # Weekends section
-    st.markdown("**Weekends (Sat-Sun)**")
-    we_cl1, we_cl2 = st.columns(2)
-    with we_cl1:
-        sat_hrs = st.number_input("Sat", min_value=0, max_value=24, step=1, key="sat")
-    with we_cl2:
-        sun_hrs = st.number_input("Sun", min_value=0, max_value=24, step=1, key="sun")
-
-    # US Holidays toggle (Moved here per user request)
-    treat_holidays_as_weekends = st.checkbox(
-        "Treat US Federal Holidays as Weekends",
-        value=False,
-        help="When enabled, US federal holidays (New Year's, MLK Jr Day, Presidents' Day, Memorial Day, Juneteenth, Independence Day, Labor Day, Columbus Day, Veterans Day, Thanksgiving, Christmas) will use weekend operating hours",
-        key="treat_holidays_input"
-    )
-
-    st.markdown("**Start Hour (0-23)**")
-    sh_cl1, sh_cl2 = st.columns(2)
-    with sh_cl1:
-        start_hour_weekday = st.number_input("Weekday Start", min_value=0, max_value=23, step=1, key="sh_wd")
-    with sh_cl2:
-        start_hour_weekend = st.number_input("Weekend Start", min_value=0, max_value=23, step=1, key="sh_we")
-    
-    st.markdown("---")
-    
-    # Load Factor Configuration
-    st.markdown("### Load Factor Settings")
-    lf_col1, lf_col2, lf_col3 = st.columns(3)
-    with lf_col1:
-        baseline_lf = st.number_input(
-            "Baseline Load Factor (outside hours)",
-            min_value=0.0,
-            max_value=1.0,
-            value=0.20,
-            step=0.01,
-            format="%.2f",
-            help="Load factor for hours outside operating schedule (e.g., 0.20 = 20%)",
-            key="baseline_lf_input"
-        )
-    with lf_col2:
-        ramp_lf = st.number_input(
-            "Ramp Load Factor (1h before/after)",
-            min_value=0.0,
-            max_value=1.0,
-            value=0.40,
-            step=0.01,
-            format="%.2f",
-            help="Load factor for ramp up/down hours (e.g., 0.10 = 10%)",
-            key="ramp_lf_input"
-        )
-    with lf_col3:
-        st.metric("Operating Load Factor", "1.00", help="Full load during operating hours")
-    
-    st.markdown("### Seasonality Factors (Multipliers)")
-    sea_col1, sea_col2 = st.columns(2)
-    with sea_col1:
-        summer_mult = st.number_input(
-            "Summer Peak (Jun-Sep)", 
-            min_value=0.5, 
-            max_value=2.0, 
-            value=1.0, 
-            step=0.1, 
-            format="%.2f",
-            help="Multiplier for load during summer months (June-September)",
-            key="smult_input"
-        )
-    with sea_col2:
-        winter_mult = st.number_input(
-            "Winter Peak (Dec-Feb)", 
-            min_value=0.5, 
-            max_value=2.0, 
-            value=1.0, 
-            step=0.1, 
-            format="%.2f",
-            help="Multiplier for load during winter months (December-February)",
-            key="wmult_input"
-        )
-    
-    # Weekend Scaler
-    weekend_scaler = st.number_input(
-        "Weekend Load Scaler",
-        min_value=0.0,
-        max_value=1.0,
-        value=1.0,
-        step=0.1,
-        format="%.2f",
-        help="Scale down weekend load (e.g., 0.5 = 50% load on weekends). Set to 1.0 for full load.",
-        key="weekend_scaler"
-    )
-
-    # Determine button label and mode (Moved here below settings)
-    is_edit_mode = edit_site_selection != "-- New Site --"
-    btn_label = "Update Site" if is_edit_mode else "Add Site"
-    
-    submitted = st.button(btn_label, type="primary")
-    
-    if submitted:
-        if not site_name:
-            site_name = f"Site {len(st.session_state.load_gen_sites) + 1}"
-        
-        hours_per_day = [mon_hrs, tue_hrs, wed_hrs, thu_hrs, fri_hrs, sat_hrs, sun_hrs]
-        
-        site_data = {
-            "name": site_name,
-            "category": site_category,
-            "annual_kwh": annual_kwh,
-            "hours_per_day": hours_per_day,
-            "start_hour_weekday": start_hour_weekday,
-            "start_hour_weekend": start_hour_weekend,
-            "summer_multiplier": summer_mult,
-            "winter_multiplier": winter_mult,
-            "weekend_scaler": weekend_scaler
-        }
-        
-        if is_edit_mode:
-            # Find index and update
-            idx = next((i for i, s in enumerate(st.session_state.load_gen_sites) if s['name'] == edit_site_selection), -1)
-            if idx != -1:
-                st.session_state.load_gen_sites[idx] = site_data
-                st.success(f"Updated {site_name}")
-                # Clear edit selection to reset form
-                st.session_state.last_loaded_site = None
-                st.rerun()
-            else:
-                st.error("Site not found to update.")
-        else:
-            st.session_state.load_gen_sites.append(site_data)
-            st.success(f"Added {site_name}")
-            st.rerun()
-    
-    st.markdown("---")
-    
-    # --- Current Sites Table ---
-    st.subheader("Current Sites")
-    
-    if st.session_state.load_gen_sites:
-        # Delete Control
-        site_names_list = [s['name'] for s in st.session_state.load_gen_sites]
-        to_delete = st.multiselect("Select sites to delete", site_names_list)
-        if to_delete:
-            if st.button("Delete Selected"):
-                st.session_state.load_gen_sites = [s for s in st.session_state.load_gen_sites if s['name'] not in to_delete]
-                st.success(f"Deleted {len(to_delete)} sites.")
-                st.rerun()
-        
-        st.markdown("---")
-        
-        # Display sites in a table
-        sites_display = []
-        for idx, site in enumerate(st.session_state.load_gen_sites):
-            hrs_str = f"{site['hours_per_day'][0]}-{site['hours_per_day'][4]}/{site['hours_per_day'][5]}-{site['hours_per_day'][6]}"
-            
-            # Handle backwards compatibility for sites added before this change
-            wd_start = site.get('start_hour_weekday', site.get('start_hour', 8))
-            we_start = site.get('start_hour_weekend', site.get('start_hour', 8))
-            
-            sites_display.append({
-                "#": idx + 1,
-                "Site Name": site['name'],
-                "Category": site['category'],
-                "Annual kWh": f"{site.get('annual_kwh', 0):,.0f}",
-                "Hours (WD/WE)": hrs_str,
-                "Start (WD/WE)": f"{wd_start}/{we_start}"
-            })
-        
-        st.dataframe(pd.DataFrame(sites_display), hide_index=True, use_container_width=True)
-
-        # Clear All with Warning
-        with st.popover("🗑️ Clear All Sites"):
-            st.warning("This will permanently remove all sites from your current portfolio.")
-            if st.button("Confirm: Clear All Sites", type="primary", use_container_width=True):
-                st.session_state.load_gen_sites = []
-                st.success("Portfolio cleared.")
-                st.rerun()
-    else:
-        st.info("No sites added yet. Use the form above to add sites.")
-    
-    # Generate and display profiles
-    if st.session_state.load_gen_sites:
-        st.markdown("---")
-        st.subheader("Generated Load Profiles")
-        
-        # Generate profiles for all sites
-        all_profiles = []
-        total_profile_kw = None
-        
-        for site in st.session_state.load_gen_sites:
-            # Handle backwards compatibility
-            wd_start = site.get('start_hour_weekday', site.get('start_hour', 8))
-            we_start = site.get('start_hour_weekend', site.get('start_hour', 8))
-            
-            # Get annual energy in kWh
-            val_kwh = site.get('annual_kwh', 0)
-
-            profile_df = generate_load_factor_profile(
-                annual_kwh=val_kwh,
-                hours_per_day=site['hours_per_day'],
-                start_hour_weekday=wd_start,
-                start_hour_weekend=we_start,
-                year=2024,
-                baseline_lf=baseline_lf,
-                ramp_lf=ramp_lf,
-                treat_holidays_as_weekends=treat_holidays_as_weekends,
-                summer_multiplier=site.get('summer_multiplier', 1.0),
-                winter_multiplier=site.get('winter_multiplier', 1.0),
-                weekend_scaler=site.get('weekend_scaler', 1.0)
-            )
-            
-            # Rename kW column to site name
-            profile_df = profile_df.rename(columns={'kW': site['name']})
-            all_profiles.append(profile_df)
-            
-            # Sum for total
-            if total_profile_kw is None:
-                total_profile_kw = profile_df[site['name']].copy()
-            else:
-                total_profile_kw += profile_df[site['name']]
-        
-        # Combine all profiles
-        combined_df = all_profiles[0][['Datetime', 'Day_Type', 'Hour']].copy()
-        for profile_df in all_profiles:
-            site_name = [col for col in profile_df.columns if col not in ['Datetime', 'Day_Type', 'Hour', 'LF']][0]
-            combined_df[site_name] = profile_df[site_name]
-        
-        combined_df['Total_kW'] = total_profile_kw
-        
-        # Summary Statistics
-        st.markdown("### Summary Statistics")
-        summary_cols = st.columns(len(st.session_state.load_gen_sites) + 1)
-        
-        for idx, site in enumerate(st.session_state.load_gen_sites):
-            with summary_cols[idx]:
-                site_mwh = combined_df[site['name']].sum() / 1000.0
-                peak_mw = combined_df[site['name']].max() / 1000.0
-                st.metric(
-                    label=f"{site['name']}",
-                    value=f"{site_mwh:,.1f} MWh/yr",
-                    delta=f"Peak: {peak_mw:,.3f} MW"
-                )
-        
-        with summary_cols[-1]:
-            total_mwh = combined_df['Total_kW'].sum() / 1000.0
-            total_peak_mw = combined_df['Total_kW'].max() / 1000.0
-            st.metric(
-                label="Total (All Sites)",
-                value=f"{total_mwh:,.1f} MWh/yr",
-                delta=f"Peak: {total_peak_mw:,.3f} MW"
-            )
-        
-        # Visualization
-        st.markdown("### Load Profile Visualization")
-        
-        # Create interactive plot
-        fig_load_gen = go.Figure()
-        
-        # Add each site as a separate trace
-        for site in st.session_state.load_gen_sites:
-            fig_load_gen.add_trace(go.Scatter(
-                x=combined_df['Datetime'],
-                y=combined_df[site['name']],
-                mode='lines',
-                name=site['name'],
-                line=dict(width=1.5)
-            ))
-        
-        # Add total as a thicker line
-        fig_load_gen.add_trace(go.Scatter(
-            x=combined_df['Datetime'],
-            y=combined_df['Total_kW'],
-            mode='lines',
-            name='Total Load',
-            line=dict(width=3, color='Navy', dash='dot')
-        ))
-        
-        fig_load_gen.update_layout(
-            xaxis_title="Time",
-            yaxis_title="Load (kW)",
-            template=chart_template,
-            height=500,
-            hovermode='x unified',
-            xaxis=dict(
-                rangeslider=dict(visible=True),
-                type='date',
-                rangeselector=dict(
-                    buttons=list([
-                        dict(count=7, label="1w", step="day", stepmode="backward"),
-                        dict(count=1, label="1m", step="month", stepmode="backward"),
-                        dict(count=3, label="3m", step="month", stepmode="backward"),
-                        dict(count=6, label="6m", step="month", stepmode="backward"),
-                        dict(step="all", label="All")
-                    ])
-                )
-            ),
-            dragmode='zoom'
-        )
-        
-        st.plotly_chart(fig_load_gen, use_container_width=True, config={'displayModeBar': True, 'displaylogo': False})
-        
-        # Download CSV
-        st.markdown("### Download 8760 CSV")
-        
-
-        
-        st.markdown("---")
-        st.markdown("### Integration")
-        if st.button("🚀 Send to Load Setup (Tab 2)", type="primary", help="Use this profiled load for the main analysis (Tab 2, 3, 4)"):
-            # Store the total profile in session state for the main app to pick up
-            # Convert kW to MW for internal logic consistency (App uses MW mostly)
-            # Wait, app uses MW?
-            # Check Tab 2 inputs: "Annual Consumption (MWh)"
-            # Check utils.py: returns 'kW'.
-            # check logic: process_uploaded_profile returns MW or MWh?
-            # line 1615: process_uploaded_profile(..., keywords=['load', 'mw', 'mwh'])
-            # line 1621: total_load_profile = pd.Series(0.0) -> implies MW usually.
-            
-            # Let's ensure unit consistency.
-            # combined_df['Total_kW'] is in kW.
-            # To be safe, we should convert to MW if the main app expects MW.
-            # Looking at line 733: "Upload CSV (Hourly load in MW)"
-            # So the app expects MW.
-            
-            total_mw_profile = combined_df['Total_kW'] / 1000.0
-            st.session_state["custom_aggregated_profile"] = total_mw_profile
-            
-            # Also preserve site metadata for Tab 2 display
-            if "load_gen_sites" in st.session_state and st.session_state.load_gen_sites:
-                st.session_state["custom_profile_sites"] = st.session_state.load_gen_sites.copy()
-            
-            st.success("✅ Profile sent to Load Setup! Go to '2. Load Setup (Simple)' to proceed.")
-        
-        # Prepare CSV download
-        csv_buffer = io.StringIO()
-        combined_df.to_csv(csv_buffer, index=False)
-        csv_str = csv_buffer.getvalue()
-        
-        st.download_button(
-            label="📥 Download 8760 CSV",
-            data=csv_str,
-            file_name="load_profile_8760.csv",
-            mime="text/csv",
-            type="primary"
-        )
-        
-        # Preview data table
-        with st.expander("Preview Data Table (First 100 Hours)"):
-            st.dataframe(combined_df.head(100), use_container_width=True)
