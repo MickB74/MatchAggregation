@@ -2983,7 +2983,8 @@ with tab_load_gen:
             value=1.0, 
             step=0.1, 
             format="%.2f",
-            help="Multiplier for load during summer months (June-September)"
+            help="Multiplier for load during summer months (June-September)",
+            key="smult_input"
         )
     with sea_col2:
         winter_mult = st.number_input(
@@ -2993,7 +2994,8 @@ with tab_load_gen:
             value=1.0, 
             step=0.1, 
             format="%.2f",
-            help="Multiplier for load during winter months (December-February)"
+            help="Multiplier for load during winter months (December-February)",
+            key="wmult_input"
         )
     
     # Weekend Scaler
@@ -3004,7 +3006,8 @@ with tab_load_gen:
         value=1.0,
         step=0.1,
         format="%.2f",
-        help="Scale down weekend load (e.g., 0.5 = 50% load on weekends). Set to 1.0 for full load."
+        help="Scale down weekend load (e.g., 0.5 = 50% load on weekends). Set to 1.0 for full load.",
+        key="weekend_scaler"
     )
     
     # US Holidays toggle
@@ -3063,9 +3066,50 @@ with tab_load_gen:
             st.rerun()
             
         st.markdown("---")
-        st.subheader("Add Site")
         
-        site_name = st.text_input("Site Name", placeholder="e.g. Data Center 1")
+        # Edit Mode Selection
+        site_options = ["-- New Site --"] + ([s['name'] for s in st.session_state.load_gen_sites] if st.session_state.load_gen_sites else [])
+        edit_site_selection = st.selectbox("Edit Existing Site", site_options, key="edit_site_select")
+        
+        # Load data logic
+        if edit_site_selection != "-- New Site --":
+            if st.session_state.get("last_loaded_site") != edit_site_selection:
+                site_d = next((s for s in st.session_state.load_gen_sites if s['name'] == edit_site_selection), None)
+                if site_d:
+                    # Update session state vars to pre-fill form
+                    st.session_state.site_name_input = site_d['name']
+                    st.session_state.category_input = site_d['category']
+                    st.session_state.annual_kwh_input = site_d['annual_kwh']
+                    
+                    st.session_state.mon = site_d['hours_per_day'][0]
+                    st.session_state.tue = site_d['hours_per_day'][1]
+                    st.session_state.wed = site_d['hours_per_day'][2]
+                    st.session_state.thu = site_d['hours_per_day'][3]
+                    st.session_state.fri = site_d['hours_per_day'][4]
+                    st.session_state.sat = site_d['hours_per_day'][5]
+                    st.session_state.sun = site_d['hours_per_day'][6]
+                    
+                    st.session_state.sh_wd = site_d.get('start_hour_weekday', 8)
+                    st.session_state.sh_we = site_d.get('start_hour_weekend', 8)
+                    st.session_state.weekend_scaler = site_d.get('weekend_scaler', 1.0)
+                    
+                    # Seasonality
+                    st.session_state.smult_input = site_d.get('summer_multiplier', 1.0)
+                    st.session_state.wmult_input = site_d.get('winter_multiplier', 1.0)
+                    
+                    st.session_state.last_loaded_site = edit_site_selection
+                    st.rerun()
+        else:
+             # Reset defaults if switching from Edit to New
+             if st.session_state.get("last_loaded_site") is not None:
+                 st.session_state.last_loaded_site = None
+                 # Could reset to defaults here, or let user type
+                 st.session_state.site_name_input = ""
+                 st.rerun()
+                 
+        st.subheader("Add / Update Site")
+        
+        site_name = st.text_input("Site Name", placeholder="e.g. Data Center 1", key="site_name_input")
         
         category_options = ["DC", "MFG", "Office", "Other"]
         # Helper to format option labels
@@ -3076,7 +3120,7 @@ with tab_load_gen:
             if x == "Other": return "Other (12h/7d)"
             return x
             
-        site_category = st.selectbox("Category", category_options, format_func=format_category)
+        site_category = st.selectbox("Category", category_options, format_func=format_category, key="category_input")
         
         if st.button("Load Defaults for Selected Category"):
             if site_category == "DC":
@@ -3127,7 +3171,7 @@ with tab_load_gen:
                 st.session_state.sh_we = 6
             st.rerun()
         
-        annual_kwh = st.number_input("Annual kWh", min_value=1000, value=6000000, step=100000, format="%d")
+        annual_kwh = st.number_input("Annual kWh", min_value=1000, value=6000000, step=100000, format="%d", key="annual_kwh_input")
         
         st.markdown("**Hours of Operation per Day (0-24)**")
         
@@ -3200,7 +3244,11 @@ with tab_load_gen:
         with sh_col2:
             start_hour_weekend = st.number_input("Weekend Start", min_value=0, max_value=23, step=1, key="sh_we")
         
-        submitted = st.button("Add Site", type="primary")
+        # Determine button label and mode
+        is_edit_mode = edit_site_selection != "-- New Site --"
+        btn_label = "Update Site" if is_edit_mode else "Add Site"
+        
+        submitted = st.button(btn_label, type="primary")
         
         if submitted:
             if not site_name:
@@ -3208,7 +3256,7 @@ with tab_load_gen:
             
             hours_per_day = [mon_hrs, tue_hrs, wed_hrs, thu_hrs, fri_hrs, sat_hrs, sun_hrs]
             
-            st.session_state.load_gen_sites.append({
+            site_data = {
                 "name": site_name,
                 "category": site_category,
                 "annual_kwh": annual_kwh,
@@ -3216,13 +3264,25 @@ with tab_load_gen:
                 "start_hour_weekday": start_hour_weekday,
                 "start_hour_weekend": start_hour_weekend,
                 "summer_multiplier": summer_mult,
-                "start_hour_weekend": start_hour_weekend,
-                "summer_multiplier": summer_mult,
                 "winter_multiplier": winter_mult,
                 "weekend_scaler": weekend_scaler
-            })
-            st.success(f"Added {site_name}")
-            st.rerun()
+            }
+            
+            if is_edit_mode:
+                # Find index and update
+                idx = next((i for i, s in enumerate(st.session_state.load_gen_sites) if s['name'] == edit_site_selection), -1)
+                if idx != -1:
+                    st.session_state.load_gen_sites[idx] = site_data
+                    st.success(f"Updated {site_name}")
+                    # Clear edit selection to reset form
+                    st.session_state.last_loaded_site = None
+                    st.rerun()
+                else:
+                    st.error("Site not found to update.")
+            else:
+                st.session_state.load_gen_sites.append(site_data)
+                st.success(f"Added {site_name}")
+                st.rerun()
         
         if st.session_state.load_gen_sites:
             if st.button("Clear All Sites"):
@@ -3233,6 +3293,17 @@ with tab_load_gen:
         st.subheader("Current Sites")
         
         if st.session_state.load_gen_sites:
+            # Delete Control
+            site_names_list = [s['name'] for s in st.session_state.load_gen_sites]
+            to_delete = st.multiselect("Select sites to delete", site_names_list)
+            if to_delete:
+                if st.button("Delete Selected"):
+                    st.session_state.load_gen_sites = [s for s in st.session_state.load_gen_sites if s['name'] not in to_delete]
+                    st.success(f"Deleted {len(to_delete)} sites.")
+                    st.rerun()
+            
+            st.markdown("---")
+            
             # Display sites in a table
             sites_display = []
             for idx, site in enumerate(st.session_state.load_gen_sites):
