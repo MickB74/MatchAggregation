@@ -2941,16 +2941,42 @@ with tab_load_gen:
             annual_kwh = st.number_input("Annual kWh", min_value=1000, value=6000000, step=100000, format="%d")
             
             st.markdown("**Hours of Operation per Day (0-24)**")
-            hrs_col1, hrs_col2 = st.columns(2)
-            with hrs_col1:
-                mon_hrs = st.number_input("Mon", min_value=0, max_value=24, value=24, step=1, key="mon")
-                tue_hrs = st.number_input("Tue", min_value=0, max_value=24, value=24, step=1, key="tue")
-                wed_hrs = st.number_input("Wed", min_value=0, max_value=24, value=24, step=1, key="wed")
-                thu_hrs = st.number_input("Thu", min_value=0, max_value=24, value=24, step=1, key="thu")
-            with hrs_col2:
-                fri_hrs = st.number_input("Fri", min_value=0, max_value=24, value=24, step=1, key="fri")
-                sat_hrs = st.number_input("Sat", min_value=0, max_value=24, value=0, step=1, key="sat")
-                sun_hrs = st.number_input("Sun", min_value=0, max_value=24, value=0, step=1, key="sun")
+            
+            # Sync all days option
+            sync_col1, sync_col2 = st.columns([2, 1])
+            with sync_col1:
+                sync_hours = st.number_input("Set all days to:", min_value=0, max_value=24, value=8, step=1, key="sync_hrs")
+            with sync_col2:
+                st.write("")  # Spacer
+                apply_to_all = st.checkbox("Apply to all", key="apply_all")
+            
+            # If apply to all is checked, use sync value for all days
+            if apply_to_all:
+                default_weekday = sync_hours
+                default_weekend = sync_hours
+            else:
+                default_weekday = 8
+                default_weekend = 0
+            
+            # Weekdays section
+            st.markdown("**Weekdays (Mon-Fri)**")
+            wd_col1, wd_col2, wd_col3 = st.columns(3)
+            with wd_col1:
+                mon_hrs = st.number_input("Mon", min_value=0, max_value=24, value=default_weekday, step=1, key="mon")
+                tue_hrs = st.number_input("Tue", min_value=0, max_value=24, value=default_weekday, step=1, key="tue")
+            with wd_col2:
+                wed_hrs = st.number_input("Wed", min_value=0, max_value=24, value=default_weekday, step=1, key="wed")
+                thu_hrs = st.number_input("Thu", min_value=0, max_value=24, value=default_weekday, step=1, key="thu")
+            with wd_col3:
+                fri_hrs = st.number_input("Fri", min_value=0, max_value=24, value=default_weekday, step=1, key="fri")
+            
+            # Weekends section
+            st.markdown("**Weekends (Sat-Sun)**")
+            we_col1, we_col2 = st.columns(2)
+            with we_col1:
+                sat_hrs = st.number_input("Sat", min_value=0, max_value=24, value=default_weekend, step=1, key="sat")
+            with we_col2:
+                sun_hrs = st.number_input("Sun", min_value=0, max_value=24, value=default_weekend, step=1, key="sun")
             
             start_hour = st.number_input("Operating Start Hour (0-23)", min_value=0, max_value=23, value=8, step=1)
             
