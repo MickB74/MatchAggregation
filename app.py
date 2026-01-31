@@ -127,6 +127,9 @@ def load_scenario():
                 st.session_state.participants = config['participants']
             if 'load_gen_sites' in config:
                 st.session_state.load_gen_sites = config['load_gen_sites']
+            if 'external_profiles' in config:
+                # Convert list back to pd.Series
+                st.session_state.external_profiles = {name: pd.Series(prof) for name, prof in config['external_profiles'].items()}
             
             # 2. Generation Capacities
             if 'solar_capacity' in config: st.session_state.solar_input = float(config['solar_capacity'])
@@ -519,43 +522,53 @@ with tab_load:
         site_options = ["-- New Site --"] + ([s['name'] for s in st.session_state.load_gen_sites] if st.session_state.load_gen_sites else [])
         edit_site_selection = st.selectbox("Edit Existing Site", site_options, key="edit_site_select", on_change=load_site_data)
         
+        is_edit = edit_site_selection != "-- New Site --"
+        current_site_is_ext = False
+        if is_edit:
+            idx_chk = next((i for i, s in enumerate(st.session_state.load_gen_sites) if s['name'] == edit_site_selection), -1)
+            if idx_chk != -1: current_site_is_ext = st.session_state.load_gen_sites[idx_chk].get('is_external', False)
+        
         st.subheader("Add / Update Site")
+        if current_site_is_ext:
+            st.info("💡 This is an **Uploaded Property**. Operational parameters are fixed to the source file data. You can still update the Name and Category.")
+            
         site_name = st.text_input("Site Name", placeholder="e.g. Data Center 1", key="site_name_input")
-        site_category = st.selectbox("Category", ["DC", "MFG", "Office", "Other"], format_func=lambda x: {"DC":"Data Center", "MFG":"Manufacturing", "Office":"Office", "Other":"Other (12h/7d)"}.get(x,x), key="category_input", on_change=load_category_defaults)
-        annual_kwh = st.number_input("Annual kWh", min_value=1000, value=6000000, step=100000, format="%d", key="annual_kwh_input")
+        site_category = st.selectbox("Category", ["DC", "MFG", "Office", "Other", "External / Uploaded"], format_func=lambda x: {"DC":"Data Center", "MFG":"Manufacturing", "Office":"Office", "Other":"Other (12h/7d)", "External / Uploaded":"External / Uploaded"}.get(x,x), key="category_input", on_change=load_category_defaults)
+        annual_kwh = st.number_input("Annual kWh", min_value=1000, value=6000000, step=100000, format="%d", key="annual_kwh_input", disabled=current_site_is_ext)
         
         st.markdown("**Hours of Operation per Day (0-24)**")
         sync_col1, sync_col2 = st.columns([2, 1])
-        with sync_col1: sync_hours = st.number_input("Set all days to:", min_value=0, max_value=24, value=24, step=1, key="sync_hrs")
+        sync_col1, sync_col2 = st.columns([2, 1])
+        with sync_col1: sync_hours = st.number_input("Set all days to:", min_value=0, max_value=24, value=24, step=1, key="sync_hrs", disabled=current_site_is_ext)
         with sync_col2: 
             st.write(""); 
-            if st.button("Apply"):
+            if st.button("Apply", disabled=current_site_is_ext):
                 for day in ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun']: st.session_state[day] = sync_hours
                 st.rerun()
         
         wd_cl1, wd_cl2, wd_cl3 = st.columns(3)
-        with wd_cl1: mon_hrs = st.number_input("Mon", 0, 24, key="mon"); tue_hrs = st.number_input("Tue", 0, 24, key="tue")
-        with wd_cl2: wed_hrs = st.number_input("Wed", 0, 24, key="wed"); thu_hrs = st.number_input("Thu", 0, 24, key="thu")
-        with wd_cl3: fri_hrs = st.number_input("Fri", 0, 24, key="fri")
+        with wd_cl1: mon_hrs = st.number_input("Mon", 0, 24, key="mon", disabled=current_site_is_ext); tue_hrs = st.number_input("Tue", 0, 24, key="tue", disabled=current_site_is_ext)
+        with wd_cl2: wed_hrs = st.number_input("Wed", 0, 24, key="wed", disabled=current_site_is_ext); thu_hrs = st.number_input("Thu", 0, 24, key="thu", disabled=current_site_is_ext)
+        with wd_cl3: fri_hrs = st.number_input("Fri", 0, 24, key="fri", disabled=current_site_is_ext)
         
         we_cl1, we_cl2 = st.columns(2)
-        with we_cl1: sat_hrs = st.number_input("Sat", 0, 24, key="sat")
-        with we_cl2: sun_hrs = st.number_input("Sun", 0, 24, key="sun")
+        with we_cl1: sat_hrs = st.number_input("Sat", 0, 24, key="sat", disabled=current_site_is_ext)
+        with we_cl2: sun_hrs = st.number_input("Sun", 0, 24, key="sun", disabled=current_site_is_ext)
         
-        treat_holidays_as_weekends = st.checkbox("Treat US Federal Holidays as Weekends", False, key="treat_holidays_input")
+        treat_holidays_as_weekends = st.checkbox("Treat US Federal Holidays as Weekends", False, key="treat_holidays_input", disabled=current_site_is_ext)
         sh_cl1, sh_cl2 = st.columns(2)
-        with sh_cl1: start_hour_weekday = st.number_input("Weekday Start", 0, 23, key="sh_wd")
-        with sh_cl2: start_hour_weekend = st.number_input("Weekend Start", 0, 23, key="sh_we")
+        with sh_cl1: start_hour_weekday = st.number_input("Weekday Start", 0, 23, key="sh_wd", disabled=current_site_is_ext)
+        with sh_cl2: start_hour_weekend = st.number_input("Weekend Start", 0, 23, key="sh_we", disabled=current_site_is_ext)
         
         st.markdown("### Load Factor & Seasonality")
         lf1, lf2, lf3 = st.columns(3)
-        with lf1: baseline_lf = st.number_input("Baseline LF", 0.0, 1.0, 0.20, 0.01, key="baseline_lf_input")
-        with lf2: ramp_lf = st.number_input("Ramp LF", 0.0, 1.0, 0.40, 0.01, key="ramp_lf_input")
-        with lf3: weekend_scaler = st.number_input("Weekend Scaler", 0.0, 1.0, 1.0, 0.1, key="weekend_scaler")
+        with lf1: baseline_lf_val = st.number_input("Baseline LF", 0.0, 1.0, 0.20, 0.01, key="baseline_lf_input", disabled=current_site_is_ext)
+        with lf2: ramp_lf_val = st.number_input("Ramp LF", 0.0, 1.0, 0.40, 0.01, key="ramp_lf_input", disabled=current_site_is_ext)
+        with lf3: weekend_scaler_val = st.number_input("Weekend Scaler", 0.0, 1.0, 1.0, 0.1, key="weekend_scaler", disabled=current_site_is_ext)
         
         sea1, sea2 = st.columns(2)
-        with sea1: summer_mult = st.number_input("Summer Peak (Jun-Sep)", 0.5, 2.0, 1.0, 0.1, key="smult_input")
-        with sea2: winter_mult = st.number_input("Winter Peak (Dec-Feb)", 0.5, 2.0, 1.0, 0.1, key="wmult_input")
+        with sea1: summer_mult_val = st.number_input("Summer Peak (Jun-Sep)", 0.5, 2.0, 1.0, 0.1, key="smult_input", disabled=current_site_is_ext)
+        with sea2: winter_mult_val = st.number_input("Winter Peak (Dec-Feb)", 0.5, 2.0, 1.0, 0.1, key="wmult_input", disabled=current_site_is_ext)
         
         is_edit = edit_site_selection != "-- New Site --"
         b_col1, b_col2 = st.columns([1, 1])
@@ -564,8 +577,19 @@ with tab_load:
                 site_data = {"name": site_name or f"Site {len(st.session_state.load_gen_sites)+1}", "category": site_category, "annual_kwh": annual_kwh, "hours_per_day": [mon_hrs, tue_hrs, wed_hrs, thu_hrs, fri_hrs, sat_hrs, sun_hrs], "start_hour_weekday": start_hour_weekday, "start_hour_weekend": start_hour_weekend, "summer_multiplier": summer_mult, "winter_multiplier": winter_mult, "weekend_scaler": weekend_scaler}
                 if is_edit:
                     idx = next((i for i, s in enumerate(st.session_state.load_gen_sites) if s['name'] == edit_site_selection), -1)
-                    if idx != -1: st.session_state.load_gen_sites[idx] = site_data
-                else: st.session_state.load_gen_sites.append(site_data)
+                    if idx != -1:
+                        # Preserve 'is_external' flag and other external metadata if it exists
+                        old_site = st.session_state.load_gen_sites[idx]
+                        if old_site.get('is_external'):
+                            site_data['is_external'] = True
+                            # If name changed, migrate the profile in external_profiles
+                            if site_data['name'] != old_site['name'] and 'external_profiles' in st.session_state:
+                                profile = st.session_state.external_profiles.pop(old_site['name'], None)
+                                if profile is not None:
+                                    st.session_state.external_profiles[site_data['name']] = profile
+                        st.session_state.load_gen_sites[idx] = site_data
+                else: 
+                    st.session_state.load_gen_sites.append(site_data)
                 st.session_state.last_loaded_site = None; st.rerun()
         with b_col2:
             if st.button("🎲 Randomize Portfolio", use_container_width=True, help="Generate 3-6 random sites for testing"):
@@ -574,22 +598,43 @@ with tab_load:
         if st.session_state.load_gen_sites:
             st.markdown("---")
             st.subheader("Current Portfolio")
-            sites_df = pd.DataFrame(st.session_state.load_gen_sites)
-            st.dataframe(sites_df[["name", "category", "annual_kwh"]], use_container_width=True, hide_index=True)
             
-            with st.popover("🗑️ Clear Portfolio"):
-                if st.button("Confirm: Clear All Sites", type="primary"): 
+            # Visual List with Deletion
+            for i, site in enumerate(st.session_state.load_gen_sites):
+                c1, c2, c3, c4 = st.columns([3, 2, 2, 1])
+                with c1: st.markdown(f"**{site['name']}**")
+                with c2: st.caption(site['category'])
+                with c3: st.caption(f"{site['annual_kwh']:,.0f} kWh")
+                with c4:
+                    if st.button("🗑️", key=f"del_site_{i}", help=f"Remove {site['name']}"):
+                        # Clean up external profile if exists
+                        if site.get('is_external') and 'external_profiles' in st.session_state:
+                            st.session_state.external_profiles.pop(site['name'], None)
+                        st.session_state.load_gen_sites.pop(i)
+                        st.rerun()
+
+            with st.popover("🗑️ Clear All Sites"):
+                if st.button("Confirm: Wipe Entire Portfolio", type="primary"): 
                     st.session_state.load_gen_sites = []
                     if "custom_aggregated_profile" in st.session_state:
-                        del st.session_state["custom_aggregated_profile"]
+                         del st.session_state["custom_aggregated_profile"]
+                    if "external_profiles" in st.session_state:
+                         st.session_state.external_profiles = {}
                     st.rerun()
             
             # --- Generate Combined Profile ---
             all_profiles = []
             total_kw = None
             for s in st.session_state.load_gen_sites:
-                p_df = generate_load_factor_profile(annual_kwh=s['annual_kwh'], hours_per_day=s['hours_per_day'], start_hour_weekday=s.get('start_hour_weekday', 8), start_hour_weekend=s.get('start_hour_weekend', 8), year=2024, baseline_lf=baseline_lf, ramp_lf=ramp_lf, treat_holidays_as_weekends=treat_holidays_as_weekends, summer_multiplier=s.get('summer_multiplier', 1.0), winter_multiplier=s.get('winter_multiplier', 1.0), weekend_scaler=s.get('weekend_scaler', 1.0))
-                # Store site name in metadata or just keep the DF as-is
+                if s.get('is_external') and 'external_profiles' in st.session_state and s['name'] in st.session_state.external_profiles:
+                    # Retrieve pre-loaded profile
+                    ext_profile = st.session_state.external_profiles[s['name']]
+                    # Convert to DataFrame with 'kW' column for downstream compatibility
+                    p_df = pd.DataFrame({'Datetime': pd.date_range(start='2024-01-01', periods=8760, freq='h'), 'kW': ext_profile.values})
+                else:
+                    # Standard synthetic generation
+                    p_df = generate_load_factor_profile(annual_kwh=s['annual_kwh'], hours_per_day=s['hours_per_day'], start_hour_weekday=s.get('start_hour_weekday', 8), start_hour_weekend=s.get('start_hour_weekend', 8), year=2024, baseline_lf=baseline_lf, ramp_lf=ramp_lf, treat_holidays_as_weekends=treat_holidays_as_weekends, summer_multiplier=s.get('summer_multiplier', 1.0), winter_multiplier=s.get('winter_multiplier', 1.0), weekend_scaler=s.get('weekend_scaler', 1.0))
+                
                 p_df.attrs['site_name'] = s['name']
                 all_profiles.append(p_df)
                 total_kw = p_df['kW'].copy() if total_kw is None else total_kw + p_df['kW']
@@ -714,11 +759,31 @@ with tab_load:
                             "Peak (MW)": f"{profile.max():,.2f}"
                         })
                 
-                if not file_details:
-                    st.warning("No valid 8760 profiles found in uploaded files.")
                 else:
+                    # Register Properties in Portfolio Generator
+                    if 'external_profiles' not in st.session_state:
+                         st.session_state.external_profiles = {}
+                    
+                    for i, detail in enumerate(file_details):
+                        prop_name = detail["Property"]
+                        # Check if site already exists to avoid duplicates
+                        if not any(s['name'] == prop_name for s in st.session_state.load_gen_sites):
+                            st.session_state.load_gen_sites.append({
+                                'name': prop_name,
+                                'category': 'External / Uploaded',
+                                'annual_kwh': float(detail["Total (MWh)"].replace(',', '')) * 1000.0,
+                                'hours_per_day': [24]*7, # Placeholder for UI
+                                'is_external': True
+                            })
+                        
+                        # Store the actual profile
+                        st.session_state.external_profiles[prop_name] = pd.Series(property_profiles_df[prop_name].values)
+
+                    st.success(f"✅ Registered {len(file_details)} property(ies) in Portfolio Generator")
+                    # No longer need st.session_state["custom_aggregated_profile"] here 
+                    # as it will be re-calculated from load_gen_sites in the main loop
+                    # but we keep it for immediate UI feedback in this tab if needed.
                     st.session_state["custom_aggregated_profile"] = total_profile
-                    st.success(f"✅ Loaded {len(file_details)} property(ies)")
                     
                     # Detailed Metrics Breakdown
                     st.markdown("### Property Breakdown")
@@ -2530,8 +2595,12 @@ if active_scenario:
     if st.session_state.participants:
         for p in st.session_state.participants:
             # Generate profile for this participant
-            # Re-generate to ensure consistency (using same seed/logic in utils)
-            p_profile = generate_dummy_load_profile(p['load'], p['type'])
+            if p.get('is_external') and 'external_profiles' in st.session_state and p['name'] in st.session_state.external_profiles:
+                p_profile = st.session_state.external_profiles[p['name']].values
+            else:
+                # Re-generate synthetic if not external
+                # Re-generate to ensure consistency (using same seed/logic in utils)
+                p_profile = generate_dummy_load_profile(p['load'], p['type'])
             
             # Add to DF with formatted name
             col_name = f"{p['name']} ({p['type']})_MW"
@@ -2732,6 +2801,8 @@ if 'export_config' not in locals():
         "market_price": st.session_state.get('market_input', 30.0),
         "rec_price": st.session_state.get('rec_input', 4.0),
         "participants": st.session_state.participants,
+        "load_gen_sites": st.session_state.get('load_gen_sites', []),
+        "external_profiles": {name: prof.tolist() for name, prof in st.session_state.get('external_profiles', {}).items()},
         "excluded_techs": st.session_state.get('excluded_techs', [])
     }
     # Add optional large arrays
