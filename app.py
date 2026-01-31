@@ -589,7 +589,9 @@ with tab_load:
             total_kw = None
             for s in st.session_state.load_gen_sites:
                 p_df = generate_load_factor_profile(annual_kwh=s['annual_kwh'], hours_per_day=s['hours_per_day'], start_hour_weekday=s.get('start_hour_weekday', 8), start_hour_weekend=s.get('start_hour_weekend', 8), year=2024, baseline_lf=baseline_lf, ramp_lf=ramp_lf, treat_holidays_as_weekends=treat_holidays_as_weekends, summer_multiplier=s.get('summer_multiplier', 1.0), winter_multiplier=s.get('winter_multiplier', 1.0), weekend_scaler=s.get('weekend_scaler', 1.0))
-                all_profiles.append(p_df.rename(columns={'kW': s['name']}))
+                # Store site name in metadata or just keep the DF as-is
+                p_df.attrs['site_name'] = s['name']
+                all_profiles.append(p_df)
                 total_kw = p_df['kW'].copy() if total_kw is None else total_kw + p_df['kW']
             
             combined_mw = total_kw / 1000.0
@@ -603,9 +605,9 @@ with tab_load:
             # CSV Download: Only export the 'kW' column for each site, renamed to the site name
             site_series = []
             for p in all_profiles:
-                s_name = getattr(p, 'name', 'Site')
+                s_name = p.attrs.get('site_name', 'Site')
                 # Extract only the kW column and rename it
-                s_series = p['kW'].copy()
+                s_series = p.set_index('Datetime')['kW'].copy()
                 s_series.name = s_name
                 site_series.append(s_series)
             
