@@ -600,8 +600,16 @@ with tab_load:
             m2.metric("Peak Load", f"{combined_mw.max():,.2f} MW")
             st.line_chart(combined_mw)
             
-            # CSV Download
-            download_df = pd.concat([p.set_index('Datetime') for p in all_profiles], axis=1)
+            # CSV Download: Only export the 'kW' column for each site, renamed to the site name
+            site_series = []
+            for p in all_profiles:
+                s_name = getattr(p, 'name', 'Site')
+                # Extract only the kW column and rename it
+                s_series = p['kW'].copy()
+                s_series.name = s_name
+                site_series.append(s_series)
+            
+            download_df = pd.concat(site_series, axis=1)
             download_df['TOTAL_MW'] = total_kw / 1000.0
             csv_str = download_df.to_csv().encode('utf-8')
             st.download_button("📥 Download 8760 CSV", csv_str, "portfolio_load.csv", "text/csv")
