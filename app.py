@@ -2947,12 +2947,16 @@ with tab_load_gen:
     if 'load_gen_sites' not in st.session_state:
         st.session_state.load_gen_sites = []
 
-    # Migration: Convert existing kWh sites to MWh if needed
+    # Migration: Ensure all sites are stored in kWh for input consistency
     if "load_gen_sites" in st.session_state and st.session_state.load_gen_sites:
         for site in st.session_state.load_gen_sites:
-            if "annual_kwh" in site:
-                # Convert to MWh and rename key for clarity
-                site["annual_mwh"] = site.pop("annual_kwh") / 1000.0 if site["annual_kwh"] > 5000 else site["annual_kwh"]
+            if "annual_mwh" in site:
+                # If we have annual_mwh < 10000, it's likely actually MWh, so convert to kWh
+                # If it's larger (e.g. 31,000,000), it was actually kWh stored in the wrong key
+                val = site.pop("annual_mwh")
+                site["annual_kwh"] = val * 1000.0 if val < 50000 else val
+            elif "annual_kwh" not in site:
+                site["annual_kwh"] = 6000000 # Default fallback
 
     # Callback to load site data (must be defined before widgets)
     def load_site_data():
@@ -2962,7 +2966,11 @@ with tab_load_gen:
             if site_d:
                 st.session_state.site_name_input = site_d['name']
                 st.session_state.category_input = site_d['category']
-                st.session_state.annual_kwh_input = site_d.get('annual_mwh', site_d.get('annual_kwh', 6))
+                # Load annual_kwh, handling potential legacy keys
+                st.session_state.annual_kwh_input = site_d.get('annual_kwh', site_d.get('annual_mwh', 6000000))
+                # If the value is tiny (likely MWh), multiply it
+                if st.session_state.annual_kwh_input < 50000 and "annual_mwh" in site_d:
+                     st.session_state.annual_kwh_input *= 1000.0
                 
                 st.session_state.mon = site_d['hours_per_day'][0]
                 st.session_state.tue = site_d['hours_per_day'][1]
@@ -3102,7 +3110,7 @@ with tab_load_gen:
         
     site_category = st.selectbox("Category", category_options, format_func=format_category, key="category_input", on_change=load_category_defaults)
     
-    annual_mwh = st.number_input("Annual MWh", min_value=1.0, value=6000.0, step=100.0, format="%.1f", key="annual_kwh_input")
+    annual_kwh = st.number_input("Annual kWh", min_value=1000, value=6000000, step=100000, format="%d", key="annual_kwh_input")
     
     st.markdown("**Hours of Operation per Day (0-24)**")
     
@@ -3263,7 +3271,7 @@ with tab_load_gen:
         site_data = {
             "name": site_name,
             "category": site_category,
-            "annual_mwh": annual_mwh,
+            "annual_kwh": annual_kwh,
             "hours_per_day": hours_per_day,
             "start_hour_weekday": start_hour_weekday,
             "start_hour_weekend": start_hour_weekend,
@@ -3318,7 +3326,7 @@ with tab_load_gen:
                 "#": idx + 1,
                 "Site Name": site['name'],
                 "Category": site['category'],
-                "Annual MWh": f"{site.get('annual_mwh', site.get('annual_kwh', 0)):,.1f}",
+                "Annual kWh": f"{site.get('annual_kwh', 0):,.0f}",
                 "Hours (WD/WE)": hrs_str,
                 "Start (WD/WE)": f"{wd_start}/{we_start}"
             })
@@ -3349,12 +3357,8 @@ with tab_load_gen:
             wd_start = site.get('start_hour_weekday', site.get('start_hour', 8))
             we_start = site.get('start_hour_weekend', site.get('start_hour', 8))
             
-            # Get annual energy in kWh for the generator function
-            val_mwh = site.get('annual_mwh', site.get('annual_kwh', 0))
-            if val_mwh > 5000: # Simple heuristic if it was accidentally stored as kWh
-                val_kwh = val_mwh
-            else:
-                val_kwh = val_mwh * 1000.0
+            # Get annual energy in kWh
+            val_kwh = site.get('annual_kwh', 0)
 
             profile_df = generate_load_factor_profile(
                 annual_kwh=val_kwh,
