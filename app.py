@@ -771,27 +771,52 @@ with tab_load:
     else:
         # --- Upload 8760 Logic ---
         st.subheader("Upload 8760 Profile")
-        st.info("Upload an hourly (8760-hour) load profile in MW.")
-        uploaded_file = st.file_uploader("Choose CSV or Excel file", type=["csv", "xlsx", "xls"], key="8760_uploader")
+        st.info("Upload one or more hourly (8760-hour) load profiles. The tool will aggregate them.")
+        uploaded_files = st.file_uploader("Choose CSV or Excel files", type=["csv", "xlsx", "xls"], key="8760_uploader", accept_multiple_files=True)
         
-        if uploaded_file:
+        if uploaded_files:
             try:
-                if uploaded_file.name.endswith('.csv'): df_up = pd.read_csv(uploaded_file)
-                else: df_up = pd.read_excel(uploaded_file)
+                aggregated_profile = pd.Series(0.0, index=range(8760))
+                file_details = []
                 
-                if len(df_up) < 8760: st.error(f"File must have 8760 rows. Found {len(df_up)}.")
-                else:
+                for uploaded_file in uploaded_files:
+                    if uploaded_file.name.endswith('.csv'): df_up = pd.read_csv(uploaded_file)
+                    else: df_up = pd.read_excel(uploaded_file)
+                    
+                    if len(df_up) < 8760: 
+                        st.error(f"File '{uploaded_file.name}' must have 8760 rows. Found {len(df_up)}.")
+                        continue
+                        
                     load_col = next((c for c in df_up.columns if any(k in c.lower() for k in ['load', 'mw', 'kw', 'demand'])), df_up.columns[0])
                     profile = df_up[load_col].astype(float).head(8760)
-                    if profile.max() > 10000: profile = profile / 1000.0 # Convert kW to MW
                     
-                    st.session_state["custom_aggregated_profile"] = profile
-                    st.success(f"✅ Loaded profile from {uploaded_file.name}")
+                    # Convert kW to MW if values are high
+                    is_kw = profile.max() > 10000
+                    if is_kw: profile = profile / 1000.0
+                    
+                    aggregated_profile += profile.values
+                    file_details.append({
+                        "File": uploaded_file.name,
+                        "Total (MWh)": f"{profile.sum():,.0f}",
+                        "Peak (MW)": f"{profile.max():,.2f}"
+                    })
+                
+                if not file_details:
+                    st.warning("No valid 8760 profiles found in uploaded files.")
+                else:
+                    st.session_state["custom_aggregated_profile"] = aggregated_profile
+                    st.success(f"✅ Aggregated {len(file_details)} file(s)")
+                    
+                    # Display summary of uploaded files
+                    with st.expander("Uploaded File Details"):
+                        st.table(pd.DataFrame(file_details))
+                        
                     m1, m2 = st.columns(2)
-                    m1.metric("Total Load", f"{profile.sum():,.0f} MWh")
-                    m2.metric("Peak Load", f"{profile.max():,.2f} MW")
-                    st.line_chart(profile)
-            except Exception as e: st.error(f"Error: {e}")
+                    m1.metric("Total Aggregate Load", f"{aggregated_profile.sum():,.0f} MWh")
+                    m2.metric("Aggregate Peak Load", f"{aggregated_profile.max():,.2f} MW")
+                    st.line_chart(aggregated_profile)
+                    
+            except Exception as e: st.error(f"Error processing files: {e}")
         else:
             # Clear profile if uploader is empty and we're in upload mode
             if "custom_aggregated_profile" in st.session_state and not st.session_state.load_gen_sites:
