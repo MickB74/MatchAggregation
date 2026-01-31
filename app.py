@@ -2955,45 +2955,38 @@ with tab_load_gen:
                 sync_hours = st.number_input("Set all days to:", min_value=0, max_value=24, value=8, step=1, key="sync_hrs")
             with sync_col2:
                 st.write("")  # Spacer
-                apply_to_all = st.checkbox("Apply to all", key="apply_all")
+                if st.button("Apply"):
+                    # Update all session state values to match sync_hours
+                    st.session_state.mon = sync_hours
+                    st.session_state.tue = sync_hours
+                    st.session_state.wed = sync_hours
+                    st.session_state.thu = sync_hours
+                    st.session_state.fri = sync_hours
+                    st.session_state.sat = sync_hours
+                    st.session_state.sun = sync_hours
+                    st.rerun()
             
-            # If apply to all is checked, override all values with sync_hours
-            # Otherwise use independent values or defaults
-            if apply_to_all:
-                # When synced, all days use the same value
-                mon_hrs = sync_hours
-                tue_hrs = sync_hours
-                wed_hrs = sync_hours
-                thu_hrs = sync_hours
-                fri_hrs = sync_hours
-                sat_hrs = sync_hours
-                sun_hrs = sync_hours
-                
-                # Display the synced values (disabled so users know they're synced)
-                st.markdown("**All Days (Synced)**")
-                st.info(f"All days set to {sync_hours} hours. Uncheck 'Apply to all' to customize individual days.")
-                
-            else:
-                # Individual day controls when not synced
-                # Weekdays section
-                st.markdown("**Weekdays (Mon-Fri)**")
-                wd_col1, wd_col2, wd_col3 = st.columns(3)
-                with wd_col1:
-                    mon_hrs = st.number_input("Mon", min_value=0, max_value=24, value=8, step=1, key="mon")
-                    tue_hrs = st.number_input("Tue", min_value=0, max_value=24, value=8, step=1, key="tue")
-                with wd_col2:
-                    wed_hrs = st.number_input("Wed", min_value=0, max_value=24, value=8, step=1, key="wed")
-                    thu_hrs = st.number_input("Thu", min_value=0, max_value=24, value=8, step=1, key="thu")
-                with wd_col3:
-                    fri_hrs = st.number_input("Fri", min_value=0, max_value=24, value=8, step=1, key="fri")
-                
-                # Weekends section
-                st.markdown("**Weekends (Sat-Sun)**")
-                we_col1, we_col2 = st.columns(2)
-                with we_col1:
-                    sat_hrs = st.number_input("Sat", min_value=0, max_value=24, value=0, step=1, key="sat")
-                with we_col2:
-                    sun_hrs = st.number_input("Sun", min_value=0, max_value=24, value=0, step=1, key="sun")
+            # Individual day controls
+            # Weekdays section
+            st.markdown("**Weekdays (Mon-Fri)**")
+            wd_col1, wd_col2, wd_col3 = st.columns(3)
+            with wd_col1:
+                mon_hrs = st.number_input("Mon", min_value=0, max_value=24, value=8, step=1, key="mon")
+                tue_hrs = st.number_input("Tue", min_value=0, max_value=24, value=8, step=1, key="tue")
+            with wd_col2:
+                wed_hrs = st.number_input("Wed", min_value=0, max_value=24, value=8, step=1, key="wed")
+                thu_hrs = st.number_input("Thu", min_value=0, max_value=24, value=8, step=1, key="thu")
+            with wd_col3:
+                fri_hrs = st.number_input("Fri", min_value=0, max_value=24, value=8, step=1, key="fri")
+            
+            # Weekends section
+            st.markdown("**Weekends (Sat-Sun)**")
+            we_col1, we_col2 = st.columns(2)
+            with we_col1:
+                sat_hrs = st.number_input("Sat", min_value=0, max_value=24, value=0, step=1, key="sat")
+            with we_col2:
+                sun_hrs = st.number_input("Sun", min_value=0, max_value=24, value=0, step=1, key="sun")
+
             
             start_hour = st.number_input("Operating Start Hour (0-23)", min_value=0, max_value=23, value=8, step=1)
             
