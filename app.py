@@ -2952,7 +2952,7 @@ with tab_load_gen:
                 sat_hrs = st.number_input("Sat", min_value=0, max_value=24, value=0, step=1, key="sat")
                 sun_hrs = st.number_input("Sun", min_value=0, max_value=24, value=0, step=1, key="sun")
             
-            start_hour = st.number_input("Operating Start Hour (0-23)", min_value=0, max_value=23, value=0, step=1)
+            start_hour = st.number_input("Operating Start Hour (0-23)", min_value=0, max_value=23, value=8, step=1)
             
             submitted = st.form_submit_button("Add Site", type="primary")
             
