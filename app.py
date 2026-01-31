@@ -623,6 +623,15 @@ with tab_load:
     col_load_1, col_load_2 = st.columns([1, 2])
     
     with col_load_1:
+        # Check for custom profile integration from Tab 8
+        if "custom_aggregated_profile" in st.session_state:
+            st.info("ℹ️ Using Custom Profile from Generator (Tab 8)")
+            st.warning("Note: Custom profile overrides manual participants below.")
+            if st.button("❌ Clear Custom Profile"):
+                del st.session_state["custom_aggregated_profile"]
+                st.rerun()
+            st.markdown("---")
+        
         if st.button("🎲 Random Scenario (>500 GWh)"):
             # Clear existing
             st.session_state.participants = []
@@ -1606,11 +1615,15 @@ json_str_full = "{}"
 json_str_ai = "{}"
 
 # 1. Calculate Aggregated Load
-active_scenario = st.session_state.participants or uploaded_load_file
+active_scenario = st.session_state.get("custom_aggregated_profile") is not None or st.session_state.participants or uploaded_load_file
 
 if active_scenario:
     # Aggregate Load
-    if uploaded_load_file:
+    if "custom_aggregated_profile" in st.session_state:
+        # Priority 1: Custom Profile from Tab 8
+        # Ensure it matches 8760 length (it should)
+        total_load_profile = st.session_state["custom_aggregated_profile"]
+    elif uploaded_load_file:
         # Process Upload
         total_load_profile = process_uploaded_profile(uploaded_load_file, keywords=['load', 'mw', 'mwh', 'demand'])
         if total_load_profile is None:
@@ -3245,6 +3258,31 @@ with tab_load_gen:
         
         # Download CSV
         st.markdown("### Download 8760 CSV")
+        
+
+        
+        st.markdown("---")
+        st.markdown("### Integration")
+        if st.button("🚀 Send to Load Setup (Tab 2)", type="primary", help="Use this profiled load for the main analysis (Tab 2, 3, 4)"):
+            # Store the total profile in session state for the main app to pick up
+            # Convert kW to MW for internal logic consistency (App uses MW mostly)
+            # Wait, app uses MW?
+            # Check Tab 2 inputs: "Annual Consumption (MWh)"
+            # Check utils.py: returns 'kW'.
+            # check logic: process_uploaded_profile returns MW or MWh?
+            # line 1615: process_uploaded_profile(..., keywords=['load', 'mw', 'mwh'])
+            # line 1621: total_load_profile = pd.Series(0.0) -> implies MW usually.
+            
+            # Let's ensure unit consistency.
+            # combined_df['Total_kW'] is in kW.
+            # To be safe, we should convert to MW if the main app expects MW.
+            # Looking at line 733: "Upload CSV (Hourly load in MW)"
+            # So the app expects MW.
+            
+            total_mw_profile = combined_df['Total_kW'] / 1000.0
+            st.session_state["custom_aggregated_profile"] = total_mw_profile
+            
+            st.success("✅ Profile sent to Load Setup! Go to '2. Load Setup' to proceed.")
         
         # Prepare CSV download
         csv_buffer = io.StringIO()
