@@ -631,29 +631,74 @@ with tab_load:
                         st.error(f"File '{uploaded_file.name}' must have 8760 rows. Found {len(df_up)}.")
                         continue
                         
-                    # Robust Column Detection: Skip datetime columns and look for load keywords
+                    # Robust Column Detection: Skip datetime/index columns
                     potential_cols = [c for c in df_up.columns if not any(k in str(c).lower() for k in ['date', 'time', 'timestamp', 'index', 'interval', 'hour'])]
+                    
                     if not potential_cols:
                         st.error(f"No numeric data columns found in '{uploaded_file.name}'.")
                         continue
+                    
+                    # Identify numeric columns only
+                    numeric_cols = []
+                    for col in potential_cols:
+                        try:
+                            pd.to_numeric(df_up[col], errors='raise')
+                            numeric_cols.append(col)
+                        except:
+                            continue
+                            
+                    if not numeric_cols:
+                        st.error(f"No valid numeric load columns found in '{uploaded_file.name}'.")
+                        continue
+
+                    # Multi-Property Detection: If multiple numeric columns, check for an aggregate
+                    total_keywords = ['total', 'aggregate', 'load_mw', 'load_kw']
+                    total_col = next((c for c in numeric_cols if any(k in str(c).lower() for k in total_keywords)), None)
+                    
+                    # System columns to ignore during "explosion" (app-generated results)
+                    system_cols = [
+                        'matched_mw', 'solar_mw', 'wind_mw', 'geothermal_gen_mw', 'nuclear_gen_mw', 
+                        'ccs_gas_gen_mw', 'total_raw_gen_mw', 'battery_discharge_mw', 
+                        'battery_state_of_charge_mwh', 'grid_deficit_mw', 'surplus_mw', 
+                        'market_price_$/mwh', 'total_mw'
+                    ]
+                    
+                    # Columns to treat as properties
+                    prop_cols = []
+                    if len(numeric_cols) > 1:
+                        # Filter out system columns and the total column
+                        prop_cols = [c for c in numeric_cols if str(c).lower() not in system_cols and c != total_col]
                         
-                    load_col = next((c for c in potential_cols if any(k in str(c).lower() for k in ['total', 'load', 'mw', 'kw', 'demand', 'usage'])), potential_cols[0])
-                    profile = pd.to_numeric(df_up[load_col], errors='coerce').fillna(0).head(8760)
-                    
-                    # Convert kW to MW if values are high
-                    is_kw = profile.max() > 10000
-                    if is_kw: profile = profile / 1000.0
-                    
-                    # Store individual property profile
-                    prop_name = uploaded_file.name
-                    property_profiles_df[prop_name] = profile.values
-                    total_profile += profile.values
-                    
-                    file_details.append({
-                        "Property": prop_name,
-                        "Total (MWh)": f"{profile.sum():,.0f}",
-                        "Peak (MW)": f"{profile.max():,.2f}"
-                    })
+                        # If we filtered everything out (e.g. it was just system cols), 
+                        # fall back to the total column if it exists
+                        if not prop_cols and total_col:
+                            prop_cols = [total_col]
+                        elif not prop_cols:
+                            # If no total and no non-system cols, just take the first one
+                            prop_cols = [numeric_cols[0]]
+                    else:
+                        # Just one column
+                        prop_cols = numeric_cols
+
+                    for l_col in prop_cols:
+                        profile = pd.to_numeric(df_up[l_col], errors='coerce').fillna(0).head(8760)
+                        
+                        # Convert kW to MW if values are high
+                        if profile.max() > 10000: 
+                            profile = profile / 1000.0
+                        
+                        # Store property
+                        # If the file has multiple columns, use "Filename: Colname", else just Filename
+                        prop_label = f"{uploaded_file.name}: {l_col}" if len(prop_cols) > 1 else uploaded_file.name
+                        
+                        property_profiles_df[prop_label] = profile.values
+                        total_profile += profile.values
+                        
+                        file_details.append({
+                            "Property": prop_label,
+                            "Total (MWh)": f"{profile.sum():,.0f}",
+                            "Peak (MW)": f"{profile.max():,.2f}"
+                        })
                 
                 if not file_details:
                     st.warning("No valid 8760 profiles found in uploaded files.")
