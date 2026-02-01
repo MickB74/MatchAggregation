@@ -759,9 +759,8 @@ with tab_load:
                         
                         # Store property
                         prop_label = f"{uploaded_file.name}: {l_col}" if len(prop_cols) > 1 else uploaded_file.name
-                        prop_label_kw = f"{prop_label} (kW)"
                         
-                        property_profiles_df[prop_label_kw] = profile.values
+                        property_profiles_df[prop_label] = profile.values
                         total_profile += profile.values
                         
                         file_details.append({
@@ -810,10 +809,9 @@ with tab_load:
                     # Add trace for each property
                     for detail in file_details:
                         prop_name = detail["Property"]
-                        col_kw = f"{prop_name} (kW)"
                         fig_multi.add_trace(go.Scatter(
                             x=property_profiles_df['Datetime'],
-                            y=property_profiles_df[col_kw],
+                            y=property_profiles_df[prop_name],
                             mode='lines',
                             name=prop_name,
                             line=dict(width=1.5)
@@ -838,8 +836,11 @@ with tab_load:
                     st.plotly_chart(fig_multi, use_container_width=True)
                     
                     # Prepare export CSV with all columns
-                    property_profiles_df['TOTAL_MW'] = total_profile / 1000.0
-                    csv_export = property_profiles_df.to_csv(index=False).encode('utf-8')
+                    export_df = property_profiles_df.copy()
+                    # Add unit suffixes to property columns (excluding Datetime)
+                    export_df.columns = [f"{c} (kW)" if c != 'Datetime' else c for c in export_df.columns]
+                    export_df['TOTAL_MW'] = total_profile / 1000.0
+                    csv_export = export_df.to_csv(index=False).encode('utf-8')
                     st.download_button("📥 Download Property Breakdown (8760 CSV)", csv_export, "load_breakdown_8760.csv", "text/csv")
                     
             except Exception as e: st.error(f"Error processing files: {e}")
