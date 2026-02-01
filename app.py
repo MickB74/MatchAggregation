@@ -758,10 +758,10 @@ with tab_load:
                             profile = raw_profile
                         
                         # Store property
-                        # If the file has multiple columns, use "Filename: Colname", else just Filename
                         prop_label = f"{uploaded_file.name}: {l_col}" if len(prop_cols) > 1 else uploaded_file.name
+                        prop_label_kw = f"{prop_label} (kW)"
                         
-                        property_profiles_df[prop_label] = profile.values
+                        property_profiles_df[prop_label_kw] = profile.values
                         total_profile += profile.values
                         
                         file_details.append({
@@ -810,9 +810,10 @@ with tab_load:
                     # Add trace for each property
                     for detail in file_details:
                         prop_name = detail["Property"]
+                        col_kw = f"{prop_name} (kW)"
                         fig_multi.add_trace(go.Scatter(
                             x=property_profiles_df['Datetime'],
-                            y=property_profiles_df[prop_name],
+                            y=property_profiles_df[col_kw],
                             mode='lines',
                             name=prop_name,
                             line=dict(width=1.5)
@@ -837,7 +838,7 @@ with tab_load:
                     st.plotly_chart(fig_multi, use_container_width=True)
                     
                     # Prepare export CSV with all columns
-                    property_profiles_df['TOTAL_MW'] = total_profile
+                    property_profiles_df['TOTAL_MW'] = total_profile / 1000.0
                     csv_export = property_profiles_df.to_csv(index=False).encode('utf-8')
                     st.download_button("📥 Download Property Breakdown (8760 CSV)", csv_export, "load_breakdown_8760.csv", "text/csv")
                     
@@ -2607,7 +2608,8 @@ if active_scenario:
         for p in st.session_state.participants:
             # Generate profile for this participant
             if p.get('is_external') and 'external_profiles' in st.session_state and p['name'] in st.session_state.external_profiles:
-                p_profile = st.session_state.external_profiles[p['name']].values
+                # Convert kW to MW for analysis results
+                p_profile = st.session_state.external_profiles[p['name']].values / 1000.0
             else:
                 # Re-generate synthetic if not external
                 # Re-generate to ensure consistency (using same seed/logic in utils)
