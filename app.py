@@ -574,7 +574,7 @@ with tab_load:
         b_col1, b_col2 = st.columns([1, 1])
         with b_col1:
             if st.button("Update Site" if is_edit else "Add Site", type="primary", use_container_width=True):
-                site_data = {"name": site_name or f"Site {len(st.session_state.load_gen_sites)+1}", "category": site_category, "annual_kwh": annual_kwh, "hours_per_day": [mon_hrs, tue_hrs, wed_hrs, thu_hrs, fri_hrs, sat_hrs, sun_hrs], "start_hour_weekday": start_hour_weekday, "start_hour_weekend": start_hour_weekend, "summer_multiplier": summer_mult, "winter_multiplier": winter_mult, "weekend_scaler": weekend_scaler}
+                site_data = {"name": site_name or f"Site {len(st.session_state.load_gen_sites)+1}", "category": site_category, "annual_kwh": annual_kwh, "hours_per_day": [mon_hrs, tue_hrs, wed_hrs, thu_hrs, fri_hrs, sat_hrs, sun_hrs], "start_hour_weekday": start_hour_weekday, "start_hour_weekend": start_hour_weekend, "summer_multiplier": summer_mult_val, "winter_multiplier": winter_mult_val, "weekend_scaler": weekend_scaler_val}
                 if is_edit:
                     idx = next((i for i, s in enumerate(st.session_state.load_gen_sites) if s['name'] == edit_site_selection), -1)
                     if idx != -1:
@@ -633,7 +633,7 @@ with tab_load:
                     p_df = pd.DataFrame({'Datetime': pd.date_range(start='2024-01-01', periods=8760, freq='h'), 'kW': ext_profile.values})
                 else:
                     # Standard synthetic generation
-                    p_df = generate_load_factor_profile(annual_kwh=s['annual_kwh'], hours_per_day=s['hours_per_day'], start_hour_weekday=s.get('start_hour_weekday', 8), start_hour_weekend=s.get('start_hour_weekend', 8), year=2024, baseline_lf=baseline_lf, ramp_lf=ramp_lf, treat_holidays_as_weekends=treat_holidays_as_weekends, summer_multiplier=s.get('summer_multiplier', 1.0), winter_multiplier=s.get('winter_multiplier', 1.0), weekend_scaler=s.get('weekend_scaler', 1.0))
+                    p_df = generate_load_factor_profile(annual_kwh=s['annual_kwh'], hours_per_day=s['hours_per_day'], start_hour_weekday=s.get('start_hour_weekday', 8), start_hour_weekend=s.get('start_hour_weekend', 8), year=2024, baseline_lf=baseline_lf_val, ramp_lf=ramp_lf_val, treat_holidays_as_weekends=treat_holidays_as_weekends, summer_multiplier=s.get('summer_multiplier', 1.0), winter_multiplier=s.get('winter_multiplier', 1.0), weekend_scaler=s.get('weekend_scaler', 1.0))
                 
                 p_df.attrs['site_name'] = s['name']
                 all_profiles.append(p_df)
