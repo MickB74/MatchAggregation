@@ -657,6 +657,8 @@ with tab_load:
                 site_series.append(s_series)
             
             download_df = pd.concat(site_series, axis=1)
+            # Add Unit Suffixes to Download Columns
+            download_df.columns = [f"{c} (kW)" for c in download_df.columns]
             download_df['TOTAL_MW'] = total_kw / 1000.0
             csv_str = download_df.to_csv().encode('utf-8')
             st.download_button("📥 Download 8760 CSV", csv_str, "portfolio_load.csv", "text/csv")
@@ -740,11 +742,20 @@ with tab_load:
                         prop_cols = numeric_cols
 
                     for l_col in prop_cols:
-                        profile = pd.to_numeric(df_up[l_col], errors='coerce').fillna(0).head(8760)
+                        raw_profile = pd.to_numeric(df_up[l_col], errors='coerce').fillna(0).head(8760)
                         
-                        # Convert kW to MW if values are high
-                        if profile.max() > 10000: 
-                            profile = profile / 1000.0
+                        # Unit Detection Logic
+                        l_col_str = str(l_col).lower()
+                        if 'mw' in l_col_str or 'mwh' in l_col_str:
+                            profile = raw_profile * 1000.0  # Convert MW to kW
+                        elif 'kw' in l_col_str or 'kwh' in l_col_str:
+                            profile = raw_profile  # Already in kW
+                        elif raw_profile.max() < 1000:
+                            # Heuristic: If values are small and unlabeled, assume MW
+                            profile = raw_profile * 1000.0
+                        else:
+                            # Heuristic: Assume kW if values are large
+                            profile = raw_profile
                         
                         # Store property
                         # If the file has multiple columns, use "Filename: Colname", else just Filename
@@ -755,8 +766,8 @@ with tab_load:
                         
                         file_details.append({
                             "Property": prop_label,
-                            "Total (MWh)": f"{profile.sum():,.0f}",
-                            "Peak (MW)": f"{profile.max():,.2f}"
+                            "Total (kWh)": f"{profile.sum():,.0f}",
+                            "Peak (kW)": f"{profile.max():,.2f}"
                         })
                 
                 else:
@@ -771,7 +782,7 @@ with tab_load:
                             st.session_state.load_gen_sites.append({
                                 'name': prop_name,
                                 'category': 'External / Uploaded',
-                                'annual_kwh': float(detail["Total (MWh)"].replace(',', '')) * 1000.0,
+                                'annual_kwh': float(detail["Total (kWh)"].replace(',', '')),
                                 'hours_per_day': [24]*7, # Placeholder for UI
                                 'is_external': True
                             })
@@ -790,7 +801,7 @@ with tab_load:
                     breakdown_cols = st.columns(min(len(file_details), 4))
                     for i, detail in enumerate(file_details):
                         with breakdown_cols[i % 4]:
-                            st.metric(detail["Property"], f"{detail['Total (MWh)']} MWh", f"Peak: {detail['Peak (MW)']} MW")
+                            st.metric(detail["Property"], f"{float(detail['Total (kWh)'].replace(',',''))/1000:,.1f} MWh", f"Peak: {float(detail['Peak (kW)'].replace(',',''))/1000:,.2f} MW")
 
                     # Visualization
                     st.markdown("### Load Profile Visualization")
@@ -818,7 +829,7 @@ with tab_load:
                     
                     fig_multi.update_layout(
                         xaxis_title="Time",
-                        yaxis_title="Load (MW)",
+                        yaxis_title="Load (kW)",
                         template=chart_template,
                         hovermode='x unified',
                         height=500
