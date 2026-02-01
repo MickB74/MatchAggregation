@@ -301,7 +301,9 @@ with tab_guide:
 
     **Step 2: Design Generation Portfolio (Tab 3)**
 
-    Configure clean energy supply:
+    Configure clean energy supply (Optimized for **North Texas** resources):
+    *   **Solar**: Modeled for Graham, TX (Solar-rich region).
+    *   **Wind**: Modeled for Wichita Falls, TX (High-wind region using modern turbine curves).
 
     *   **Set Capacities (MW) for:**
         *   Solar
@@ -320,7 +322,7 @@ with tab_guide:
 
     **Inputs**
     *   **PPA Prices:** Enter fixed contract prices ($/MWh) for each generation technology.
-    *   **Market Price Data:** Select a historical year (2020-2024), 2025 Forecast, or 'Average' composite for 2020-2025.
+    *   **Market Price Data:** Select a historical year (2020-2024), 2025 Forecast, or 'Average' composite for 2020-2025. **All prices are based on ERCOT HB_NORTH data.**
 
     **Key Metrics**
     *   PPA Costs
@@ -428,6 +430,14 @@ with tab_guide:
     st.markdown("""
     - **Base Shape**: Sinusoidal with a trough at midday (solar cannibalization) and peak at evening (17:00-21:00).
     - **Seasonal Factor**: Higher prices in Summer (`cos` function peaking around day 172).
+    """)
+
+    st.markdown("#### 5. Data Sources & Locations")
+    st.markdown("""
+    **Resource Modeling Locations (ERCOT North Region):**
+    -   **Solar Profile**: Graham, TX (33.1070° N, 98.5895° W).
+    -   **Wind Profile**: Wichita Falls, TX (33.9137° N, 98.4934° W).
+    -   **Market Prices**: ERCOT North Hub (HB_NORTH) Real-Time Market data.
     """)
 # --- Tab 2: Load Setup ---
 with tab_load:
@@ -1054,6 +1064,7 @@ with tab_gen:
 # --- Tab 4: Financials ---
 with tab_fin:
     st.header("4. Financial Analysis")
+    st.caption("Market: ERCOT North Hub (HB_NORTH)")
     st.markdown("#### PPA Prices ($/MWh)")
 
     
@@ -1908,7 +1919,7 @@ if active_scenario:
     # --- Populate Executive Summary Container ---
     with exec_summary_container:
         st.divider()
-        st.caption("EXECUTIVE SUMMARY (Live Results)")
+        st.caption("EXECUTIVE SUMMARY (Live Results | Region: ERCOT North)")
         ec1, ec2, ec3 = st.columns(3)
         
         # 1. CFE Score
