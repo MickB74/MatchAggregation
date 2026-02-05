@@ -674,7 +674,7 @@ with tab_load:
             download_df = pd.concat(site_series, axis=1)
             # Add Unit Suffixes to Download Columns
             download_df.columns = [f"{c} (kW)" for c in download_df.columns]
-            download_df['TOTAL_MW'] = total_kw / 1000.0
+            download_df['TOTAL (MW)'] = total_kw / 1000.0
             csv_str = download_df.to_csv().encode('utf-8')
             st.download_button("📥 Download 8760 CSV", csv_str, "portfolio_load.csv", "text/csv")
     
