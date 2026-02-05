@@ -1140,13 +1140,16 @@ with tab_fin:
     _, base_market_avg = get_market_price_profile_v2(32.0, return_base_avg=True, year=market_year)
     
     market_price = base_market_avg
+    
+    # Compute year label
+    if isinstance(market_year, list):
+        year_label = f"Custom Average ({', '.join(map(str, sorted(market_year)))})"
+    else:
+        year_label = market_year
+    
     c_mkt_1.metric(
         f"Base Avg ({market_year})", 
         f"${base_market_avg:.2f}",
-        if isinstance(market_year, list):
-            year_label = f"Custom Average ({', '.join(map(str, sorted(market_year)))})"
-        else:
-            year_label = market_year
         help=f"Actual average from {year_label} ERCOT HB_NORTH data"
     )
     
