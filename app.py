@@ -442,6 +442,39 @@ with tab_guide:
 # --- Tab 2: Load Setup ---
 with tab_load:
     st.header("2. Load Setup")
+    
+    # Randomize Portfolio Button (Top)
+    def randomize_portfolio():
+        import random
+        num_sites = random.randint(3, 6)
+        st.session_state.load_gen_sites = []
+        categories = ["DC", "MFG", "Office", "Other"]
+        for i in range(num_sites):
+            cat = random.choice(categories)
+            name = f"{'Data Center' if cat=='DC' else 'Factory' if cat=='MFG' else 'Office' if cat=='Office' else 'Commercial'} {i+1}"
+            kwh = random.randint(5, 50) * 1_000_000
+            
+            if cat == "DC":
+                hrs = [24]*7; sh_wd = 0; sh_we = 0
+            elif cat == "MFG":
+                hrs = [18, 18, 18, 18, 18, 0, 0]; sh_wd = 6; sh_we = 0
+            elif cat == "Office":
+                hrs = [10, 10, 10, 10, 10, 0, 0]; sh_wd = 8; sh_we = 0
+            else: 
+                hrs = [12]*7; sh_wd = 6; sh_we = 6
+            
+            st.session_state.load_gen_sites.append({
+                "name": name, "category": cat, "annual_kwh": kwh, 
+                "hours_per_day": hrs, "start_hour_weekday": sh_wd, "start_hour_weekend": sh_we,
+                "summer_multiplier": round(random.uniform(0.9, 1.3), 2),
+                "winter_multiplier": round(random.uniform(0.9, 1.3), 2),
+                "weekend_scaler": round(random.uniform(0.7, 1.0), 2)
+            })
+    
+    if st.button("🎲 Randomize Portfolio", use_container_width=True, help="Generate 3-6 random sites for testing", type="secondary"):
+        randomize_portfolio()
+        st.rerun()
+    
     st.markdown("Configure your load profile by either building a multi-site portfolio or uploading a pre-made 8760-hour profile.")
     
     # Mode Selection: Generator vs Upload
@@ -501,32 +534,6 @@ with tab_load:
             elif cat == "Office":
                 for day in ['mon', 'tue', 'wed', 'thu', 'fri']: st.session_state[day] = 10
                 st.session_state.sat = 0; st.session_state.sun = 0; st.session_state.sh_wd = 8
-        def randomize_portfolio():
-            import random
-            num_sites = random.randint(3, 6)
-            st.session_state.load_gen_sites = []
-            categories = ["DC", "MFG", "Office", "Other"]
-            for i in range(num_sites):
-                cat = random.choice(categories)
-                name = f"{'Data Center' if cat=='DC' else 'Factory' if cat=='MFG' else 'Office' if cat=='Office' else 'Commercial'} {i+1}"
-                kwh = random.randint(5, 50) * 1_000_000
-                
-                if cat == "DC":
-                    hrs = [24]*7; sh_wd = 0; sh_we = 0
-                elif cat == "MFG":
-                    hrs = [18, 18, 18, 18, 18, 0, 0]; sh_wd = 6; sh_we = 0
-                elif cat == "Office":
-                    hrs = [10, 10, 10, 10, 10, 0, 0]; sh_wd = 8; sh_we = 0
-                else: 
-                    hrs = [12]*7; sh_wd = 6; sh_we = 6
-                
-                st.session_state.load_gen_sites.append({
-                    "name": name, "category": cat, "annual_kwh": kwh, 
-                    "hours_per_day": hrs, "start_hour_weekday": sh_wd, "start_hour_weekend": sh_we,
-                    "summer_multiplier": round(random.uniform(0.9, 1.3), 2),
-                    "winter_multiplier": round(random.uniform(0.9, 1.3), 2),
-                    "weekend_scaler": round(random.uniform(0.7, 1.0), 2)
-                })
 
         # --- Site Entry Form ---
         site_options = ["-- New Site --"] + ([s['name'] for s in st.session_state.load_gen_sites] if st.session_state.load_gen_sites else [])
@@ -581,9 +588,7 @@ with tab_load:
         with sea2: winter_mult_val = st.number_input("Winter Peak (Dec-Feb)", 0.5, 2.0, 1.0, 0.1, key="wmult_input", disabled=current_site_is_ext)
         
         is_edit = edit_site_selection != "-- New Site --"
-        b_col1, b_col2 = st.columns([1, 1])
-        with b_col1:
-            if st.button("Update Site" if is_edit else "Add Site", type="primary", use_container_width=True):
+        if st.button("Update Site" if is_edit else "Add Site", type="primary", use_container_width=True):
                 site_data = {"name": site_name or f"Site {len(st.session_state.load_gen_sites)+1}", "category": site_category, "annual_kwh": annual_kwh, "hours_per_day": [mon_hrs, tue_hrs, wed_hrs, thu_hrs, fri_hrs, sat_hrs, sun_hrs], "start_hour_weekday": start_hour_weekday, "start_hour_weekend": start_hour_weekend, "summer_multiplier": summer_mult_val, "winter_multiplier": winter_mult_val, "weekend_scaler": weekend_scaler_val}
                 if is_edit:
                     idx = next((i for i, s in enumerate(st.session_state.load_gen_sites) if s['name'] == edit_site_selection), -1)
@@ -601,9 +606,6 @@ with tab_load:
                 else: 
                     st.session_state.load_gen_sites.append(site_data)
                 st.session_state.last_loaded_site = None; st.rerun()
-        with b_col2:
-            if st.button("🎲 Randomize Portfolio", use_container_width=True, help="Generate 3-6 random sites for testing"):
-                randomize_portfolio(); st.rerun()
 
         if st.session_state.load_gen_sites:
             st.markdown("---")
@@ -1107,15 +1109,23 @@ with tab_fin:
     
     # Market Price Year Selection
     # Add 'Average' option for multi-year composite
-    year_options = [2025, 2024, 2023, 2022, 2021, 2020, "Average"]
-    market_year = c_mkt_1.selectbox("Market Year", year_options, help="Select historical price year or 'Average' for 2020-2025 composite", key='market_year_input')
+    year_options = [2025, 2024, 2023, 2022, 2021, 2020, "Average", "Custom Average"]
+    market_year = c_mkt_1.selectbox("Market Year", year_options, help="Select historical price year, 'Average' for 2020-2025, or 'Custom Average' for specific years", key='market_year_input')
     
     # UI Check for data availability
     import os
     current_dir = os.path.dirname(__file__)
     
+    custom_years = []
     if market_year == "Average":
-         c_mkt_1.success(f"Composite: 2020-2025 ✅")
+        st.info("Using 2020-2025 Composite Average")
+    elif market_year == "Custom Average":
+        custom_years = c_mkt_1.multiselect("Select Years to Average", [2025, 2024, 2023, 2022, 2021, 2020], default=[2024, 2023])
+        if not custom_years:
+            st.warning("Please select at least one year. Defaulting to 2024.")
+            custom_years = [2024]
+        market_year = custom_years # Pass list for profile generation
+        c_mkt_1.success(f"Custom Average ({', '.join(map(str, sorted(custom_years)))}) ✅")
     else:
         file_path = os.path.join(current_dir, f'ercot_rtm_{market_year}.parquet')
         if os.path.exists(file_path):
@@ -1133,7 +1143,11 @@ with tab_fin:
     c_mkt_1.metric(
         f"Base Avg ({market_year})", 
         f"${base_market_avg:.2f}",
-        help=f"Actual average from {market_year} ERCOT HB_NORTH data"
+        if isinstance(market_year, list):
+            year_label = f"Custom Average ({', '.join(map(str, sorted(market_year)))})"
+        else:
+            year_label = market_year
+        help=f"Actual average from {year_label} ERCOT HB_NORTH data"
     )
     
     price_scaler = c_mkt_2.number_input(
@@ -1811,7 +1825,10 @@ if active_scenario:
         else:
             # Fallback (Should typically not happen if app renders top-down)
             # Use 2024 for date generation if Average is selected
-            year_for_dates = 2024 if market_year == 'Average' else market_year
+            if isinstance(market_year, list):
+                year_for_dates = 2024 # Standardize for display
+            else:
+                year_for_dates = 2024 if market_year == 'Average' else market_year
             dates = pd.date_range(start=f'{year_for_dates}-01-01', periods=8760, freq='h')
             df_proxy_input = pd.DataFrame({'Price': market_price_profile_series.values}, index=dates)
         
