@@ -471,9 +471,12 @@ with tab_load:
                 "weekend_scaler": round(random.uniform(0.7, 1.0), 2)
             })
     
-    if st.button("🎲 Randomize Portfolio", use_container_width=True, help="Generate 3-6 random sites for testing", type="secondary"):
-        randomize_portfolio()
-        st.rerun()
+    # Create smaller button using columns
+    col1, col2, col3 = st.columns([1, 2, 1])
+    with col2:
+        if st.button("🎲 Randomize Portfolio", help="Generate 3-6 random sites for testing"):
+            randomize_portfolio()
+            st.rerun()
     
     st.markdown("Configure your load profile by either building a multi-site portfolio or uploading a pre-made 8760-hour profile.")
     
