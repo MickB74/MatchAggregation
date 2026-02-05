@@ -471,9 +471,9 @@ with tab_load:
                 "weekend_scaler": round(random.uniform(0.7, 1.0), 2)
             })
     
-    # Create smaller button using columns
-    col1, col2, col3 = st.columns([1, 2, 1])
-    with col2:
+    # Create smaller button using columns (left-justified)
+    col1, col2, col3 = st.columns([2, 2, 1])
+    with col1:
         if st.button("🎲 Randomize Portfolio", help="Generate 3-6 random sites for testing"):
             randomize_portfolio()
             st.rerun()
