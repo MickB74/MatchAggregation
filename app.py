@@ -478,12 +478,10 @@ with tab_load:
             randomize_portfolio()
             st.rerun()
     
-    st.markdown("Configure your load profile by either building a multi-site portfolio or uploading a pre-made 8760-hour profile.")
+    st.markdown("Configure your load profile by either building a multi-site portfolio, uploading a pre-made 8760-hour profile, or a combination of both.")
     
-    # Mode Selection: Generator vs Upload
-    load_entry_mode = st.radio("Select Load Entry Method:", ["Portfolio Generator", "Upload 8760 (CSV/Excel)"], horizontal=True, key="load_entry_mode")
-    
-    if load_entry_mode == "Portfolio Generator":
+    with st.container():
+        st.subheader("Method 1: Synthetic Portfolio Generator")
         st.info("Synthetic Portfolio Generator: Build a profile from multiple sites (DC, Mfg, Office) using load factor logic.")
         # --- Generator Logic ported from Tab 8 ---
         # Initialize session state for sites
@@ -679,9 +677,10 @@ with tab_load:
             csv_str = download_df.to_csv().encode('utf-8')
             st.download_button("📥 Download 8760 CSV", csv_str, "portfolio_load.csv", "text/csv")
     
-    else:
+    with st.container():
+        st.markdown("---")
         # --- Upload 8760 Logic ---
-        st.subheader("Upload 8760 Profile (BETA UNDER REVIEW)")
+        st.subheader("Method 2: Upload 8760 Profile (CSV/Excel)")
         st.info("Upload one or more hourly (8760-hour) load profiles. Each file will be treated as a distinct property.")
         uploaded_files = st.file_uploader("Choose CSV or Excel files", type=["csv", "xlsx", "xls"], key="8760_uploader", accept_multiple_files=True)
         
