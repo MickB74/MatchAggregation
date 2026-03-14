@@ -898,6 +898,7 @@ with tab_gen:
     st.header("3. Generation Profile")
     # Define callback for clearing portfolio
     def clear_portfolio():
+        st.session_state.gen_projects = []
         st.session_state.solar_input = 0.0
         st.session_state.wind_input = 0.0
         st.session_state.ccs_input = 0.0
@@ -949,11 +950,22 @@ with tab_gen:
                 year=marker_yr,
                 use_synthetic=use_syn
             )
-            st.session_state.solar_input = rec['Solar']
-            st.session_state.wind_input = rec['Wind']
-            st.session_state.ccs_input = rec['CCS Gas']
-            st.session_state.geo_input = rec['Geothermal']
-            st.session_state.nuc_input = rec['Nuclear']
+            
+            # Smart Fill now appends new projects to the portfolio if there is a deficit
+            if 'gen_projects' not in st.session_state:
+                st.session_state.gen_projects = []
+                
+            # Delta between existing and recommended
+            for tech_key, ui_tech in [('Solar', 'Solar'), ('Wind', 'Wind'), ('CCS Gas', 'CCS Gas'), ('Geothermal', 'Geothermal'), ('Nuclear', 'Nuclear')]:
+                delta = rec[tech_key] - existing_capacities.get(tech_key, 0.0)
+                if delta > 1.0: # Only add if significant
+                    st.session_state.gen_projects.append({
+                        "name": f"Recommended {ui_tech}",
+                        "tech": ui_tech,
+                        "mw": float(round(delta, 1))
+                    })
+            
+            # Battery is global so we set it directly
             st.session_state.batt_input = rec['Battery_MW']
             st.session_state.batt_duration_input = rec['Battery_Hours']
             
@@ -968,50 +980,110 @@ with tab_gen:
     col_gen_1, col_gen_2 = st.columns([1, 1])
     
     with col_gen_1:
-        st.markdown("#### Capacities")
+        st.markdown("#### Generation Portfolio")
+        st.info("Assemble your generation portfolio. You can add distinct projects or simply set aggregate capacities.")
         
+        if 'gen_projects' not in st.session_state:
+            st.session_state.gen_projects = []
+            
+        def load_gen_project():
+            selection = st.session_state.edit_gen_select
+            if selection != "-- New Project --":
+                proj = next((p for p in st.session_state.gen_projects if p['name'] == selection), None)
+                if proj:
+                    st.session_state.gen_name_input = proj['name']
+                    st.session_state.gen_tech_input = proj['tech']
+                    st.session_state.gen_mw_input = proj['mw']
+            else:
+                st.session_state.gen_name_input = ""
+                st.session_state.gen_tech_input = "Solar"
+                st.session_state.gen_mw_input = 50.0
+
+        gen_project_names = ["-- New Project --"] + [p['name'] for p in st.session_state.gen_projects]
+        edit_gen_selection = st.selectbox("Edit Existing Project", gen_project_names, key="edit_gen_select", on_change=load_gen_project)
+        
+        st.markdown("---")
+        st.markdown("**Add / Update Project**")
+        gen_name = st.text_input("Project Name", placeholder="e.g. West Texas Solar 1", key="gen_name_input")
+        gen_tech = st.selectbox("Technology", ["Solar", "Wind", "Geothermal", "Nuclear", "CCS Gas"], key="gen_tech_input")
+        gen_mw = st.number_input("Capacity (MW)", min_value=0.0, step=10.0, value=50.0, key="gen_mw_input")
+        
+        is_edit_gen = edit_gen_selection != "-- New Project --"
+        if st.button("Update Project" if is_edit_gen else "Add Project", type="primary", use_container_width=True):
+            proj_data = {
+                "name": gen_name or f"Project {len(st.session_state.gen_projects)+1}",
+                "tech": gen_tech,
+                "mw": gen_mw
+            }
+            if is_edit_gen:
+                idx = next((i for i, p in enumerate(st.session_state.gen_projects) if p['name'] == edit_gen_selection), -1)
+                if idx != -1: st.session_state.gen_projects[idx] = proj_data
+            else:
+                st.session_state.gen_projects.append(proj_data)
+            st.rerun()
 
         st.markdown("---")
+        st.markdown("**Current Portfolio**")
         
-        # Input Widgets (Keys mapped to session state)
-        solar_capacity = st.number_input("Solar Capacity (MW)", min_value=0.0, step=50.0, key='solar_input')
-        wind_capacity = st.number_input("Wind Capacity (MW)", min_value=0.0, step=50.0, key='wind_input')
-        geo_capacity = st.number_input("Geothermal Capacity (MW)", min_value=0.0, step=50.0, key='geo_input')
-        nuc_capacity = st.number_input("Nuclear Capacity (MW)", min_value=0.0, step=50.0, key='nuc_input')
-        ccs_capacity = st.number_input("CCS Gas Capacity (MW)", min_value=0.0, step=50.0, key='ccs_input')
+        # Aggregate capacities for backend logic
+        agg_caps = {'Solar': 0.0, 'Wind': 0.0, 'Geothermal': 0.0, 'Nuclear': 0.0, 'CCS Gas': 0.0}
         
+        if st.session_state.gen_projects:
+            for i, p in enumerate(st.session_state.gen_projects):
+                c1, c2, c3, c4 = st.columns([3, 2, 2, 1])
+                with c1: st.markdown(f"**{p['name']}**")
+                with c2: st.caption(p['tech'])
+                with c3: st.caption(f"{p['mw']:,.1f} MW")
+                with c4:
+                    if st.button("🗑️", key=f"del_gen_{i}", help=f"Remove {p['name']}"):
+                        st.session_state.gen_projects.pop(i)
+                        st.rerun()
+                agg_caps[p['tech']] += p['mw']
+                
+            with st.popover("🗑️ Clear All Projects"):
+                if st.button("Confirm: Wipe Entire Portfolio", type="primary", key="clear_all_gen"): 
+                    st.session_state.gen_projects = []
+                    st.rerun()
+        else:
+            st.caption("No projects added yet.")
+            
+        # Write aggregates to standard session state keys so the rest of the app continues to work unmodified
+        st.session_state.solar_input = agg_caps['Solar']
+        st.session_state.wind_input = agg_caps['Wind']
+        st.session_state.geo_input = agg_caps['Geothermal']
+        st.session_state.nuc_input = agg_caps['Nuclear']
+        st.session_state.ccs_input = agg_caps['CCS Gas']
+
+        # Expose legacy variables for local scope
+        solar_capacity = agg_caps['Solar']
+        wind_capacity = agg_caps['Wind']
+        geo_capacity = agg_caps['Geothermal']
+        nuc_capacity = agg_caps['Nuclear']
+        ccs_capacity = agg_caps['CCS Gas']
+
         # Automatically update project suggestions when capacities change
-        # Build current recommendation from slider values
         current_recommendation = {
             'Solar': solar_capacity,
             'Wind': wind_capacity,
             'CCS Gas': ccs_capacity,
             'Geothermal': geo_capacity,
             'Nuclear': nuc_capacity,
-            'Battery_MW': st.session_state.get('batt_input', 0.0) # Use session state for batt_input as it's in col_gen_2
+            'Battery_MW': st.session_state.get('batt_input', 0.0)
         }
         
-        # Check if any capacity is set (not all zeros)
         has_capacity = any(v > 0 for v in current_recommendation.values())
-        
-        # Update matched projects dynamically
         if has_capacity:
             matched_projects = project_matcher.match_projects_to_recommendation(current_recommendation, max_projects_per_tech=5)
             st.session_state.matched_projects = matched_projects
         else:
-            # Clear matched projects if all capacities are zero
             st.session_state.matched_projects = {}
         
         st.markdown("---")
 
-        # Battery Sizing (Physical)
-        # Battery Sizing (Physical)
-        st.markdown("**Battery Storage**")
-        
-        # Initialize session state to avoid "created with default value" warning
+        st.markdown("**Battery Storage (Global)**")
         if 'batt_input' not in st.session_state:
             st.session_state.batt_input = 0.0
-        batt_capacity = st.number_input("Battery Power (MW)", min_value=0.0, step=50.0, key='batt_input')
+        batt_capacity = st.number_input("Battery Power (MW)", min_value=0.0, step=10.0, key='batt_input')
 
         if 'batt_duration_input' not in st.session_state:
             st.session_state.batt_duration_input = 2.0
