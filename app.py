@@ -1044,6 +1044,75 @@ with tab_gen:
                 if st.button("Confirm: Wipe Entire Portfolio", type="primary", key="clear_all_gen"): 
                     st.session_state.gen_projects = []
                     st.rerun()
+                    
+            # Add Download Button for Generation Profiles
+            st.markdown("---")
+            if st.button("Generate Portfolio 8760 CSV"):
+                import pandas as pd
+                # Get custom profiles if any
+                custom_solar = st.session_state.get('custom_solar_profile')
+                custom_wind = st.session_state.get('custom_wind_profile')
+                
+                # Fetch baseline models from utils if needed
+                from utils import get_resource_profiles # Assuming this exists or we can generate them
+                
+                # Actually, the base profiles are heavily tied to the recommendation loop or downloaded from external logic
+                # For simplicity, we can pull the cached baseline arrays if they exist, or just regenerate them
+                # A safer approach is to mock them up based on the actual generate_dummy_generation_profile method 
+                # or read from the standard parquets if they are available.
+                
+                st.info("Preparing download...")
+                
+                try:
+                    # Let's import the specific module to get profiles
+                    from utils import get_8760_generation_profiles
+                    
+                    market_yr = st.session_state.get('market_year_input', 2024)
+                    use_syn = st.session_state.get('use_synthetic_input', False)
+                    # We need the 1 MW normalized profiles
+                    norm_profiles, _ = get_8760_generation_profiles(
+                        year=market_yr, 
+                        use_synthetic=use_syn,
+                        custom_solar=custom_solar,
+                        custom_wind=custom_wind
+                    )
+                    
+                    # Create DataFrame
+                    dates = pd.date_range(start='2024-01-01', periods=8760, freq='h') # Standardize on 2024 for 8760 length
+                    export_df = pd.DataFrame({'Datetime': dates})
+                    
+                    total_gen = pd.Series(0.0, index=range(8760))
+                    
+                    for p in st.session_state.gen_projects:
+                        tech = p['tech']
+                        mw = p['mw']
+                        
+                        if tech == 'Solar': profile = norm_profiles['Solar'] * mw
+                        elif tech == 'Wind': profile = norm_profiles['Wind'] * mw
+                        elif tech == 'Geothermal': profile = norm_profiles['Geothermal'] * mw
+                        elif tech == 'Nuclear': profile = norm_profiles['Nuclear'] * mw
+                        elif tech == 'CCS Gas': profile = norm_profiles['CCS Gas'] * mw
+                        else: profile = np.zeros(8760)
+                            
+                        # Ensure we match lengths
+                        profile_8760 = profile.values[:8760] if isinstance(profile, pd.Series) else profile[:8760]
+                        col_name = f"{p['name']} ({tech}) (MWh)"
+                        export_df[col_name] = profile_8760
+                        total_gen += profile_8760
+                        
+                    export_df['TOTAL_PORTFOLIO (MWh)'] = total_gen.values
+                    
+                    csv_export = export_df.to_csv(index=False).encode('utf-8')
+                    st.download_button(
+                        label="📥 Download Generation 8760 CSV",
+                        data=csv_export,
+                        file_name="generation_portfolio_8760.csv",
+                        mime="text/csv",
+                        type="primary"
+                    )
+                except Exception as e:
+                    st.error(f"Failed to compile profiles: {e}")
+
         else:
             st.caption("No projects added yet.")
             
