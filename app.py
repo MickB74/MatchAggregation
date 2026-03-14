@@ -699,12 +699,12 @@ with tab_load:
                     if uploaded_file.name.endswith('.csv'): df_up = pd.read_csv(uploaded_file)
                     else: df_up = pd.read_excel(uploaded_file)
                     
-                    if len(df_up) < 8760: 
-                        st.error(f"File '{uploaded_file.name}' must have 8760 rows. Found {len(df_up)}.")
-                        continue
-                        
+                    # Store user-defined name or fall back to filename
+                    base_name = str(uploaded_file.name).rsplit('.', 1)[0]
+                    # We will use st.text_input in the UI loop below for renaming, but for now parse the data
+                    
                     # Robust Column Detection: Skip datetime/index columns
-                    potential_cols = [c for c in df_up.columns if not any(k in str(c).lower() for k in ['date', 'time', 'timestamp', 'index', 'interval', 'hour'])]
+                    potential_cols = [c for c in df_up.columns if not any(k in str(c).lower() for k in ['date', 'time', 'timestamp', 'index', 'interval', 'hour', 'period', 'month', 'day'])]
                     
                     if not potential_cols:
                         st.error(f"No numeric data columns found in '{uploaded_file.name}'.")
@@ -714,7 +714,7 @@ with tab_load:
                     numeric_cols = []
                     for col in potential_cols:
                         try:
-                            pd.to_numeric(df_up[col], errors='raise')
+                            pd.to_numeric(df_up[col].dropna(), errors='raise')
                             numeric_cols.append(col)
                         except:
                             continue
@@ -723,140 +723,170 @@ with tab_load:
                         st.error(f"No valid numeric load columns found in '{uploaded_file.name}'.")
                         continue
 
-                    # Multi-Property Detection: If multiple numeric columns, check for an aggregate
+                    # Multi-Property Detection
                     total_keywords = ['total', 'aggregate', 'load_mw', 'load_kw']
                     total_col = next((c for c in numeric_cols if any(k in str(c).lower() for k in total_keywords)), None)
                     
-                    # System columns to ignore during "explosion" (app-generated results or generator internals)
                     system_cols = [
                         'matched_mw', 'solar_mw', 'wind_mw', 'geothermal_gen_mw', 'nuclear_gen_mw', 
                         'ccs_gas_gen_mw', 'total_raw_gen_mw', 'battery_discharge_mw', 
                         'battery_state_of_charge_mwh', 'grid_deficit_mw', 'surplus_mw', 
-                        'market_price_$/mwh', 'total_mw', 'total_kw', 'lf', 'kw', 'hour', 'month', 'day_type'
+                        'market_price_$/mwh', 'total_mw', 'total_kw', 'lf', 'kw'
                     ]
                     
-                    # Columns to treat as properties
                     prop_cols = []
                     if len(numeric_cols) > 1:
-                        # Filter out system columns and the total column
-                        # Use split('.') to handle pandas renamed duplicates like LF.1, LF.2
                         for c in numeric_cols:
                             c_base = str(c).lower().split('.')[0]
                             if c_base not in system_cols and c != total_col:
                                 prop_cols.append(c)
-                        
-                        # If we filtered everything out (e.g. it was just system cols), 
-                        # fall back to the total column if it exists
                         if not prop_cols and total_col:
                             prop_cols = [total_col]
                         elif not prop_cols:
-                            # If no total and no non-system cols, just take the first one
                             prop_cols = [numeric_cols[0]]
                     else:
-                        # Just one column
                         prop_cols = numeric_cols
 
                     for l_col in prop_cols:
-                        raw_profile = pd.to_numeric(df_up[l_col], errors='coerce').fillna(0).head(8760)
+                        # Extract the numeric series
+                        raw_series = pd.to_numeric(df_up[l_col], errors='coerce').fillna(0)
+                        
+                        # Handle length / 15-min interval aggregation
+                        if len(raw_series) == 8760:
+                            # Standard hourly 8760
+                            hourly_profile = raw_series.values
+                        elif len(raw_series) >= 35040:
+                            # 15-minute interval data (35040 periods in a year)
+                            # Group every 4 periods (1 hour) and average them to get hourly kW/MW
+                            hourly_profile = raw_series.head(35040).groupby(raw_series.head(35040).index // 4).mean().values
+                        elif len(raw_series) > 8760 and len(raw_series) < 35040:
+                            # Weird size, just take first 8760
+                            st.warning(f"File '{uploaded_file.name}' has {len(raw_series)} rows. Truncating to 8760 hours.")
+                            hourly_profile = raw_series.head(8760).values
+                        else:
+                            # Pad with zeros if too short
+                            st.warning(f"File '{uploaded_file.name}' has only {len(raw_series)} rows. Padding with zeros to reach 8760 hours.")
+                            pad_length = 8760 - len(raw_series)
+                            hourly_profile = np.pad(raw_series.values, (0, pad_length), 'constant')
                         
                         # Unit Detection Logic
                         l_col_str = str(l_col).lower()
                         if 'mw' in l_col_str or 'mwh' in l_col_str:
-                            profile = raw_profile * 1000.0  # Convert MW to kW
+                            profile = hourly_profile * 1000.0  # Convert MW to kW
                         elif 'kw' in l_col_str or 'kwh' in l_col_str:
-                            profile = raw_profile  # Already in kW
-                        elif raw_profile.max() < 1000:
+                            profile = hourly_profile  # Already in kW
+                        elif hourly_profile.max() < 1000:
                             # Heuristic: If values are small and unlabeled, assume MW
-                            profile = raw_profile * 1000.0
+                            profile = hourly_profile * 1000.0
                         else:
                             # Heuristic: Assume kW if values are large
-                            profile = raw_profile
+                            profile = hourly_profile
                         
-                        # Store property
-                        prop_label = f"{uploaded_file.name}: {l_col}" if len(prop_cols) > 1 else uploaded_file.name
+                        # Default Property name
+                        prop_label = f"{base_name}: {l_col}" if len(prop_cols) > 1 else base_name
                         
-                        property_profiles_df[prop_label] = profile.values
-                        total_profile += profile.values
-                        
+                        # Instead of writing it immediately, store it in file_details so we can render an editable UI
                         file_details.append({
-                            "Property": prop_label,
-                            "Total (kWh)": f"{profile.sum():,.0f}",
-                            "Peak (kW)": f"{profile.max():,.2f}"
+                            "original_name": prop_label,
+                            "profile": profile,
+                            "Total (kWh)": profile.sum(),
+                            "Peak (kW)": profile.max()
                         })
                 
-                else:
-                    # Register Properties in Portfolio Generator
-                    if 'external_profiles' not in st.session_state:
-                         st.session_state.external_profiles = {}
+                if file_details:
+                    st.markdown("### 📝 Review & Rename Uploaded Properties")
+                    st.markdown("Edit the names below. Click **Confirm & Register** to add them to your portfolio.")
                     
-                    for i, detail in enumerate(file_details):
-                        prop_name = detail["Property"]
-                        # Check if site already exists to avoid duplicates
-                        if not any(s['name'] == prop_name for s in st.session_state.load_gen_sites):
-                            st.session_state.load_gen_sites.append({
-                                'name': prop_name,
-                                'category': 'External / Uploaded',
-                                'annual_kwh': float(detail["Total (kWh)"].replace(',', '')),
-                                'hours_per_day': [24]*7, # Placeholder for UI
-                                'is_external': True
+                    # Use a form to hold the renames
+                    with st.form("rename_properties_form"):
+                        updated_file_details = []
+                        for i, detail in enumerate(file_details):
+                            c1, c2, c3 = st.columns([3, 2, 2])
+                            with c1:
+                                new_name = st.text_input(f"Property {i+1} Name", value=detail["original_name"], key=f"rename_prop_{i}")
+                            with c2:
+                                st.metric("Total (MWh)", f"{detail['Total (kWh)']/1000:,.1f}")
+                            with c3:
+                                st.metric("Peak (MW)", f"{detail['Peak (kW)']/1000:,.2f}")
+                                
+                            updated_file_details.append({
+                                "Property": new_name,
+                                "profile": detail["profile"],
+                                "Total (kWh)": detail["Total (kWh)"],
+                                "Peak (kW)": detail["Peak (kW)"]
                             })
+                            
+                        submit_renames = st.form_submit_button("✅ Confirm & Register Properties", type="primary")
+
+                    if submit_renames:
+                        # Register Properties in Portfolio Generator
+                        if 'external_profiles' not in st.session_state:
+                             st.session_state.external_profiles = {}
                         
-                        # Store the actual profile
-                        st.session_state.external_profiles[prop_name] = pd.Series(property_profiles_df[prop_name].values)
+                        for detail in updated_file_details:
+                            prop_name = detail["Property"]
+                            profile = detail["profile"]
+                            
+                            # Add to DataFrame and Total Profile for visual
+                            property_profiles_df[prop_name] = profile
+                            total_profile += profile
+                            
+                            # Check if site already exists to avoid duplicates
+                            if not any(s['name'] == prop_name for s in st.session_state.load_gen_sites):
+                                st.session_state.load_gen_sites.append({
+                                    'name': prop_name,
+                                    'category': 'External / Uploaded',
+                                    'annual_kwh': float(detail["Total (kWh)"]),
+                                    'hours_per_day': [24]*7, # Placeholder for UI
+                                    'is_external': True
+                                })
+                            
+                            # Store the actual profile
+                            st.session_state.external_profiles[prop_name] = pd.Series(profile)
 
-                    st.success(f"✅ Registered {len(file_details)} property(ies) in Portfolio Generator")
-                    # No longer need st.session_state["custom_aggregated_profile"] here 
-                    # as it will be re-calculated from load_gen_sites in the main loop
-                    # but we keep it for immediate UI feedback in this tab if needed.
-                    st.session_state["custom_aggregated_profile"] = total_profile
-                    
-                    # Detailed Metrics Breakdown
-                    st.markdown("### Property Breakdown")
-                    breakdown_cols = st.columns(min(len(file_details), 4))
-                    for i, detail in enumerate(file_details):
-                        with breakdown_cols[i % 4]:
-                            st.metric(detail["Property"], f"{float(detail['Total (kWh)'].replace(',',''))/1000:,.1f} MWh", f"Peak: {float(detail['Peak (kW)'].replace(',',''))/1000:,.2f} MW")
-
-                    # Visualization
-                    st.markdown("### Load Profile Visualization")
-                    fig_multi = go.Figure()
-                    
-                    # Add trace for each property
-                    for detail in file_details:
-                        prop_name = detail["Property"]
+                        st.success(f"✅ Registered {len(updated_file_details)} property(ies) in Portfolio Generator")
+                        st.session_state["custom_aggregated_profile"] = total_profile
+                        
+                        # Visualization
+                        st.markdown("### Load Profile Visualization")
+                        fig_multi = go.Figure()
+                        
+                        # Add trace for each property
+                        for detail in updated_file_details:
+                            prop_name = detail["Property"]
+                            fig_multi.add_trace(go.Scatter(
+                                x=property_profiles_df['Datetime'],
+                                y=property_profiles_df[prop_name],
+                                mode='lines',
+                                name=prop_name,
+                                line=dict(width=1.5)
+                            ))
+                        
+                        # Add Aggregate Total trace
                         fig_multi.add_trace(go.Scatter(
                             x=property_profiles_df['Datetime'],
-                            y=property_profiles_df[prop_name],
+                            y=total_profile,
                             mode='lines',
-                            name=prop_name,
-                            line=dict(width=1.5)
+                            name='TOTAL',
+                            line=dict(width=3, color='Navy', dash='dot')
                         ))
-                    
-                    # Add Aggregate Total trace
-                    fig_multi.add_trace(go.Scatter(
-                        x=property_profiles_df['Datetime'],
-                        y=total_profile,
-                        mode='lines',
-                        name='TOTAL',
-                        line=dict(width=3, color='Navy', dash='dot')
-                    ))
-                    
-                    fig_multi.update_layout(
-                        xaxis_title="Time",
-                        yaxis_title="Load (kW)",
-                        template=chart_template,
-                        hovermode='x unified',
-                        height=500
-                    )
-                    st.plotly_chart(fig_multi, use_container_width=True)
-                    
-                    # Prepare export CSV with all columns
-                    export_df = property_profiles_df.copy()
-                    # Add unit suffixes to property columns (excluding Datetime)
-                    export_df.columns = [f"{c} (kW)" if c != 'Datetime' else c for c in export_df.columns]
-                    export_df['TOTAL_MW'] = total_profile / 1000.0
-                    csv_export = export_df.to_csv(index=False).encode('utf-8')
-                    st.download_button("📥 Download Property Breakdown (8760 CSV)", csv_export, "load_breakdown_8760.csv", "text/csv")
+                        
+                        fig_multi.update_layout(
+                            xaxis_title="Time",
+                            yaxis_title="Load (kW)",
+                            template=chart_template,
+                            hovermode='x unified',
+                            height=500
+                        )
+                        st.plotly_chart(fig_multi, use_container_width=True)
+                        
+                        # Prepare export CSV with all columns
+                        export_df = property_profiles_df.copy()
+                        # Add unit suffixes to property columns (excluding Datetime)
+                        export_df.columns = [f"{c} (kW)" if c != 'Datetime' else c for c in export_df.columns]
+                        export_df['TOTAL_MW'] = total_profile / 1000.0
+                        csv_export = export_df.to_csv(index=False).encode('utf-8')
+                        st.download_button("📥 Download Property Breakdown (8760 CSV)", csv_export, "load_breakdown_8760.csv", "text/csv")
                     
             except Exception as e: st.error(f"Error processing files: {e}")
         else:
